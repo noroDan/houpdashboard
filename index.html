@@ -2104,30 +2104,26 @@ async function renderRespEscuelas(){
             </tr></thead>
             <tbody>${(teachers||[]).map(t=>{
               const school=SCHOOLS.find(s=>s.id===t.school_id);
+              const ini=(t.full_name||t.email).split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
               return `<tr>
                 <td style="padding:9px 16px">
                   <div style="display:flex;align-items:center;gap:10px">
-                    <div style="width:32px;height:32px;border-radius:50%;background:rgba(2,193,244,.1);display:flex;align-items:center;justify-content:center;color:var(--blue);font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;flex-shrink:0">
-                      ${(t.full_name||t.email).split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase()}
-                    </div>
+                    <div style="width:32px;height:32px;border-radius:50%;background:rgba(2,193,244,.1);display:flex;align-items:center;justify-content:center;color:var(--blue);font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;flex-shrink:0">${ini}</div>
                     <div style="font-family:Montserrat,sans-serif;font-size:12.5px;font-weight:700">${t.full_name||'--'}</div>
                   </div>
                 </td>
                 <td style="font-size:11px;color:var(--gray)">${t.email}</td>
                 <td style="font-size:12px">${school?school.name:'Sin asignar'}</td>
                 <td>
-                  <button onclick="verHorarioDocente('${t.id}','${t.full_name||t.email}')" 
+                  <button data-tid="${t.id}" data-tname="${t.full_name||t.email}" onclick="verHorarioDocente(this.dataset.tid,this.dataset.tname)"
                     style="background:var(--blue-light);border:1px solid rgba(2,193,244,.25);color:var(--blue);padding:4px 10px;border-radius:6px;font-size:10px;font-family:Montserrat,sans-serif;font-weight:600;cursor:pointer">
                     Ver horario
                   </button>
                 </td>
                 <td style="padding:8px 12px">
                   <div style="display:flex;gap:5px">
-                    <button onclick="editarDocente('${t.id}')" class="btn-g" style="font-size:10px;padding:4px 10px">Editar</button>
-                    <button onclick="confirmarEliminarDocente('${t.id}','${(t.full_name||t.email).replace(/'/g,''')}')" 
-                      style="background:#fff5f5;border:1px solid rgba(224,53,53,.2);color:var(--red-dark);padding:4px 10px;border-radius:6px;font-size:10px;cursor:pointer">
-                      Eliminar
-                    </button>
+                    <button data-tid="${t.id}" onclick="editarDocente(this.dataset.tid)" class="btn-g" style="font-size:10px;padding:4px 10px">Editar</button>
+                    <button data-tid="${t.id}" data-tname="${t.full_name||t.email}" onclick="confirmarEliminarDocente(this.dataset.tid,this.dataset.tname)" style="background:#fff5f5;border:1px solid rgba(224,53,53,.2);color:var(--red-dark);padding:4px 10px;border-radius:6px;font-size:10px;cursor:pointer">Eliminar</button>
                   </div>
                 </td>
               </tr>`;
