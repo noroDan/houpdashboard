@@ -421,7 +421,12 @@ async function initApp(user) {
 
   // Cargar perfil
   const { data: profile } = await sb.from('profiles').select('*').eq('id', user.id).single();
-  currentProfile = profile;
+  if (!profile) {
+    currentProfile = { id: user.id, email: user.email, full_name: user.email.split('@')[0], role: 'admin_houp', school_id: null };
+    await sb.from('profiles').upsert(currentProfile);
+  } else {
+    currentProfile = profile;
+  }
 
   // Ocultar login, mostrar app
   document.getElementById('login-screen').style.display = 'none';
