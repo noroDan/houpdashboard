@@ -3,1002 +3,611 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Houp — Plataforma de Bienestar Socioemocional</title>
+<title>Houp — Plataforma de Bienestar</title>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-  :root {
-    --blue: #02c1f4; --blue-dark: #015F7A; --blue-light: #e8f9fe;
-    --blue-mid: #012B38; --black: #000; --gray: #797979; --bg: #ededed;
-    --white: #fff; --red: #e03535; --red-light: #fdecea; --red-dark: #c62828;
-    --green: #43a047; --green-light: #e8f5e9; --amber: #ffa000; --amber-light: #fff8e1;
-    --font-title: 'Montserrat', sans-serif; --font-body: 'Open Sans', sans-serif;
-    --radius: 10px; --radius-sm: 6px; --shadow: 0 1px 3px rgba(0,0,0,0.08);
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: var(--font-body); background: var(--bg); color: var(--black); height: 100vh; overflow: hidden; }
-
-  /* ── LOGIN ── */
-  #login-screen {
-    display: flex; align-items: center; justify-content: center;
-    height: 100vh; background: var(--blue-mid);
-    position: fixed; inset: 0; z-index: 1000;
-  }
-  .login-box {
-    background: var(--white); border-radius: 16px; padding: 40px;
-    width: 100%; max-width: 400px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-  }
-  .login-logo { text-align: center; margin-bottom: 32px; }
-  .login-logo .lm-h { color: var(--blue); font-family: var(--font-title); font-size: 32px; font-weight: 800; }
-  .login-logo .lm-o {
-    display: inline-block; width: 30px; height: 30px; border-radius: 50%;
-    border: 4px solid var(--blue); margin: 0 3px; position: relative; top: 4px;
-  }
-  .login-logo .lm-up { font-family: var(--font-title); font-size: 32px; font-weight: 800; color: var(--black); }
-  .login-sub { font-size: 12px; color: var(--gray); margin-top: 4px; font-family: var(--font-body); }
-  .login-title { font-family: var(--font-title); font-size: 18px; font-weight: 700; margin-bottom: 24px; }
-  .form-group { margin-bottom: 16px; }
-  .form-group label { display: block; font-size: 12px; font-weight: 600; font-family: var(--font-title); margin-bottom: 6px; color: var(--black); }
-  .form-group input {
-    width: 100%; padding: 11px 14px; border: 1.5px solid rgba(0,0,0,0.15);
-    border-radius: var(--radius-sm); font-family: var(--font-body); font-size: 13px;
-    outline: none; transition: border 0.15s;
-  }
-  .form-group input:focus { border-color: var(--blue); }
-  .btn-login {
-    width: 100%; padding: 12px; background: var(--blue); color: var(--white);
-    border: none; border-radius: var(--radius-sm); font-family: var(--font-title);
-    font-size: 13px; font-weight: 700; cursor: pointer; transition: background 0.15s;
-    margin-top: 8px;
-  }
-  .btn-login:hover { background: #01a8d4; }
-  .btn-login:disabled { background: #aaa; cursor: not-allowed; }
-  .login-error { color: var(--red); font-size: 12px; margin-top: 10px; text-align: center; display: none; }
-  .login-loading { text-align: center; font-size: 12px; color: var(--gray); margin-top: 10px; display: none; }
-
-  /* ── APP LAYOUT ── */
-  #app { display: flex; height: 100vh; }
-  .sidebar {
-    width: 230px; background: var(--blue-mid); display: flex;
-    flex-direction: column; flex-shrink: 0; height: 100vh;
-  }
-  .sb-logo { padding: 22px 18px 16px; border-bottom: 1px solid rgba(255,255,255,0.07); }
-  .sb-logo-mark { display: flex; align-items: center; gap: 2px; margin-bottom: 4px; }
-  .lm-h { color: var(--blue); font-family: var(--font-title); font-size: 24px; font-weight: 800; letter-spacing: -1px; }
-  .lm-o {
-    width: 22px; height: 22px; border-radius: 50%; border: 3.5px solid var(--blue);
-    position: relative; top: 2px; margin: 0 2px; flex-shrink: 0;
-  }
-  .lm-up { color: var(--white); font-family: var(--font-title); font-size: 24px; font-weight: 800; letter-spacing: -1px; }
-  .sb-logo-sub { color: rgba(255,255,255,0.3); font-size: 10px; letter-spacing: 0.3px; }
-  .nav { flex: 1; padding: 10px 8px; overflow-y: auto; }
-  .nav-group { color: rgba(255,255,255,0.2); font-family: var(--font-title); font-size: 9px; letter-spacing: 1.8px; text-transform: uppercase; padding: 10px 10px 5px; }
-  .nav-item {
-    display: flex; align-items: center; gap: 10px; padding: 9px 12px;
-    border-radius: var(--radius-sm); cursor: pointer; font-family: var(--font-body);
-    font-size: 13px; transition: all 0.15s; margin-bottom: 2px; color: rgba(255,255,255,0.45);
-  }
-  .nav-item:hover { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.8); }
-  .nav-item.active { background: rgba(2,193,244,0.18); color: var(--blue); font-weight: 600; }
-  .nav-badge { margin-left: auto; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
-  .nb-red { background: rgba(224,53,53,0.25); color: #ff7070; }
-  .nb-blue { background: rgba(2,193,244,0.2); color: var(--blue); }
-  .sb-footer { padding: 14px; border-top: 1px solid rgba(255,255,255,0.07); }
-  .user-row { display: flex; align-items: center; gap: 10px; }
-  .user-av {
-    width: 32px; height: 32px; border-radius: 50%; background: rgba(2,193,244,0.2);
-    display: flex; align-items: center; justify-content: center;
-    color: var(--blue); font-family: var(--font-title); font-size: 11px; font-weight: 700; flex-shrink: 0;
-  }
-  .user-name { color: rgba(255,255,255,0.75); font-family: var(--font-body); font-size: 12.5px; font-weight: 600; }
-  .user-role-t { color: rgba(255,255,255,0.3); font-size: 10.5px; margin-top: 1px; }
-  .btn-logout {
-    background: none; border: none; color: rgba(255,255,255,0.3); font-size: 11px;
-    cursor: pointer; margin-top: 8px; padding: 4px 0; font-family: var(--font-body);
-    width: 100%; text-align: left; transition: color 0.15s;
-  }
-  .btn-logout:hover { color: rgba(255,255,255,0.6); }
-
-  /* ── MAIN ── */
-  .main { flex: 1; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-  .topbar {
-    height: 58px; background: var(--white); border-bottom: 1px solid rgba(0,0,0,0.08);
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 0 24px; flex-shrink: 0; box-shadow: var(--shadow);
-  }
-  .tb-title { font-family: var(--font-title); font-size: 16px; font-weight: 700; }
-  .tb-sub { font-size: 11px; color: var(--gray); margin-top: 1px; }
-  .btn-p { background: var(--blue); color: #fff; border: none; padding: 8px 16px; border-radius: var(--radius-sm); font-family: var(--font-title); font-size: 12px; font-weight: 600; cursor: pointer; }
-  .btn-g { background: var(--white); border: 1px solid rgba(0,0,0,0.14); color: #444; padding: 8px 16px; border-radius: var(--radius-sm); font-family: var(--font-body); font-size: 12px; cursor: pointer; }
-  .content { flex: 1; overflow-y: auto; padding: 22px 24px; background: var(--bg); }
-  .screen { display: none; animation: fadein 0.2s ease; }
-  .screen.active { display: block; }
-  @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
-
-  /* ── CARDS & COMPONENTS ── */
-  .card { background: var(--white); border-radius: var(--radius); border: 1px solid rgba(0,0,0,0.06); padding: 18px 20px; box-shadow: var(--shadow); margin-bottom: 14px; }
-  .card-hd { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
-  .card-title { font-family: var(--font-title); font-size: 13px; font-weight: 700; }
-  .card-sub { font-size: 11px; color: var(--gray); margin-top: 2px; }
-  .stats-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 16px; }
-  .stat { background: var(--white); border-radius: var(--radius); border: 1px solid rgba(0,0,0,0.06); padding: 16px 18px; box-shadow: var(--shadow); }
-  .stat-val { font-family: var(--font-title); font-size: 26px; font-weight: 800; line-height: 1; }
-  .stat-val.c-blue { color: var(--blue); } .stat-val.c-red { color: var(--red); }
-  .stat-lbl { font-size: 11px; color: var(--gray); margin-top: 5px; }
-  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
-  .badge { display: inline-flex; align-items: center; font-family: var(--font-title); font-size: 10px; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
-  .b-blue { background: rgba(2,193,244,0.12); color: var(--blue-dark); }
-  .b-green { background: var(--green-light); color: #1b5e20; }
-  .b-red { background: var(--red-light); color: var(--red-dark); }
-  .b-amber { background: var(--amber-light); color: #bf360c; }
-  .b-gray { background: #f0f0f0; color: #555; }
-  .alert-red { background: #fff5f5; border: 1px solid rgba(224,53,53,0.22); border-radius: var(--radius-sm); padding: 12px 16px; margin-bottom: 16px; display: flex; gap: 12px; }
-  .alert-blue { background: #f0fbff; border: 1px solid rgba(2,193,244,0.22); border-radius: var(--radius-sm); padding: 12px 16px; margin-bottom: 16px; display: flex; gap: 12px; }
-  .alert-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
-  .ad-red { background: var(--red); } .ad-blue { background: var(--blue); }
-  .alert-txt { font-size: 12.5px; color: #333; line-height: 1.55; }
-  .pb-wrap { height: 6px; background: #ebebeb; border-radius: 10px; overflow: hidden; }
-  .pb-fill { height: 6px; border-radius: 10px; background: var(--blue); }
-  .pb-fill.red { background: var(--red); }
-  .t { width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--font-body); }
-  .t th { text-align: left; padding: 9px 12px; color: var(--gray); font-family: var(--font-title); font-size: 9.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #f0f0f0; }
-  .t td { padding: 11px 12px; border-bottom: 1px solid #f5f5f5; vertical-align: middle; }
-  .t tr:last-child td { border-bottom: none; }
-  .t tr.row-red td { background: #fff8f8; }
-  .ind { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-  .ind-g { background: var(--green); } .ind-r { background: var(--red); } .ind-a { background: var(--amber); }
-  .loading-spinner { text-align: center; padding: 40px; color: var(--gray); font-size: 13px; }
-
-  /* ── SESIONES CHIPS ── */
-  .sess-tl { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-  .sc { width: 32px; height: 32px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-family: var(--font-title); font-size: 10px; font-weight: 700; cursor: pointer; transition: transform 0.12s; position: relative; }
-  .sc:hover { transform: scale(1.15); z-index: 5; }
-  .sc-done { background: var(--green-light); color: #1b5e20; }
-  .sc-double { background: #e3f2fd; color: #0d47a1; }
-  .sc-skip { background: var(--amber-light); color: #bf360c; }
-  .sc-cancel { background: var(--red-light); color: var(--red-dark); text-decoration: line-through; }
-  .sc-pend { background: #f5f5f5; color: #bbb; border: 1.5px dashed #ddd; }
-  .sc-late { background: var(--red-light); color: var(--red-dark); border: 2px solid var(--red); animation: pulse 1.8s infinite; }
-  @keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(224,53,53,0.35);}50%{box-shadow:0 0 0 5px rgba(224,53,53,0);} }
-
-  /* ── FORMULARIOS ── */
-  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
-  .form-field { display: flex; flex-direction: column; gap: 5px; }
-  .form-field label { font-family: var(--font-title); font-size: 11px; font-weight: 600; color: var(--black); }
-  .form-field input, .form-field select, .form-field textarea {
-    padding: 9px 12px; border: 1.5px solid rgba(0,0,0,0.13); border-radius: var(--radius-sm);
-    font-family: var(--font-body); font-size: 12px; outline: none; transition: border 0.15s;
-  }
-  .form-field input:focus, .form-field select:focus { border-color: var(--blue); }
-  .rubric-select { display: flex; gap: 8px; margin-top: 4px; }
-  .rubric-opt { flex: 1; padding: 8px; text-align: center; border: 1.5px solid rgba(0,0,0,0.12); border-radius: var(--radius-sm); cursor: pointer; font-family: var(--font-title); font-size: 11px; font-weight: 600; transition: all 0.15s; }
-  .rubric-opt.sel-inicial { background: var(--red-light); border-color: var(--red); color: var(--red-dark); }
-  .rubric-opt.sel-adecuado { background: var(--amber-light); border-color: var(--amber); color: #bf360c; }
-  .rubric-opt.sel-excelente { background: var(--green-light); border-color: var(--green); color: #1b5e20; }
-
-  /* ── MODAL ── */
-  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 500; display: none; align-items: center; justify-content: center; }
-  .modal-overlay.open { display: flex; }
-  .modal { background: var(--white); border-radius: 14px; padding: 28px; width: 100%; max-width: 560px; max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
-  .modal-title { font-family: var(--font-title); font-size: 16px; font-weight: 700; margin-bottom: 20px; }
-  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
-
-  /* ── SUCCESS TOAST ── */
-  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--blue-mid); color: var(--white); padding: 12px 20px; border-radius: 10px; font-family: var(--font-title); font-size: 13px; font-weight: 600; z-index: 999; transform: translateY(100px); opacity: 0; transition: all 0.3s; }
-  .toast.show { transform: translateY(0); opacity: 1; }
+:root{--blue:#02c1f4;--blue-dark:#015F7A;--blue-light:#e8f9fe;--blue-mid:#012B38;--black:#000;--gray:#797979;--bg:#ededed;--white:#fff;--red:#e03535;--red-light:#fdecea;--red-dark:#c62828;--green:#43a047;--green-light:#e8f5e9;--amber:#ffa000;--amber-light:#fff8e1;--purple-light:#f3e5f5;--ft:'Montserrat',sans-serif;--fb:'Open Sans',sans-serif;--r:10px;--rs:6px;--sh:0 1px 3px rgba(0,0,0,0.08)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--fb);background:var(--bg);color:var(--black);height:100vh;overflow:hidden}
+#login-screen{display:flex;align-items:center;justify-content:center;height:100vh;background:var(--blue-mid);position:fixed;inset:0;z-index:1000}
+.login-box{background:var(--white);border-radius:16px;padding:44px 40px;width:100%;max-width:420px;box-shadow:0 24px 80px rgba(0,0,0,0.4)}
+.ll-mark{display:flex;align-items:center;justify-content:center;gap:2px;margin-bottom:6px}
+.ll-h{color:var(--blue);font-family:var(--ft);font-size:36px;font-weight:800;letter-spacing:-1px}
+.ll-o{width:26px;height:26px;border-radius:50%;border:4px solid var(--blue);margin:0 3px;position:relative;top:3px;flex-shrink:0}
+.ll-up{font-family:var(--ft);font-size:36px;font-weight:800;color:var(--black);letter-spacing:-1px}
+.ll-sub{font-size:11px;color:var(--gray);letter-spacing:.5px;text-align:center}
+.l-title{font-family:var(--ft);font-size:17px;font-weight:700;margin-bottom:22px;margin-top:28px}
+.fg{margin-bottom:14px}
+.fg label{display:block;font-size:11px;font-weight:600;font-family:var(--ft);margin-bottom:5px}
+.fg input{width:100%;padding:11px 14px;border:1.5px solid rgba(0,0,0,0.14);border-radius:var(--rs);font-family:var(--fb);font-size:13px;outline:none;transition:border .15s}
+.fg input:focus{border-color:var(--blue)}
+.btn-login{width:100%;padding:13px;background:var(--blue);color:#fff;border:none;border-radius:var(--rs);font-family:var(--ft);font-size:13px;font-weight:700;cursor:pointer;margin-top:6px}
+.btn-login:disabled{background:#aaa;cursor:not-allowed}
+.l-err{color:var(--red);font-size:12px;margin-top:10px;text-align:center;display:none}
+.l-load{text-align:center;font-size:12px;color:var(--gray);margin-top:10px;display:none}
+#app{display:flex;height:100vh}
+.sidebar{width:230px;background:var(--blue-mid);display:flex;flex-direction:column;flex-shrink:0;height:100vh;position:fixed;left:0;top:0;z-index:100}
+.sb-logo{padding:22px 18px 16px;border-bottom:1px solid rgba(255,255,255,0.07)}
+.sb-mark{display:flex;align-items:center;gap:2px;margin-bottom:4px}
+.lh{color:var(--blue);font-family:var(--ft);font-size:24px;font-weight:800;letter-spacing:-1px}
+.lo{width:22px;height:22px;border-radius:50%;border:3.5px solid var(--blue);position:relative;top:2px;margin:0 2px;flex-shrink:0}
+.lup{color:var(--white);font-family:var(--ft);font-size:24px;font-weight:800;letter-spacing:-1px}
+.sb-sub{color:rgba(255,255,255,0.3);font-size:10px;letter-spacing:.3px}
+.nav{flex:1;padding:10px 8px;overflow-y:auto}
+.ng{color:rgba(255,255,255,0.2);font-family:var(--ft);font-size:8.5px;letter-spacing:1.8px;text-transform:uppercase;padding:10px 10px 5px}
+.ni{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--rs);cursor:pointer;font-family:var(--fb);font-size:13px;transition:all .15s;margin-bottom:2px;color:rgba(255,255,255,0.45)}
+.ni:hover{background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.8)}
+.ni.active{background:rgba(2,193,244,0.18);color:var(--blue);font-weight:600}
+.nb{margin-left:auto;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px}
+.nb-r{background:rgba(224,53,53,0.25);color:#ff7070}
+.nb-b{background:rgba(2,193,244,0.2);color:var(--blue)}
+.sb-footer{padding:14px;border-top:1px solid rgba(255,255,255,0.07)}
+.ur2{display:flex;align-items:center;gap:10px}
+.uav{width:32px;height:32px;border-radius:50%;background:rgba(2,193,244,0.2);display:flex;align-items:center;justify-content:center;color:var(--blue);font-family:var(--ft);font-size:11px;font-weight:700;flex-shrink:0}
+.un{color:rgba(255,255,255,0.75);font-family:var(--fb);font-size:12.5px;font-weight:600}
+.urt{color:rgba(255,255,255,0.3);font-size:10.5px;margin-top:1px}
+.btn-out{background:none;border:none;color:rgba(255,255,255,0.3);font-size:11px;cursor:pointer;margin-top:8px;padding:4px 0;font-family:var(--fb);width:100%;text-align:left}
+.main{margin-left:230px;flex:1;display:flex;flex-direction:column;height:100vh;overflow:hidden}
+.topbar{height:58px;background:var(--white);border-bottom:1px solid rgba(0,0,0,0.08);display:flex;align-items:center;justify-content:space-between;padding:0 24px;flex-shrink:0;box-shadow:var(--sh)}
+.tb-t{font-family:var(--ft);font-size:16px;font-weight:700}
+.tb-s{font-size:11px;color:var(--gray);margin-top:1px}
+.content{flex:1;overflow-y:auto;padding:22px 24px;background:var(--bg)}
+.screen{display:none;animation:fi .2s ease}
+.screen.active{display:block}
+@keyframes fi{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.bp{background:var(--blue);color:#fff;border:none;padding:8px 16px;border-radius:var(--rs);font-family:var(--ft);font-size:12px;font-weight:600;cursor:pointer}
+.bg3{background:var(--white);border:1px solid rgba(0,0,0,0.14);color:#444;padding:8px 16px;border-radius:var(--rs);font-family:var(--fb);font-size:12px;cursor:pointer}
+.bsm{padding:5px 12px;font-size:11px}
+.card{background:var(--white);border-radius:var(--r);border:1px solid rgba(0,0,0,0.06);padding:18px 20px;box-shadow:var(--sh);margin-bottom:14px}
+.card-hd{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px}
+.ct{font-family:var(--ft);font-size:13px;font-weight:700}
+.cs{font-size:11px;color:var(--gray);margin-top:2px}
+.sr{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.stat{background:var(--white);border-radius:var(--r);border:1px solid rgba(0,0,0,0.06);padding:16px 18px;box-shadow:var(--sh)}
+.sv{font-family:var(--ft);font-size:26px;font-weight:800;line-height:1}
+.sv.cb{color:var(--blue)} .sv.cr{color:var(--red)}
+.sl{font-size:11px;color:var(--gray);margin-top:5px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.badge{display:inline-flex;align-items:center;font-family:var(--ft);font-size:10px;font-weight:600;padding:3px 10px;border-radius:20px;white-space:nowrap}
+.bb{background:rgba(2,193,244,0.12);color:var(--blue-dark)}
+.bg2{background:var(--green-light);color:#1b5e20}
+.br2{background:var(--red-light);color:var(--red-dark)}
+.ba2{background:var(--amber-light);color:#bf360c}
+.bgr{background:#f0f0f0;color:#555}
+.bp3{background:var(--purple-light);color:#4a148c}
+.ar{background:#fff5f5;border:1px solid rgba(224,53,53,0.22);border-radius:var(--rs);padding:12px 16px;margin-bottom:16px;display:flex;gap:12px}
+.ab2{background:#f0fbff;border:1px solid rgba(2,193,244,0.22);border-radius:var(--rs);padding:12px 16px;margin-bottom:16px;display:flex;gap:12px}
+.ad{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.adr{background:var(--red)} .adb{background:var(--blue)}
+.at2{font-size:12.5px;color:#333;line-height:1.55}
+.pw{height:6px;background:#ebebeb;border-radius:10px;overflow:hidden}
+.pf{height:6px;border-radius:10px;background:var(--blue)}
+.t{width:100%;border-collapse:collapse;font-size:12px;font-family:var(--fb)}
+.t th{text-align:left;padding:9px 12px;color:var(--gray);font-family:var(--ft);font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #f0f0f0}
+.t td{padding:11px 12px;border-bottom:1px solid #f5f5f5;vertical-align:middle}
+.t tr:last-child td{border-bottom:none}
+.t tr.rr td{background:#fff8f8}
+.ind{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.ig{background:var(--green)} .ir{background:var(--red)} .ia{background:var(--amber)}
+.stl{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.sc{width:32px;height:32px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-family:var(--ft);font-size:10px;font-weight:700;cursor:pointer;transition:transform .12s;position:relative}
+.sc:hover{transform:scale(1.15);z-index:5}
+.sc-done{background:var(--green-light);color:#1b5e20}
+.sc-double{background:#e3f2fd;color:#0d47a1}
+.sc-skip{background:var(--amber-light);color:#bf360c}
+.sc-cancel{background:var(--red-light);color:var(--red-dark);text-decoration:line-through}
+.sc-pend{background:#f5f5f5;color:#bbb;border:1.5px dashed #ddd}
+.sc-late{background:var(--red-light);color:var(--red-dark);border:2px solid var(--red);animation:pulse 1.8s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(224,53,53,0.35)}50%{box-shadow:0 0 0 5px rgba(224,53,53,0)}}
+.fg2{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
+.fg2 label{font-family:var(--ft);font-size:11px;font-weight:600}
+.fg2 input,.fg2 select,.fg2 textarea{padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:var(--rs);font-family:var(--fb);font-size:12px;outline:none;transition:border .15s}
+.fg2 input:focus,.fg2 select:focus{border-color:var(--blue)}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.mo{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:500;display:none;align-items:center;justify-content:center}
+.mo.open{display:flex}
+.mb{background:var(--white);border-radius:14px;padding:28px;width:100%;max-width:580px;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2)}
+.mt3{font-family:var(--ft);font-size:16px;font-weight:700;margin-bottom:20px}
+.ma{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+.toast{position:fixed;bottom:24px;right:24px;background:var(--blue-mid);color:#fff;padding:12px 20px;border-radius:10px;font-family:var(--ft);font-size:13px;font-weight:600;z-index:999;transform:translateY(100px);opacity:0;transition:all .3s}
+.toast.show{transform:translateY(0);opacity:1}
+.mr{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+.mn{font-size:11.5px;width:160px;flex-shrink:0}
+.mt2{flex:1}
+.mp{font-family:var(--ft);font-size:11px;font-weight:700;width:36px;text-align:right;flex-shrink:0}
+.rrow{display:flex;align-items:center;gap:14px;padding:16px 20px;background:var(--white);border-radius:var(--r);border:1px solid rgba(0,0,0,0.06);box-shadow:var(--sh);margin-bottom:10px}
+.rico{width:42px;height:42px;border-radius:9px;flex-shrink:0}
+.rbody{flex:1}
+.rname{font-family:var(--ft);font-size:13px;font-weight:700}
+.rmeta{font-size:11px;color:var(--gray);margin-top:2px}
+.empty-box{text-align:center;padding:40px}
+.empty-t{font-family:var(--ft);font-size:14px;font-weight:600;margin-bottom:8px}
+.empty-s{font-size:12px;color:var(--gray)}
+.loading{text-align:center;padding:40px;color:var(--gray);font-size:13px}
 </style>
 </head>
 <body>
 
-<!-- ══ LOGIN ══════════════════════════════════════════════════ -->
 <div id="login-screen">
   <div class="login-box">
-    <div class="login-logo">
-      <div>
-        <span class="lm-h">H</span><span class="lm-o"></span><span class="lm-up">UP</span>
-      </div>
-      <div class="login-sub">Plataforma de bienestar socioemocional</div>
-    </div>
-    <div class="login-title">Iniciar sesión</div>
-    <div class="form-group">
-      <label>Correo electrónico</label>
-      <input type="email" id="login-email" placeholder="tu@houp.mx" autocomplete="email">
-    </div>
-    <div class="form-group">
-      <label>Contraseña</label>
-      <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
-    </div>
-    <button class="btn-login" id="btn-login" onclick="handleLogin()">Entrar</button>
-    <div class="login-error" id="login-error"></div>
-    <div class="login-loading" id="login-loading">Verificando credenciales...</div>
+    <div><div class="ll-mark"><span class="ll-h">H</span><span class="ll-o"></span><span class="ll-up">UP</span></div><div class="ll-sub">Plataforma de bienestar socioemocional</div></div>
+    <div class="l-title">Iniciar sesión</div>
+    <div class="fg"><label>Correo electrónico</label><input type="email" id="li-email" placeholder="tu@houp.mx" autocomplete="email"></div>
+    <div class="fg"><label>Contraseña</label><input type="password" id="li-pw" placeholder="••••••••"></div>
+    <button class="btn-login" id="btn-li" onclick="doLogin()">Entrar</button>
+    <div class="l-err" id="l-err"></div>
+    <div class="l-load" id="l-load">Verificando...</div>
   </div>
 </div>
 
-<!-- ══ APP ════════════════════════════════════════════════════ -->
 <div id="app" style="display:none">
   <div class="sidebar">
-    <div class="sb-logo">
-      <div class="sb-logo-mark">
-        <span class="lm-h">H</span><span class="lm-o"></span><span class="lm-up">UP</span>
-      </div>
-      <div class="sb-logo-sub">Plataforma de bienestar</div>
-    </div>
-    <div class="nav" id="sidebar-nav"></div>
+    <div class="sb-logo"><div class="sb-mark"><span class="lh">H</span><span class="lo"></span><span class="lup">UP</span></div><div class="sb-sub">Plataforma de bienestar</div></div>
+    <div class="nav" id="sb-nav"></div>
     <div class="sb-footer">
-      <div class="user-row">
-        <div class="user-av" id="user-avatar">--</div>
-        <div>
-          <div class="user-name" id="user-fullname">Cargando...</div>
-          <div class="user-role-t" id="user-role-label">--</div>
-        </div>
-      </div>
-      <button class="btn-logout" onclick="handleLogout()">→ Cerrar sesión</button>
+      <div class="ur2"><div class="uav" id="u-av">--</div><div><div class="un" id="u-name">...</div><div class="urt" id="u-role">...</div></div></div>
+      <button class="btn-out" onclick="doLogout()">→ Cerrar sesión</button>
     </div>
   </div>
-
   <div class="main">
     <div class="topbar">
-      <div>
-        <div class="tb-title" id="tb-title">Cargando...</div>
-        <div class="tb-sub" id="tb-sub">Houp · Plataforma de bienestar socioemocional</div>
-      </div>
-      <div style="display:flex;gap:10px">
-        <button class="btn-g" onclick="exportData()">Exportar</button>
-        <button class="btn-p" id="tb-cta" style="display:none">+ Acción</button>
-      </div>
+      <div><div class="tb-t" id="tb-t">Panel</div><div class="tb-s" id="tb-s">Houp · Plataforma de bienestar</div></div>
+      <div style="display:flex;gap:10px"><button class="bg3" onclick="showToast('Exportación próximamente 🚧')">Exportar</button><button class="bp" id="tb-cta" style="display:none" onclick="ctaAction()">+ Acción</button></div>
     </div>
-    <div class="content" id="main-content">
-      <div class="loading-spinner">Cargando plataforma...</div>
-    </div>
+    <div class="content" id="main-c"><div class="loading">Cargando...</div></div>
   </div>
 </div>
 
-<!-- ══ MODALES ════════════════════════════════════════════════ -->
-<div class="modal-overlay" id="modal-incidencia">
-  <div class="modal">
-    <div class="modal-title">Registrar incidencia de sesión</div>
-    <div class="form-row">
-      <div class="form-field">
-        <label>Tipo de incidencia</label>
-        <select id="inc-type">
-          <option value="cancelacion">Cancelación</option>
-          <option value="doble">Sesión doble (recuperación)</option>
-          <option value="saltada">Sesión saltada</option>
-          <option value="reagendada">Reagendada</option>
-        </select>
-      </div>
-      <div class="form-field">
-        <label>Fecha de la incidencia</label>
-        <input type="date" id="inc-date">
-      </div>
-    </div>
-    <div class="form-field" style="margin-bottom:14px">
-      <label>Motivo</label>
-      <input type="text" id="inc-reason" placeholder="Ej: Paro docente, evento cívico, suspensión SEP...">
-    </div>
-    <div class="modal-actions">
-      <button class="btn-g" onclick="closeModal('modal-incidencia')">Cancelar</button>
-      <button class="btn-p" onclick="saveIncident()">Guardar incidencia</button>
-    </div>
+<!-- MODAL ESCUELA -->
+<div class="mo" id="m-school"><div class="mb">
+  <div class="mt3" id="m-school-t">Nueva escuela</div>
+  <input type="hidden" id="sc-id">
+  <div class="form-grid">
+    <div class="fg2"><label>Nombre completo</label><input type="text" id="sc-name" placeholder="Ej: Secundaria 3"></div>
+    <div class="fg2"><label>Nombre corto</label><input type="text" id="sc-short" placeholder="SEC3" maxlength="5"></div>
   </div>
-</div>
-
-<div class="modal-overlay" id="modal-rubrica">
-  <div class="modal">
-    <div class="modal-title">Cargar rúbrica del manual</div>
-    <div class="form-row">
-      <div class="form-field">
-        <label>Grado</label>
-        <select id="rub-grade"><option value="1°">1°</option><option value="2°">2°</option><option value="3°">3°</option></select>
-      </div>
-      <div class="form-field">
-        <label>Turno</label>
-        <select id="rub-shift"><option value="matutino">Matutino</option><option value="vespertino">Vespertino</option></select>
-      </div>
-    </div>
-    <div class="form-row">
-      <div class="form-field">
-        <label>Alumnos evaluados</label>
-        <input type="number" id="rub-evaluated" placeholder="0">
-      </div>
-      <div class="form-field">
-        <label>Sin manual</label>
-        <input type="number" id="rub-no-manual" placeholder="0">
-      </div>
-    </div>
-    <div class="form-row">
-      <div class="form-field">
-        <label>% Inicial</label>
-        <input type="number" id="rub-pct-inicial" placeholder="0">
-      </div>
-      <div class="form-field">
-        <label>% Adecuado</label>
-        <input type="number" id="rub-pct-adecuado" placeholder="0">
-      </div>
-    </div>
-    <div class="form-field" style="margin-bottom:14px">
-      <label>% Excelente</label>
-      <input type="number" id="rub-pct-excelente" placeholder="0">
-    </div>
-    <div class="form-field" style="margin-bottom:14px">
-      <label>Notas / observaciones</label>
-      <textarea id="rub-notes" rows="3" placeholder="Observaciones generales del bloque..."></textarea>
-    </div>
-    <div class="modal-actions">
-      <button class="btn-g" onclick="closeModal('modal-rubrica')">Cancelar</button>
-      <button class="btn-p" onclick="saveRubric()">Guardar rúbrica</button>
-    </div>
+  <div class="form-grid">
+    <div class="fg2"><label>Tipo</label><select id="sc-type"><option value="publica">Pública</option><option value="privada">Privada</option></select></div>
+    <div class="fg2"><label>Año del modelo</label><select id="sc-year"><option value="arranque">Arranque</option><option value="año1">Año 1</option><option value="año2">Año 2</option><option value="año3">Año 3</option><option value="licencia">Licencia</option></select></div>
   </div>
-</div>
+  <div class="form-grid">
+    <div class="fg2"><label>Total alumnos</label><input type="number" id="sc-students" placeholder="0"></div>
+    <div class="fg2"><label>Ciudad</label><input type="text" id="sc-city" placeholder="Monterrey"></div>
+  </div>
+  <div class="ma"><button class="bg3" onclick="closeModal('m-school')">Cancelar</button><button class="bp" onclick="saveSchool()">Guardar</button></div>
+</div></div>
 
-<!-- ══ TOAST ══ -->
+<!-- MODAL USUARIO -->
+<div class="mo" id="m-user"><div class="mb">
+  <div class="mt3">Nuevo usuario</div>
+  <div class="form-grid">
+    <div class="fg2"><label>Nombre completo</label><input type="text" id="u-fname" placeholder="Nombre Apellido"></div>
+    <div class="fg2"><label>Correo</label><input type="email" id="u-femail" placeholder="correo@houp.mx"></div>
+  </div>
+  <div class="form-grid">
+    <div class="fg2"><label>Rol</label><select id="u-frole"><option value="admin_houp">Admin Houp</option><option value="responsable">Responsable</option><option value="docente">Docente</option><option value="fundacion">Fundación</option></select></div>
+    <div class="fg2"><label>Escuela</label><select id="u-fschool"><option value="">— Sin escuela —</option></select></div>
+  </div>
+  <div class="fg2"><label>Contraseña temporal</label><input type="password" id="u-fpw" placeholder="Mínimo 6 caracteres"></div>
+  <div class="ma"><button class="bg3" onclick="closeModal('m-user')">Cancelar</button><button class="bp" onclick="saveUser()">Crear usuario</button></div>
+</div></div>
+
+<!-- MODAL SESION/INCIDENCIA -->
+<div class="mo" id="m-session"><div class="mb">
+  <div class="mt3">Registrar incidencia</div>
+  <input type="hidden" id="inc-sid">
+  <div class="form-grid">
+    <div class="fg2"><label>Escuela</label><select id="inc-school"></select></div>
+    <div class="fg2"><label>Tipo</label><select id="inc-type"><option value="cancelacion">Cancelación</option><option value="doble">Sesión doble</option><option value="saltada">Saltada</option><option value="reagendada">Reagendada</option></select></div>
+  </div>
+  <div class="form-grid">
+    <div class="fg2"><label>Fecha</label><input type="date" id="inc-date"></div>
+    <div class="fg2"><label>Motivo</label><input type="text" id="inc-reason" placeholder="Ej: Paro docente..."></div>
+  </div>
+  <div class="ma"><button class="bg3" onclick="closeModal('m-session')">Cancelar</button><button class="bp" onclick="saveIncident()">Guardar</button></div>
+</div></div>
+
+<!-- MODAL RUBRICA -->
+<div class="mo" id="m-rubric"><div class="mb">
+  <div class="mt3">Cargar rúbrica del manual</div>
+  <div class="form-grid">
+    <div class="fg2"><label>Escuela</label><select id="rub-school"></select></div>
+    <div class="fg2"><label>Bloque</label><select id="rub-block"><option value="1">Bloque 1</option><option value="2" selected>Bloque 2</option><option value="3">Bloque 3</option></select></div>
+  </div>
+  <div class="form-grid">
+    <div class="fg2"><label>Grado</label><select id="rub-grade"><option value="1°">1°</option><option value="2°">2°</option><option value="3°">3°</option></select></div>
+    <div class="fg2"><label>Turno</label><select id="rub-shift"><option value="matutino">Matutino</option><option value="vespertino">Vespertino</option></select></div>
+  </div>
+  <div class="form-grid">
+    <div class="fg2"><label>Alumnos evaluados</label><input type="number" id="rub-eval" placeholder="0" min="0"></div>
+    <div class="fg2"><label>Sin manual</label><input type="number" id="rub-nm" placeholder="0" min="0"></div>
+  </div>
+  <div class="form-grid">
+    <div class="fg2"><label>% Inicial</label><input type="number" id="rub-ini" placeholder="0" min="0" max="100"></div>
+    <div class="fg2"><label>% Adecuado</label><input type="number" id="rub-ade" placeholder="0" min="0" max="100"></div>
+  </div>
+  <div class="fg2"><label>% Excelente</label><input type="number" id="rub-exc" placeholder="0" min="0" max="100"></div>
+  <div class="fg2" style="margin-top:8px"><label>Notas</label><textarea id="rub-notes" rows="2" placeholder="Observaciones..."></textarea></div>
+  <div class="ma"><button class="bg3" onclick="closeModal('m-rubric')">Cancelar</button><button class="bp" onclick="saveRubric()">Guardar</button></div>
+</div></div>
+
+<!-- MODAL EVIDENCIA -->
+<div class="mo" id="m-evidence"><div class="mb">
+  <div class="mt3">Cargar evidencia</div>
+  <div class="form-grid">
+    <div class="fg2"><label>Escuela</label><select id="ev-school"></select></div>
+    <div class="fg2"><label>Tipo</label><select id="ev-type"><option value="photo">Fotos</option><option value="video_link">Link de video</option><option value="reflection">Reflexión docente</option><option value="rubric">Rúbrica física</option></select></div>
+  </div>
+  <div class="fg2"><label>URL o link</label><input type="text" id="ev-url" placeholder="https://drive.google.com/..."></div>
+  <div class="fg2" style="margin-top:8px"><label>Descripción</label><textarea id="ev-desc" rows="3" placeholder="Describe la evidencia..."></textarea></div>
+  <div class="ma"><button class="bg3" onclick="closeModal('m-evidence')">Cancelar</button><button class="bp" onclick="saveEvidence()">Guardar</button></div>
+</div></div>
+
 <div class="toast" id="toast"></div>
 
 <script>
-// ══════════════════════════════════════════════════════════════
-// CONFIGURACIÓN SUPABASE
-// ⚠️  REEMPLAZA ESTOS VALORES CON LOS DE TU PROYECTO
-// ══════════════════════════════════════════════════════════════
-const SUPABASE_URL = 'https://kcdckzcsnqjqfsdxwemd.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtjZGNremNzbnFqcWZzZHh3ZW1kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MzI2NTMsImV4cCI6MjA5MzAwODY1M30.4PueblwJJUe5aTsmXhkS2KifKRjgaFkesfyiZjS0580';
+const SU='https://kcdckzcsnqjqfsdxwemd.supabase.co';
+const SK='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtjZGNremNzbnFqcWZzZHh3ZW1kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MzI2NTMsImV4cCI6MjA5MzAwODY1M30.4PueblwJJUe5aTsmXhkS2KifKRjgaFkesfyiZjS0580';
+const sb=supabase.createClient(SU,SK);
+let CU=null,CP=null,schools=[],ctaFn=null;
+const RL={admin_houp:'Admin Houp',responsable:'Responsable',docente:'Docente',fundacion:'Fundación'};
 
-const { createClient } = supabase;
-const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-// ══════════════════════════════════════════════════════════════
-// ESTADO GLOBAL
-// ══════════════════════════════════════════════════════════════
-let currentUser = null;
-let currentProfile = null;
-let currentSchools = [];
-let selectedSchoolId = null;
-let selectedSessionId = null;
-
-const ROLE_LABELS = {
-  admin_houp: 'Admin Houp',
-  responsable: 'Responsable',
-  docente: 'Docente',
-  fundacion: 'Fundación'
-};
-
-// ══════════════════════════════════════════════════════════════
-// AUTH
-// ══════════════════════════════════════════════════════════════
-async function handleLogin() {
-  const email = document.getElementById('login-email').value.trim();
-  const password = document.getElementById('login-password').value;
-  const btn = document.getElementById('btn-login');
-  const errEl = document.getElementById('login-error');
-  const loadEl = document.getElementById('login-loading');
-
-  if (!email || !password) {
-    showLoginError('Por favor ingresa tu correo y contraseña.');
-    return;
-  }
-
-  btn.disabled = true;
-  errEl.style.display = 'none';
-  loadEl.style.display = 'block';
-
-  const { data, error } = await sb.auth.signInWithPassword({ email, password });
-
-  if (error) {
-    showLoginError('Correo o contraseña incorrectos.');
-    btn.disabled = false;
-    loadEl.style.display = 'none';
-    return;
-  }
-
+async function doLogin(){
+  const email=document.getElementById('li-email').value.trim();
+  const pw=document.getElementById('li-pw').value;
+  const btn=document.getElementById('btn-li');
+  if(!email||!pw){showErr('Completa correo y contraseña');return;}
+  btn.disabled=true;
+  document.getElementById('l-err').style.display='none';
+  document.getElementById('l-load').style.display='block';
+  const {data,error}=await sb.auth.signInWithPassword({email,password:pw});
+  if(error){showErr('Correo o contraseña incorrectos');btn.disabled=false;document.getElementById('l-load').style.display='none';return;}
   await initApp(data.user);
 }
+function showErr(m){const e=document.getElementById('l-err');e.textContent=m;e.style.display='block';}
+async function doLogout(){await sb.auth.signOut();document.getElementById('app').style.display='none';document.getElementById('login-screen').style.display='flex';document.getElementById('btn-li').disabled=false;document.getElementById('l-load').style.display='none';}
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.getElementById('login-screen').style.display!=='none')doLogin();});
 
-function showLoginError(msg) {
-  const el = document.getElementById('login-error');
-  el.textContent = msg;
-  el.style.display = 'block';
-}
-
-async function handleLogout() {
-  await sb.auth.signOut();
-  currentUser = null;
-  currentProfile = null;
-  document.getElementById('app').style.display = 'none';
-  document.getElementById('login-screen').style.display = 'flex';
-}
-
-// Enter key on login
-document.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && document.getElementById('login-screen').style.display !== 'none') {
-    handleLogin();
-  }
-});
-
-// ══════════════════════════════════════════════════════════════
-// INIT APP
-// ══════════════════════════════════════════════════════════════
-async function initApp(user) {
-  currentUser = user;
-
-  // Cargar perfil
-  const { data: profile } = await sb.from('profiles').select('*').eq('id', user.id).single();
-  if (!profile) {
-    currentProfile = { id: user.id, email: user.email, full_name: user.email.split('@')[0], role: 'admin_houp', school_id: null };
-    await sb.from('profiles').upsert(currentProfile);
-  } else {
-    currentProfile = profile;
-  }
-
-  // Ocultar login, mostrar app
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('app').style.display = 'flex';
-
-  // Header usuario
-  const initials = (profile.full_name || profile.email).split(' ').map(w => w[0]).join('').substring(0,2).toUpperCase();
-  document.getElementById('user-avatar').textContent = initials;
-  document.getElementById('user-fullname').textContent = profile.full_name || profile.email;
-  document.getElementById('user-role-label').textContent = ROLE_LABELS[profile.role] || profile.role;
-
-  // Cargar escuelas
+async function initApp(user){
+  CU=user;
+  const{data:p}=await sb.from('profiles').select('*').eq('id',user.id).single();
+  if(!p){CP={id:user.id,email:user.email,full_name:user.email.split('@')[0],role:'admin_houp',school_id:null};await sb.from('profiles').upsert(CP);}
+  else{CP=p;}
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app').style.display='flex';
+  const ini=(CP.full_name||CP.email).split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
+  document.getElementById('u-av').textContent=ini;
+  document.getElementById('u-name').textContent=CP.full_name||CP.email;
+  document.getElementById('u-role').textContent=RL[CP.role]||CP.role;
   await loadSchools();
-
-  // Render nav según rol
-  renderNav(profile.role);
-
-  // Ir a pantalla inicial
-  navigateTo('dashboard');
+  buildNav(CP.role);
+  go('dashboard');
 }
 
-async function loadSchools() {
-  let query = sb.from('schools').select('*').eq('active', true);
-  if (currentProfile.role === 'responsable' || currentProfile.role === 'docente') {
-    query = query.eq('id', currentProfile.school_id);
-  }
-  const { data } = await query.order('name');
-  currentSchools = data || [];
+async function loadSchools(){
+  let q=sb.from('schools').select('*').eq('active',true);
+  if(CP.role==='responsable'||CP.role==='docente')q=q.eq('id',CP.school_id);
+  const{data}=await q.order('name');
+  schools=data||[];
+  ['u-fschool','rub-school','ev-school','inc-school'].forEach(id=>{
+    const el=document.getElementById(id);if(!el)return;
+    const def=id==='u-fschool'?'<option value="">— Sin escuela —</option>':'';
+    el.innerHTML=def+schools.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+  });
 }
 
-// ══════════════════════════════════════════════════════════════
-// NAVEGACIÓN
-// ══════════════════════════════════════════════════════════════
-function renderNav(role) {
-  const navConfig = {
-    admin_houp: [
-      { label: 'General', items: [
-        { id: 'dashboard', label: 'Panel general', badge: null },
-        { id: 'escuelas', label: 'Escuelas', badgeType: 'red', badgeFn: () => currentSchools.filter(s => s.alert_days > 14).length || null },
-        { id: 'sesiones', label: 'Seguimiento sesiones', badge: null },
-        { id: 'modulos', label: 'Módulos', badge: null },
-      ]},
-      { label: 'Reportes', items: [
-        { id: 'evidencia', label: 'Evidencia', badge: null },
-        { id: 'fundacion', label: 'Fundación Zorrilla', badge: null },
-      ]}
+function buildNav(role){
+  const cfg={
+    admin_houp:[
+      {g:'General',items:[{id:'dashboard',label:'Panel general'},{id:'escuelas',label:'Escuelas',bfn:()=>schools.filter(s=>s.alert_days>14).length||null,bt:'r'},{id:'sesiones',label:'Seguimiento sesiones'},{id:'usuarios',label:'Usuarios'},]},
+      {g:'Reportes',items:[{id:'rubrica',label:'Rúbricas'},{id:'evidencia',label:'Evidencia'},{id:'fundacion',label:'Fundación Zorrilla'},]}
     ],
-    responsable: [
-      { label: 'Mi escuela', items: [
-        { id: 'dashboard', label: 'Mi programa', badge: null },
-        { id: 'sesiones', label: 'Mis sesiones', badge: null },
-        { id: 'rubrica', label: 'Cargar rúbrica', badge: null },
-        { id: 'evidencia', label: 'Evidencia', badge: null },
-      ]}
-    ],
-    docente: [
-      { label: 'Mis clases', items: [
-        { id: 'dashboard', label: 'Mis clases', badge: null },
-        { id: 'modulos', label: 'Material didáctico', badge: null },
-        { id: 'rubrica', label: 'Planeación', badge: null },
-      ]}
-    ],
-    fundacion: [
-      { label: 'Fundación Zorrilla', items: [
-        { id: 'dashboard', label: 'Panel general', badge: null },
-        { id: 'fundacion_rubrica', label: 'Rúbricas y calificaciones', badge: null },
-        { id: 'fundacion_reportes', label: 'Descargar reportes', badge: null },
-      ]}
-    ]
+    responsable:[{g:'Mi escuela',items:[{id:'dashboard',label:'Mi programa'},{id:'sesiones',label:'Mis sesiones'},{id:'rubrica',label:'Cargar rúbrica'},{id:'evidencia',label:'Evidencia'},]}],
+    docente:[{g:'Mis clases',items:[{id:'dashboard',label:'Mis clases'},{id:'rubrica',label:'Planeación / Rúbrica'},]}],
+    fundacion:[{g:'Fundación Zorrilla',items:[{id:'dashboard',label:'Panel general'},{id:'fund-rubrica',label:'Rúbricas y calificaciones'},{id:'fund-reportes',label:'Descargar reportes'},]}],
   };
-
-  const groups = navConfig[role] || navConfig.docente;
-  const nav = document.getElementById('sidebar-nav');
-  nav.innerHTML = '';
-
-  groups.forEach(group => {
-    const groupEl = document.createElement('div');
-    groupEl.className = 'nav-group';
-    groupEl.textContent = group.label;
-    nav.appendChild(groupEl);
-
-    group.items.forEach(item => {
-      const el = document.createElement('div');
-      el.className = 'nav-item';
-      el.id = 'nav-' + item.id;
-      el.onclick = () => navigateTo(item.id);
-      const badgeCount = item.badgeFn ? item.badgeFn() : item.badge;
-      el.innerHTML = `<span>${item.label}</span>${badgeCount ? `<span class="nav-badge ${item.badgeType === 'red' ? 'nb-red' : 'nb-blue'}">${badgeCount}</span>` : ''}`;
+  const nav=document.getElementById('sb-nav');nav.innerHTML='';
+  (cfg[role]||cfg.docente).forEach(group=>{
+    const gel=document.createElement('div');gel.className='ng';gel.textContent=group.g;nav.appendChild(gel);
+    group.items.forEach(item=>{
+      const el=document.createElement('div');el.className='ni';el.id='ni-'+item.id;el.onclick=()=>go(item.id);
+      const bc=item.bfn?item.bfn():null;
+      el.innerHTML=`<span>${item.label}</span>${bc?`<span class="nb ${item.bt==='r'?'nb-r':'nb-b'}">${bc}</span>`:''}`;
       nav.appendChild(el);
     });
   });
 }
 
-function navigateTo(screenId) {
-  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-  const navEl = document.getElementById('nav-' + screenId);
-  if (navEl) navEl.classList.add('active');
-
-  const titles = {
-    dashboard: { title: 'Panel general', sub: 'Ciclo escolar 2024–2025' },
-    escuelas: { title: 'Escuelas', sub: 'Seguimiento de todas las escuelas activas' },
-    sesiones: { title: 'Seguimiento de sesiones', sub: 'Estado de cada sesión por escuela' },
-    modulos: { title: 'Módulos del programa', sub: 'Avance por módulo y escuela' },
-    evidencia: { title: 'Revisión de evidencia', sub: 'Evidencia pendiente de validación' },
-    fundacion: { title: 'Fundación Zorrilla', sub: 'Datos en tiempo real · Ciclo 2024–2025' },
-    fundacion_rubrica: { title: 'Rúbricas y calificaciones', sub: 'Datos reales · Secundaria 3' },
-    fundacion_reportes: { title: 'Descargar reportes', sub: 'Reportes oficiales del programa' },
-    rubrica: { title: 'Rúbricas', sub: 'Cargar y consultar rúbricas del manual' },
-  };
-
-  const t = titles[screenId] || { title: screenId, sub: '' };
-  document.getElementById('tb-title').textContent = t.title;
-  document.getElementById('tb-sub').textContent = t.sub;
-
-  const content = document.getElementById('main-content');
-  content.innerHTML = '<div class="loading-spinner">Cargando...</div>';
-
-  const screens = {
-    dashboard: renderDashboard,
-    escuelas: renderEscuelas,
-    sesiones: renderSesiones,
-    modulos: renderModulos,
-    evidencia: renderEvidencia,
-    fundacion: renderFundacion,
-    fundacion_rubrica: renderFundacionRubrica,
-    fundacion_reportes: renderFundacionReportes,
-    rubrica: renderRubrica,
-  };
-
-  const fn = screens[screenId];
-  if (fn) fn();
-  else content.innerHTML = '<div class="loading-spinner">Pantalla en construcción 🚧</div>';
+function go(id){
+  document.querySelectorAll('.ni').forEach(e=>e.classList.remove('active'));
+  const ni=document.getElementById('ni-'+id);if(ni)ni.classList.add('active');
+  const titles={dashboard:'Panel general',escuelas:'Escuelas',sesiones:'Seguimiento de sesiones',usuarios:'Usuarios',rubrica:'Rúbricas del manual',evidencia:'Evidencia',fundacion:'Fundación Zorrilla','fund-rubrica':'Rúbricas y calificaciones','fund-reportes':'Descargar reportes'};
+  document.getElementById('tb-t').textContent=titles[id]||id;
+  const cta=document.getElementById('tb-cta');cta.style.display='none';ctaFn=null;
+  document.getElementById('main-c').innerHTML='<div class="loading">Cargando...</div>';
+  const screens={dashboard:renderDash,escuelas:renderEscuelas,sesiones:renderSesiones,usuarios:renderUsuarios,rubrica:renderRubrica,evidencia:renderEvidencia,fundacion:renderFundacion,'fund-rubrica':renderFundRubrica,'fund-reportes':renderFundReportes};
+  (screens[id]||(() => document.getElementById('main-c').innerHTML=`<div class="loading">Pantalla en construcción 🚧</div>`))();
 }
 
-// ══════════════════════════════════════════════════════════════
-// PANTALLAS
-// ══════════════════════════════════════════════════════════════
-async function renderDashboard() {
-  const content = document.getElementById('main-content');
-  const role = currentProfile.role;
+function setCta(label,fn){const el=document.getElementById('tb-cta');el.textContent=label;el.style.display='block';ctaFn=fn;}
+function ctaAction(){if(ctaFn)ctaFn();}
 
-  if (role === 'admin_houp') {
-    const alertSchools = currentSchools.filter(s => s.alert_days > 14);
-    const totalStudents = currentSchools.reduce((a, b) => a + (b.total_students || 0), 0);
-
-    content.innerHTML = `
-      ${alertSchools.length > 0 ? `
-      <div class="alert-red">
-        <div class="alert-dot ad-red"></div>
-        <div class="alert-txt"><strong>${alertSchools.length} escuela${alertSchools.length > 1 ? 's' : ''} en alerta crítica</strong> — ${alertSchools.map(s => s.name).join(', ')} llevan más de 2 semanas sin sesión registrada.</div>
-      </div>` : ''}
-      <div class="stats-row">
-        <div class="stat"><div class="stat-val c-blue">${currentSchools.length}</div><div class="stat-lbl">Escuelas activas</div></div>
-        <div class="stat"><div class="stat-val">${totalStudents}</div><div class="stat-lbl">Alumnos en programa</div></div>
-        <div class="stat"><div class="stat-val c-blue">2.01</div><div class="stat-lbl">Prom. rúbrica Bloque 2</div></div>
-        <div class="stat"><div class="stat-val c-red">${alertSchools.length}</div><div class="stat-lbl">Escuelas con atraso</div></div>
+async function renderDash(){
+  const c=document.getElementById('main-c');
+  if(CP.role==='fundacion'){renderFundacion();return;}
+  const alerts=schools.filter(s=>s.alert_days>14);
+  const total=schools.reduce((a,b)=>a+(b.total_students||0),0);
+  c.innerHTML=`
+    ${alerts.length?`<div class="ar"><div class="ad adr"></div><div class="at2"><strong>${alerts.length} escuela${alerts.length>1?'s':''} en alerta</strong> — ${alerts.map(s=>s.name).join(', ')} llevan más de 2 semanas sin sesión.</div></div>`:''}
+    <div class="sr">
+      <div class="stat"><div class="sv cb">${schools.length}</div><div class="sl">Escuelas activas</div></div>
+      <div class="stat"><div class="sv">${total}</div><div class="sl">Alumnos en programa</div></div>
+      <div class="stat"><div class="sv cb">2.01</div><div class="sl">Prom. rúbrica Bloque 2</div></div>
+      <div class="stat"><div class="sv cr">${alerts.length}</div><div class="sl">Escuelas con atraso</div></div>
+    </div>
+    <div class="two">
+      <div class="card"><div class="card-hd"><div><div class="ct">Estado por escuela</div><div class="cs">Semáforo en tiempo real</div></div></div>
+        ${schools.map(s=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><div class="ind ${s.alert_days>14?'ir':s.alert_days>7?'ia':'ig'}"></div><div style="flex:1;font-family:var(--ft);font-size:12px;font-weight:600;${s.alert_days>14?'color:var(--red-dark)':''}">${s.name}</div><span class="badge ${s.alert_days>14?'br2':s.alert_days>7?'ba2':'bg2'}">${s.alert_days>14?`⚠ ${s.alert_days} días`:s.alert_days>7?'Pendiente':'Al día'}</span></div>`).join('')}
       </div>
-      <div class="two-col">
-        <div class="card">
-          <div class="card-hd"><div><div class="card-title">Estado por escuela</div><div class="card-sub">Semáforo en tiempo real</div></div></div>
-          ${currentSchools.map(s => `
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-              <div class="ind ${s.alert_days > 14 ? 'ind-r' : s.alert_days > 7 ? 'ind-a' : 'ind-g'}"></div>
-              <div style="flex:1;font-family:var(--font-title);font-size:12px;font-weight:600;${s.alert_days > 14 ? 'color:var(--red-dark)' : ''}">${s.name}</div>
-              <span class="badge ${s.alert_days > 14 ? 'b-red' : s.alert_days > 7 ? 'b-amber' : 'b-green'}">
-                ${s.alert_days > 14 ? `⚠ ${s.alert_days} días sin sesión` : s.alert_days > 7 ? '1 sesión pendiente' : 'Al día'}
-              </span>
-            </div>
-          `).join('')}
+      <div class="card"><div class="card-hd"><div class="ct">Modelo a 3 años</div></div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-family:var(--ft);font-size:12px;font-weight:600">Arranque · Capacitación</span><span class="badge bg2">Completado</span></div></div>
+          <div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-family:var(--ft);font-size:12px;font-weight:600">Año 1 · Implementación</span><span class="badge bb">En curso</span></div><div class="pw"><div class="pf" style="width:68%"></div></div><div style="font-size:10px;color:var(--gray);margin-top:4px">68% · 14/20 sesiones</div></div>
+          <div><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-family:var(--ft);font-size:12px;color:var(--gray)">Año 2 · Co-implementación</span><span class="badge bgr">Pendiente</span></div></div>
+          <div><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-family:var(--ft);font-size:12px;color:var(--gray)">Año 3 · Transferencia total</span><span class="badge bgr">Pendiente</span></div></div>
         </div>
-        <div class="card">
-          <div class="card-hd"><div class="card-title">Modelo a 3 años</div></div>
-          <div style="display:flex;flex-direction:column;gap:12px">
-            <div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-family:var(--font-title);font-size:12px;font-weight:600">Arranque · Capacitación docente</span><span class="badge b-green">Completado</span></div></div>
-            <div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-family:var(--font-title);font-size:12px;font-weight:600">Año 1 · Implementación guiada</span><span class="badge b-blue">En curso</span></div><div class="pb-wrap"><div class="pb-fill" style="width:68%"></div></div><div style="font-size:10px;color:var(--gray);margin-top:4px">68% · 14 de 20 sesiones</div></div>
-            <div><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-family:var(--font-title);font-size:12px;color:var(--gray)">Año 2 · Co-implementación</span><span class="badge b-gray">Pendiente</span></div></div>
-            <div><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-family:var(--font-title);font-size:12px;color:var(--gray)">Año 3 · Transferencia total</span><span class="badge b-gray">Pendiente</span></div></div>
-          </div>
-        </div>
-      </div>`;
-  } else if (role === 'fundacion') {
-    renderFundacion();
-  } else {
-    // Responsable / Docente
-    const school = currentSchools[0];
-    content.innerHTML = `
-      <div class="alert-blue"><div class="alert-dot ad-blue"></div><div class="alert-txt">Bienvenido/a. Aquí puedes ver el avance de <strong>${school?.name || 'tu escuela'}</strong>.</div></div>
-      <div class="stats-row">
-        <div class="stat"><div class="stat-val c-blue">Año 1</div><div class="stat-lbl">Etapa del modelo</div></div>
-        <div class="stat"><div class="stat-val">${school?.total_students || 0}</div><div class="stat-lbl">Alumnos</div></div>
-        <div class="stat"><div class="stat-val c-red">${school?.alert_days || 0}</div><div class="stat-lbl">Días desde última sesión</div></div>
-        <div class="stat"><div class="stat-val">B2</div><div class="stat-lbl">Bloque actual</div></div>
-      </div>`;
-  }
-}
-
-async function renderEscuelas() {
-  const content = document.getElementById('main-content');
-  content.innerHTML = `
-    <div class="card" style="padding:0;overflow:hidden">
-      <table class="t">
-        <thead><tr>
-          <th style="padding:11px 16px">Escuela</th>
-          <th>Tipo</th><th>Año</th><th>Alumnos</th>
-          <th>Última sesión</th><th>Estado</th>
-        </tr></thead>
-        <tbody>
-          ${currentSchools.map(s => `
-            <tr class="${s.alert_days > 14 ? 'row-red' : ''}">
-              <td style="padding:10px 16px">
-                <div style="display:flex;align-items:center;gap:10px">
-                  <div style="width:34px;height:34px;border-radius:8px;background:${s.alert_days > 14 ? 'var(--red-light)' : 'rgba(2,193,244,0.1)'};display:flex;align-items:center;justify-content:center;color:${s.alert_days > 14 ? 'var(--red-dark)' : 'var(--blue)'};font-family:var(--font-title);font-size:11px;font-weight:800;flex-shrink:0">${s.short_name}</div>
-                  <div>
-                    <div style="font-family:var(--font-title);font-size:12.5px;font-weight:700;${s.alert_days > 14 ? 'color:var(--red-dark)' : ''}">${s.name}</div>
-                    <div style="font-size:11px;color:var(--gray)">${s.total_students} alumnos</div>
-                  </div>
-                </div>
-              </td>
-              <td><span class="badge ${s.type === 'privada' ? 'b-blue' : 'b-gray'}">${s.type === 'privada' ? 'Privada' : 'Pública'}</span></td>
-              <td><span class="badge b-blue">${s.year_model}</span></td>
-              <td style="font-size:12px">${s.total_students}</td>
-              <td style="font-size:11px;color:${s.alert_days > 14 ? 'var(--red-dark)' : 'var(--gray)'}">
-                ${s.last_session_date ? new Date(s.last_session_date).toLocaleDateString('es-MX') : 'Sin registro'}
-                ${s.alert_days > 14 ? ` <strong>(${s.alert_days} días ⚠)</strong>` : ''}
-              </td>
-              <td><span class="badge ${s.alert_days > 14 ? 'b-red' : s.alert_days > 7 ? 'b-amber' : 'b-green'}">
-                ${s.alert_days > 14 ? 'Atraso crítico' : s.alert_days > 7 ? 'Pendiente' : 'Al día'}
-              </span></td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
+      </div>
     </div>`;
 }
 
-async function renderSesiones() {
-  const content = document.getElementById('main-content');
+async function renderEscuelas(){
+  setCta('+ Nueva escuela',()=>openSchoolModal());
+  const c=document.getElementById('main-c');
+  c.innerHTML=`<div class="card" style="padding:0;overflow:hidden"><table class="t">
+    <thead><tr><th style="padding:11px 16px">Escuela</th><th>Tipo</th><th>Año</th><th>Alumnos</th><th>Última sesión</th><th>Estado</th><th></th></tr></thead>
+    <tbody>${schools.map(s=>`<tr class="${s.alert_days>14?'rr':''}">
+      <td style="padding:10px 16px"><div style="display:flex;align-items:center;gap:10px">
+        <div style="width:34px;height:34px;border-radius:8px;background:${s.alert_days>14?'var(--red-light)':'rgba(2,193,244,0.1)'};display:flex;align-items:center;justify-content:center;color:${s.alert_days>14?'var(--red-dark)':'var(--blue)'};font-family:var(--ft);font-size:11px;font-weight:800;flex-shrink:0">${s.short_name}</div>
+        <div><div style="font-family:var(--ft);font-size:12.5px;font-weight:700;${s.alert_days>14?'color:var(--red-dark)':''}">${s.name}</div><div style="font-size:11px;color:var(--gray)">${s.total_students} alumnos</div></div>
+      </div></td>
+      <td><span class="badge ${s.type==='privada'?'bp3':'bgr'}">${s.type==='privada'?'Privada':'Pública'}</span></td>
+      <td><span class="badge bb">${s.year_model}</span></td>
+      <td style="font-size:12px">${s.total_students}</td>
+      <td style="font-size:11px;color:${s.alert_days>14?'var(--red-dark)':'var(--gray)'}">${s.last_session_date?new Date(s.last_session_date).toLocaleDateString('es-MX'):'Sin registro'}${s.alert_days>14?` <strong>(${s.alert_days}d ⚠)</strong>`:''}</td>
+      <td><span class="badge ${s.alert_days>14?'br2':s.alert_days>7?'ba2':'bg2'}">${s.alert_days>14?'Atraso crítico':s.alert_days>7?'Pendiente':'Al día'}</span></td>
+      <td><button class="bg3 bsm" onclick="openSchoolModal('${s.id}')">Editar</button></td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
 
-  // Cargar sesiones reales
-  let query = sb.from('sessions')
-    .select('*, schools(name, short_name), modules(name, number)')
-    .order('number');
-
-  if (currentProfile.role !== 'admin_houp') {
-    query = query.eq('school_id', currentProfile.school_id);
-  }
-
-  const { data: sessions } = await query;
-
-  // Agrupar por escuela
-  const bySchool = {};
-  (sessions || []).forEach(s => {
-    if (!bySchool[s.school_id]) bySchool[s.school_id] = { school: s.schools, sessions: [] };
-    bySchool[s.school_id].sessions.push(s);
-  });
-
-  const statusClass = { completada: 'sc-done', cancelada: 'sc-cancel', dobleteada: 'sc-double', saltada: 'sc-skip', pendiente: 'sc-pend', en_atraso: 'sc-late' };
-
-  if (Object.keys(bySchool).length === 0) {
-    content.innerHTML = `
-      <div class="alert-blue"><div class="alert-dot ad-blue"></div><div class="alert-txt">No hay sesiones registradas aún. Las sesiones aparecerán aquí una vez que se configuren los módulos.</div></div>
-      <div class="card" style="text-align:center;padding:40px">
-        <div style="font-family:var(--font-title);font-size:14px;font-weight:600;margin-bottom:8px">Sin sesiones aún</div>
-        <div style="font-size:12px;color:var(--gray)">Los datos de sesiones aparecerán cuando se configuren desde el panel de administración.</div>
-      </div>`;
+async function renderSesiones(){
+  if(CP.role==='admin_houp')setCta('+ Incidencia',()=>openModal('m-session'));
+  const c=document.getElementById('main-c');
+  const{data:sessions}=await sb.from('sessions').select('*,schools(name,short_name)').order('number');
+  const byS={};
+  (sessions||[]).forEach(s=>{if(!byS[s.school_id])byS[s.school_id]={school:s.schools,sessions:[]};byS[s.school_id].sessions.push(s);});
+  const sc={completada:'sc-done',cancelada:'sc-cancel',dobleteada:'sc-double',saltada:'sc-skip',pendiente:'sc-pend',en_atraso:'sc-late'};
+  const leg=`<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+    ${[['sc-done','Completada'],['sc-double','Dobleteada'],['sc-skip','Saltada'],['sc-cancel','Cancelada'],['sc-pend','Pendiente'],['sc-late','En atraso ⚠']].map(([cls,lbl])=>`<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--gray)"><div class="sc ${cls}" style="width:16px;height:16px;border-radius:3px;font-size:0"></div>${lbl}</div>`).join('')}
+  </div>`;
+  if(Object.keys(byS).length===0){
+    c.innerHTML=leg+`<div class="ab2"><div class="ad adb"></div><div class="at2">No hay sesiones registradas. Puedes registrar incidencias por escuela:</div></div>`+
+    schools.map(s=>`<div class="card"><div class="card-hd"><div><div class="ct">${s.name}</div><div class="cs">${s.year_model} · ${s.total_students} alumnos</div></div><button class="bg3 bsm" onclick="openIncModal('${s.id}')">+ Incidencia</button></div><div style="font-size:12px;color:var(--gray)">Sin sesiones registradas aún</div></div>`).join('');
     return;
   }
-
-  content.innerHTML = Object.entries(bySchool).map(([schoolId, data]) => {
-    const school = data.school;
-    const sessions = data.sessions;
-    const hasAlert = sessions.some(s => s.status === 'en_atraso');
-    return `
-      <div class="card ${hasAlert ? 'row-red' : ''}" style="${hasAlert ? 'border:1.5px solid rgba(224,53,53,0.35);background:#fffafa' : ''}">
-        <div class="card-hd">
-          <div>
-            <div class="card-title ${hasAlert ? 'style="color:var(--red-dark)"' : ''}">${school?.name || schoolId} ${hasAlert ? '⚠' : ''}</div>
-            <div class="card-sub">${sessions.length} sesiones registradas</div>
-          </div>
-          <button class="btn-g" style="font-size:11px" onclick="openIncidentModal('${schoolId}')">+ Incidencia</button>
-        </div>
-        <div class="sess-tl">
-          ${sessions.map(s => `<div class="sc ${statusClass[s.status] || 'sc-pend'}" title="S${s.number} · ${s.status}">${s.number}</div>`).join('')}
-        </div>
-      </div>`;
+  c.innerHTML=leg+Object.entries(byS).map(([sid,data])=>{
+    const ha=data.sessions.some(s=>s.status==='en_atraso');
+    return `<div class="card" style="${ha?'border:1.5px solid rgba(224,53,53,0.35);background:#fffafa':''}">
+      <div class="card-hd"><div><div class="ct">${data.school?.name||sid}${ha?' ⚠':''}</div><div class="cs">${data.sessions.length} sesiones</div></div>
+      <button class="bg3 bsm" onclick="openIncModal('${sid}')">+ Incidencia</button></div>
+      <div class="stl">${data.sessions.map(s=>`<div class="sc ${sc[s.status]||'sc-pend'}" title="S${s.number}·${s.status}">${s.number}</div>`).join('')}</div>
+    </div>`;
   }).join('');
 }
 
-async function renderModulos() {
-  const content = document.getElementById('main-content');
-  const { data: modules } = await sb.from('modules').select('*, schools(name)').order('order_index');
+function openIncModal(sid){document.getElementById('inc-sid').value=sid;document.getElementById('inc-date').value=new Date().toISOString().split('T')[0];if(sid){const sel=document.getElementById('inc-school');if(sel)sel.value=sid;}openModal('m-session');}
 
-  if (!modules || modules.length === 0) {
-    content.innerHTML = `<div class="card" style="text-align:center;padding:40px"><div style="font-family:var(--font-title);font-size:14px;font-weight:600;margin-bottom:8px">Módulos en configuración</div><div style="font-size:12px;color:var(--gray)">Los módulos se configurarán cuando confirmes la estructura del programa.</div></div>`;
-    return;
-  }
-
-  content.innerHTML = `<div class="card" style="padding:0;overflow:hidden">
-    <table class="t">
-      <thead><tr><th style="padding:11px 16px">Módulo</th><th>Escuela</th><th>Sesiones</th><th>Año</th></tr></thead>
-      <tbody>${modules.map(m => `
-        <tr>
-          <td style="padding:10px 16px"><div style="font-family:var(--font-title);font-size:12px;font-weight:700">${m.number}. ${m.name}</div></td>
-          <td style="font-size:12px">${m.schools?.name || '—'}</td>
-          <td style="font-size:12px">${m.total_sessions} sesiones</td>
-          <td><span class="badge b-blue">${m.year_model}</span></td>
-        </tr>`).join('')}
-      </tbody>
-    </table>
-  </div>`;
+async function renderUsuarios(){
+  setCta('+ Nuevo usuario',()=>openModal('m-user'));
+  const c=document.getElementById('main-c');
+  const{data:users}=await sb.from('profiles').select('*,schools(name)').order('full_name');
+  if(!users||users.length===0){c.innerHTML='<div class="empty-box"><div class="empty-t">Sin usuarios</div><div class="empty-s">Crea el primer usuario con el botón de arriba</div></div>';return;}
+  c.innerHTML=`<div class="card" style="padding:0;overflow:hidden"><table class="t">
+    <thead><tr><th style="padding:11px 16px">Usuario</th><th>Rol</th><th>Escuela</th><th>Estado</th></tr></thead>
+    <tbody>${users.map(u=>`<tr>
+      <td style="padding:10px 16px"><div style="display:flex;align-items:center;gap:10px">
+        <div style="width:32px;height:32px;border-radius:50%;background:rgba(2,193,244,0.1);display:flex;align-items:center;justify-content:center;color:var(--blue);font-family:var(--ft);font-size:11px;font-weight:700;flex-shrink:0">${(u.full_name||u.email).split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase()}</div>
+        <div><div style="font-family:var(--ft);font-size:12.5px;font-weight:700">${u.full_name||'—'}</div><div style="font-size:11px;color:var(--gray)">${u.email}</div></div>
+      </div></td>
+      <td><span class="badge ${u.role==='admin_houp'?'bb':u.role==='fundacion'?'bp3':'bgr'}">${RL[u.role]||u.role}</span></td>
+      <td style="font-size:12px">${u.schools?.name||'—'}</td>
+      <td><span class="badge ${u.active?'bg2':'bgr'}">${u.active?'Activo':'Inactivo'}</span></td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
 }
 
-async function renderEvidencia() {
-  const content = document.getElementById('main-content');
-  const { data: ev } = await sb.from('evidence')
-    .select('*, schools(name), profiles(full_name)')
-    .eq('validated', false)
-    .order('created_at', { ascending: false });
-
-  if (!ev || ev.length === 0) {
-    content.innerHTML = `<div class="alert-blue"><div class="alert-dot ad-blue"></div><div class="alert-txt">No hay evidencia pendiente de validación en este momento.</div></div>`;
-    return;
-  }
-
-  content.innerHTML = `<div class="card" style="padding:0;overflow:hidden">
-    <table class="t">
-      <thead><tr><th style="padding:11px 16px">Escuela</th><th>Tipo</th><th>Subida por</th><th>Fecha</th><th>Estado</th><th></th></tr></thead>
-      <tbody>${ev.map(e => `
-        <tr>
-          <td style="padding:10px 16px;font-weight:600">${e.schools?.name || '—'}</td>
-          <td style="font-size:11px;color:var(--gray)">${e.type}</td>
-          <td style="font-size:11px;color:var(--gray)">${e.profiles?.full_name || '—'}</td>
-          <td style="font-size:11px;color:var(--gray)">${new Date(e.created_at).toLocaleDateString('es-MX')}</td>
-          <td><span class="badge b-amber">Pendiente</span></td>
-          <td><button class="btn-p" style="font-size:10px;padding:5px 11px" onclick="validateEvidence('${e.id}')">Validar</button></td>
-        </tr>`).join('')}
-      </tbody>
-    </table>
-  </div>`;
+async function renderRubrica(){
+  setCta('+ Nueva rúbrica',()=>openModal('m-rubric'));
+  const c=document.getElementById('main-c');
+  const{data:rubrics}=await sb.from('rubrics').select('*,schools(name)').order('created_at',{ascending:false}).limit(50);
+  if(!rubrics||rubrics.length===0){c.innerHTML='<div class="empty-box"><div class="empty-t">Sin rúbricas</div><div class="empty-s">Carga la primera con "+ Nueva rúbrica"</div></div>';return;}
+  c.innerHTML=`<div class="card" style="padding:0;overflow:hidden"><table class="t">
+    <thead><tr><th style="padding:11px 16px">Escuela</th><th>Grado·Turno</th><th>Bloque</th><th>Evaluados</th><th>Sin manual</th><th>Promedio</th><th>% Inicial</th><th>% Adecuado</th><th>% Excelente</th></tr></thead>
+    <tbody>${rubrics.map(r=>`<tr>
+      <td style="padding:9px 16px;font-weight:600">${r.schools?.name||'—'}</td>
+      <td style="font-size:11px;color:var(--gray)">${r.grade}·${r.shift}</td>
+      <td><span class="badge bb">B${r.block}</span></td>
+      <td style="font-size:12px">${r.students_evaluated||0}</td>
+      <td style="font-size:12px;color:${(r.students_no_manual||0)>20?'var(--red-dark)':'var(--gray)'}">${r.students_no_manual||0}</td>
+      <td><strong style="font-family:var(--ft);font-size:16px;color:${parseFloat(r.average_score)>=2?'var(--blue)':'var(--amber)'}">${r.average_score||'—'}</strong></td>
+      <td style="font-size:11px;color:${parseFloat(r.pct_inicial)>30?'var(--red-dark)':'var(--gray)'}">${r.pct_inicial||0}%</td>
+      <td style="font-size:11px;font-weight:600;color:var(--blue)">${r.pct_adecuado||0}%</td>
+      <td style="font-size:11px;color:var(--green)">${r.pct_excelente||0}%</td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
 }
 
-async function renderFundacion() {
-  const content = document.getElementById('main-content');
-  const totalStudents = currentSchools.reduce((a, b) => a + (b.total_students || 0), 0);
+async function renderEvidencia(){
+  setCta('+ Cargar evidencia',()=>openModal('m-evidence'));
+  const c=document.getElementById('main-c');
+  const{data:ev}=await sb.from('evidence').select('*,schools(name),profiles(full_name)').order('created_at',{ascending:false});
+  if(!ev||ev.length===0){c.innerHTML='<div class="empty-box"><div class="empty-t">Sin evidencia</div><div class="empty-s">Carga la primera con el botón de arriba</div></div>';return;}
+  const pend=ev.filter(e=>!e.validated);
+  c.innerHTML=`${pend.length?`<div class="ab2"><div class="ad adb"></div><div class="at2">${pend.length} evidencia${pend.length>1?'s':''} pendiente${pend.length>1?'s':''} de validación.</div></div>`:''}
+    <div class="card" style="padding:0;overflow:hidden"><table class="t">
+      <thead><tr><th style="padding:11px 16px">Escuela</th><th>Tipo</th><th>Por</th><th>Fecha</th><th>Estado</th><th></th></tr></thead>
+      <tbody>${ev.map(e=>`<tr>
+        <td style="padding:10px 16px;font-weight:600">${e.schools?.name||'—'}</td>
+        <td style="font-size:11px;color:var(--gray)">${e.type}</td>
+        <td style="font-size:11px;color:var(--gray)">${e.profiles?.full_name||'—'}</td>
+        <td style="font-size:11px;color:var(--gray)">${new Date(e.created_at).toLocaleDateString('es-MX')}</td>
+        <td><span class="badge ${e.validated?'bg2':'ba2'}">${e.validated?'Validada':'Pendiente'}</span></td>
+        <td>${!e.validated?`<button class="bp bsm" onclick="validateEv('${e.id}')">Validar</button>`:`<button class="bg3 bsm">Ver</button>`}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+}
 
-  // Cargar rúbricas reales
-  const { data: rubrics } = await sb.from('rubrics').select('*').order('created_at', { ascending: false });
-  const avgScore = rubrics && rubrics.length > 0
-    ? (rubrics.reduce((a, b) => a + (parseFloat(b.average_score) || 0), 0) / rubrics.length).toFixed(2)
-    : '—';
-
-  content.innerHTML = `
-    <div class="alert-blue"><div class="alert-dot ad-blue"></div><div class="alert-txt"><strong>Fundación Zorrilla</strong> — Datos en tiempo real del programa Houp. Actualizado automáticamente con cada sesión registrada.</div></div>
-    <div class="stats-row">
-      <div class="stat"><div class="stat-val c-blue">${totalStudents}</div><div class="stat-lbl">Alumnos beneficiados</div></div>
-      <div class="stat"><div class="stat-val">${currentSchools.length}</div><div class="stat-lbl">Escuelas activas</div></div>
-      <div class="stat"><div class="stat-val c-blue">${avgScore}</div><div class="stat-lbl">Prom. rúbrica (esc. 1–3)</div></div>
-      <div class="stat"><div class="stat-val">B2</div><div class="stat-lbl">Bloque actual</div></div>
+async function renderFundacion(){
+  const c=document.getElementById('main-c');
+  const total=schools.reduce((a,b)=>a+(b.total_students||0),0);
+  const{data:rubrics}=await sb.from('rubrics').select('*');
+  const avg=rubrics&&rubrics.length?(rubrics.reduce((a,b)=>a+(parseFloat(b.average_score)||0),0)/rubrics.length).toFixed(2):'—';
+  c.innerHTML=`
+    <div class="ab2"><div class="ad adb"></div><div class="at2"><strong>Fundación Zorrilla</strong> — Datos en tiempo real. Actualizado automáticamente.</div></div>
+    <div class="sr">
+      <div class="stat"><div class="sv cb">${total}</div><div class="sl">Alumnos beneficiados</div></div>
+      <div class="stat"><div class="sv">${schools.length}</div><div class="sl">Escuelas activas</div></div>
+      <div class="stat"><div class="sv cb">${avg}</div><div class="sl">Prom. rúbrica (1–3)</div></div>
+      <div class="stat"><div class="sv">B2</div><div class="sl">Bloque actual</div></div>
     </div>
-    <div class="two-col">
-      <div class="card">
-        <div class="card-hd"><div><div class="card-title">Calificación promedio por escuela</div><div class="card-sub">Rúbricas validadas</div></div></div>
-        ${currentSchools.map(s => {
-          const schoolRubrics = (rubrics || []).filter(r => r.school_id === s.id);
-          const avg = schoolRubrics.length > 0
-            ? (schoolRubrics.reduce((a, b) => a + (parseFloat(b.average_score) || 0), 0) / schoolRubrics.length).toFixed(2)
-            : '—';
-          const pct = avg !== '—' ? (parseFloat(avg) / 3 * 100) : 0;
-          return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:9px">
-            <div style="font-size:11.5px;font-family:var(--font-body);width:150px;flex-shrink:0">${s.name}</div>
-            <div class="pb-wrap" style="flex:1"><div class="pb-fill" style="width:${pct}%"></div></div>
-            <div style="font-family:var(--font-title);font-size:13px;font-weight:800;color:var(--blue);width:36px;text-align:right">${avg}</div>
-          </div>`;
-        }).join('')}
+    <div class="two">
+      <div class="card"><div class="card-hd"><div><div class="ct">Calificación por escuela</div><div class="cs">Promedio de rúbricas</div></div></div>
+        ${schools.map(s=>{const sr=(rubrics||[]).filter(r=>r.school_id===s.id);const sa=sr.length?(sr.reduce((a,b)=>a+(parseFloat(b.average_score)||0),0)/sr.length).toFixed(2):'—';const pct=sa!=='—'?(parseFloat(sa)/3*100):0;return `<div class="mr"><div class="mn">${s.name}</div><div class="mt2"><div class="pw"><div class="pf" style="width:${pct}%"></div></div></div><div class="mp" style="color:var(--blue);font-size:13px">${sa}</div></div>`;}).join('')}
       </div>
-      <div class="card">
-        <div class="card-hd"><div class="card-title">Impacto del ciclo 2024–2025</div></div>
+      <div class="card"><div class="card-hd"><div class="ct">Impacto 2024–2025</div></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div style="background:var(--blue-light);border-radius:8px;padding:14px;text-align:center"><div style="font-family:var(--font-title);font-size:24px;font-weight:800;color:var(--blue)">${(rubrics || []).length}</div><div style="font-size:10px;color:var(--gray);margin-top:4px">Rúbricas completadas</div></div>
-          <div style="background:var(--green-light);border-radius:8px;padding:14px;text-align:center"><div style="font-family:var(--font-title);font-size:24px;font-weight:800;color:var(--green)">${currentSchools.filter(s=>s.type==='publica').length}</div><div style="font-size:10px;color:var(--gray);margin-top:4px">Escuelas públicas</div></div>
-          <div style="background:#f3e5f5;border-radius:8px;padding:14px;text-align:center"><div style="font-family:var(--font-title);font-size:24px;font-weight:800;color:#6a1b9a">${totalStudents}</div><div style="font-size:10px;color:var(--gray);margin-top:4px">Alumnos totales</div></div>
-          <div style="background:var(--amber-light);border-radius:8px;padding:14px;text-align:center"><div style="font-family:var(--font-title);font-size:24px;font-weight:800;color:var(--amber)">3</div><div style="font-size:10px;color:var(--gray);margin-top:4px">Años del modelo</div></div>
+          <div style="background:var(--blue-light);border-radius:8px;padding:14px;text-align:center"><div style="font-family:var(--ft);font-size:24px;font-weight:800;color:var(--blue)">${(rubrics||[]).length}</div><div style="font-size:10px;color:var(--gray);margin-top:4px">Rúbricas completadas</div></div>
+          <div style="background:var(--green-light);border-radius:8px;padding:14px;text-align:center"><div style="font-family:var(--ft);font-size:24px;font-weight:800;color:var(--green)">${schools.filter(s=>s.type==='publica').length}</div><div style="font-size:10px;color:var(--gray);margin-top:4px">Escuelas públicas</div></div>
+          <div style="background:var(--purple-light);border-radius:8px;padding:14px;text-align:center"><div style="font-family:var(--ft);font-size:24px;font-weight:800;color:#6a1b9a">${total}</div><div style="font-size:10px;color:var(--gray);margin-top:4px">Alumnos totales</div></div>
+          <div style="background:var(--amber-light);border-radius:8px;padding:14px;text-align:center"><div style="font-family:var(--ft);font-size:24px;font-weight:800;color:var(--amber)">3</div><div style="font-size:10px;color:var(--gray);margin-top:4px">Años del modelo</div></div>
         </div>
       </div>
     </div>`;
 }
 
-async function renderFundacionRubrica() {
-  const content = document.getElementById('main-content');
-  const { data: rubrics } = await sb.from('rubrics')
-    .select('*, schools(name), profiles(full_name)')
-    .order('created_at', { ascending: false });
-
-  if (!rubrics || rubrics.length === 0) {
-    content.innerHTML = `<div class="alert-blue"><div class="alert-dot ad-blue"></div><div class="alert-txt">Aún no hay rúbricas registradas en el sistema.</div></div>`;
-    return;
-  }
-
-  content.innerHTML = `<div class="card" style="padding:0;overflow:hidden">
-    <table class="t">
-      <thead><tr><th style="padding:9px 16px">Escuela</th><th>Grado · Turno</th><th>Bloque</th><th>Evaluados</th><th>Promedio</th><th>% Inicial</th><th>% Adecuado</th><th>% Excelente</th></tr></thead>
-      <tbody>${rubrics.map(r => `
-        <tr>
-          <td style="padding:9px 16px;font-weight:600">${r.schools?.name || '—'}</td>
-          <td style="font-size:11px;color:var(--gray)">${r.grade} · ${r.shift}</td>
-          <td><span class="badge b-blue">B${r.block}</span></td>
-          <td style="font-size:12px">${r.students_evaluated || 0}</td>
-          <td><span style="font-family:var(--font-title);font-size:16px;font-weight:800;color:var(--blue)">${r.average_score || '—'}</span></td>
-          <td style="font-size:11px;color:${parseFloat(r.pct_inicial) > 30 ? 'var(--red-dark)' : 'var(--gray)'}">${r.pct_inicial || 0}%</td>
-          <td style="font-size:11px;font-weight:600;color:var(--blue)">${r.pct_adecuado || 0}%</td>
-          <td style="font-size:11px;color:var(--green)">${r.pct_excelente || 0}%</td>
-        </tr>`).join('')}
-      </tbody>
-    </table>
+async function renderFundRubrica(){
+  const c=document.getElementById('main-c');
+  const{data:rubrics}=await sb.from('rubrics').select('*,schools(name)').order('created_at',{ascending:false});
+  if(!rubrics||rubrics.length===0){c.innerHTML='<div class="empty-box"><div class="empty-t">Sin rúbricas aún</div><div class="empty-s">Las rúbricas aparecerán cuando el equipo Houp las cargue</div></div>';return;}
+  c.innerHTML=`<div class="card" style="padding:0;overflow:hidden">
+    <div style="padding:14px 20px;border-bottom:1px solid #f0f0f0"><div class="ct">Rúbricas — comparativo por bloque</div><div class="cs">${rubrics.length} evaluaciones · Escala 1=Inicial · 2=Adecuado · 3=Excelente</div></div>
+    <table class="t"><thead><tr><th style="padding:9px 16px">Escuela</th><th>Grado·Turno</th><th>Bloque</th><th>Evaluados</th><th>Promedio</th><th>% Inicial</th><th>% Adecuado</th><th>% Excelente</th></tr></thead>
+    <tbody>${rubrics.map(r=>`<tr>
+      <td style="padding:9px 16px;font-weight:600">${r.schools?.name||'—'}</td>
+      <td style="font-size:11px;color:var(--gray)">${r.grade}·${r.shift}</td>
+      <td><span class="badge bb">B${r.block}</span></td>
+      <td style="font-size:12px">${r.students_evaluated||0}</td>
+      <td><span style="font-family:var(--ft);font-size:18px;font-weight:800;color:${parseFloat(r.average_score)>=2?'var(--green)':'var(--amber)'}">${r.average_score||'—'}</span></td>
+      <td style="font-size:11px;color:${parseFloat(r.pct_inicial)>30?'var(--red-dark)':'var(--gray)'}">${r.pct_inicial||0}%</td>
+      <td style="font-size:11px;font-weight:600;color:var(--blue)">${r.pct_adecuado||0}%</td>
+      <td style="font-size:11px;color:var(--green)">${r.pct_excelente||0}%</td>
+    </tr>`).join('')}</tbody></table>
   </div>`;
 }
 
-async function renderFundacionReportes() {
-  const content = document.getElementById('main-content');
-  content.innerHTML = `
-    <div class="alert-blue"><div class="alert-dot ad-blue"></div><div class="alert-txt">Los reportes se generan con los datos más recientes. Disponibles en PDF.</div></div>
-    ${[
-      { title: 'Reporte Bloque 2 — Sec. 3 · Fundación Zorrilla', meta: '617 alumnos · PERMAH + Rúbrica + Plan de transferencia', color: 'var(--blue-light)', icon: '#02c1f4' },
-      { title: 'Comparativo B1 vs B2 — Rúbricas completas', meta: 'Todos los grados · Tablas de promedio y niveles', color: 'var(--green-light)', icon: 'var(--green)' },
-      { title: 'Bienestar PERMAH por dimensión', meta: 'Emociones positivas, compromiso, relaciones, propósito · Matutino vs Vespertino', color: '#f3e5f5', icon: '#7b1fa2' },
-      { title: 'Plan de transferencia de capacidad', meta: 'Modelo a 3 años · Acciones Bloque 2 · Piloto primaria', color: 'var(--amber-light)', icon: 'var(--amber)' },
-    ].map(r => `
-      <div style="display:flex;align-items:center;gap:14px;padding:16px 20px;background:var(--white);border-radius:var(--radius);border:1px solid rgba(0,0,0,0.06);box-shadow:var(--shadow);margin-bottom:10px">
-        <div style="width:42px;height:42px;border-radius:9px;background:${r.color};flex-shrink:0"></div>
-        <div style="flex:1">
-          <div style="font-family:var(--font-title);font-size:13px;font-weight:700">${r.title}</div>
-          <div style="font-size:11px;color:var(--gray);margin-top:2px">${r.meta}</div>
-        </div>
-        <button class="btn-p" style="font-size:11px;flex-shrink:0">Descargar PDF</button>
-      </div>`).join('')}`;
+function renderFundReportes(){
+  const c=document.getElementById('main-c');
+  c.innerHTML=`<div class="ab2"><div class="ad adb"></div><div class="at2">Los reportes se generan con los datos más recientes del programa.</div></div>`+
+  [{t:'Reporte Bloque 2 — Sec. 3 · Fundación Zorrilla',m:'617 alumnos · PERMAH + Rúbrica + Plan de transferencia',bg:'var(--blue-light)'},
+   {t:'Comparativo B1 vs B2 — Rúbricas completas',m:'Todos los grados · Tablas de promedio y niveles',bg:'var(--green-light)'},
+   {t:'Bienestar PERMAH por dimensión',m:'Emociones positivas, compromiso, relaciones, propósito · Mat. vs Vesp.',bg:'var(--purple-light)'},
+   {t:'Plan de transferencia de capacidad',m:'Modelo a 3 años · Acciones Bloque 2 · Piloto primaria',bg:'var(--amber-light)'}
+  ].map(r=>`<div class="rrow"><div class="rico" style="background:${r.bg}"></div><div class="rbody"><div class="rname">${r.t}</div><div class="rmeta">${r.m}</div></div><button class="bp bsm" style="flex-shrink:0">Descargar PDF</button></div>`).join('');
 }
 
-async function renderRubrica() {
-  const content = document.getElementById('main-content');
-  const { data: rubrics } = await sb.from('rubrics')
-    .select('*, schools(name)')
-    .order('created_at', { ascending: false })
-    .limit(20);
-
-  const btn = document.getElementById('tb-cta');
-  btn.style.display = 'block';
-  btn.textContent = '+ Nueva rúbrica';
-  btn.onclick = () => openModal('modal-rubrica');
-
-  content.innerHTML = `
-    <div class="card" style="padding:0;overflow:hidden">
-      <div style="padding:14px 20px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between">
-        <div><div class="card-title">Rúbricas del manual</div><div class="card-sub">Historial de evaluaciones cargadas</div></div>
-      </div>
-      ${!rubrics || rubrics.length === 0 ? `<div style="text-align:center;padding:40px;color:var(--gray);font-size:13px">Aún no hay rúbricas. Carga la primera con el botón "+ Nueva rúbrica".</div>` :
-      `<table class="t">
-        <thead><tr><th style="padding:9px 16px">Escuela</th><th>Grado</th><th>Turno</th><th>Bloque</th><th>Evaluados</th><th>Promedio</th><th>% Adecuado</th></tr></thead>
-        <tbody>${rubrics.map(r => `
-          <tr>
-            <td style="padding:9px 16px;font-weight:600">${r.schools?.name || '—'}</td>
-            <td style="font-size:12px">${r.grade}</td>
-            <td style="font-size:12px">${r.shift}</td>
-            <td><span class="badge b-blue">B${r.block}</span></td>
-            <td style="font-size:12px">${r.students_evaluated || 0}</td>
-            <td><strong style="color:var(--blue)">${r.average_score || '—'}</strong></td>
-            <td style="font-size:12px;color:var(--blue)">${r.pct_adecuado || 0}%</td>
-          </tr>`).join('')}
-        </tbody>
-      </table>`}
-    </div>`;
+// ACTIONS
+function openSchoolModal(id){
+  document.getElementById('sc-id').value=id||'';
+  if(id){const s=schools.find(x=>x.id===id);if(s){document.getElementById('sc-name').value=s.name||'';document.getElementById('sc-short').value=s.short_name||'';document.getElementById('sc-type').value=s.type||'publica';document.getElementById('sc-year').value=s.year_model||'año1';document.getElementById('sc-students').value=s.total_students||0;document.getElementById('sc-city').value=s.city||'Monterrey';}document.getElementById('m-school-t').textContent='Editar escuela';}
+  else{document.getElementById('m-school-t').textContent='Nueva escuela';['sc-name','sc-short','sc-students'].forEach(i=>document.getElementById(i).value='');document.getElementById('sc-city').value='Monterrey';}
+  openModal('m-school');
 }
 
-// ══════════════════════════════════════════════════════════════
-// ACCIONES
-// ══════════════════════════════════════════════════════════════
-function openIncidentModal(schoolId) {
-  selectedSchoolId = schoolId;
-  document.getElementById('inc-date').value = new Date().toISOString().split('T')[0];
-  openModal('modal-incidencia');
+async function saveSchool(){
+  const id=document.getElementById('sc-id').value;
+  const data={name:document.getElementById('sc-name').value.trim(),short_name:document.getElementById('sc-short').value.trim().toUpperCase(),type:document.getElementById('sc-type').value,year_model:document.getElementById('sc-year').value,total_students:parseInt(document.getElementById('sc-students').value)||0,city:document.getElementById('sc-city').value||'Monterrey',active:true};
+  if(!data.name||!data.short_name){showToast('Completa nombre y nombre corto');return;}
+  const{error}=id?await sb.from('schools').update(data).eq('id',id):await sb.from('schools').insert(data);
+  if(error){showToast('Error: '+error.message);return;}
+  closeModal('m-school');showToast(id?'✓ Escuela actualizada':'✓ Escuela creada');
+  await loadSchools();renderEscuelas();
 }
 
-async function saveIncident() {
-  const type = document.getElementById('inc-type').value;
-  const reason = document.getElementById('inc-reason').value;
-  const date = document.getElementById('inc-date').value;
-
-  if (!reason || !date) { showToast('Por favor completa todos los campos.'); return; }
-
-  const { error } = await sb.from('incidents').insert({
-    school_id: selectedSchoolId,
-    type, reason,
-    incident_date: date,
-    reported_by: currentUser.id
-  });
-
-  if (error) { showToast('Error al guardar. Intenta de nuevo.'); return; }
-
-  closeModal('modal-incidencia');
-  showToast('✓ Incidencia registrada correctamente');
-  navigateTo('sesiones');
+async function saveUser(){
+  const fname=document.getElementById('u-fname').value.trim();
+  const email=document.getElementById('u-femail').value.trim();
+  const role=document.getElementById('u-frole').value;
+  const school=document.getElementById('u-fschool').value;
+  const pw=document.getElementById('u-fpw').value;
+  if(!fname||!email||!pw){showToast('Completa todos los campos');return;}
+  if(pw.length<6){showToast('Contraseña mínimo 6 caracteres');return;}
+  const{data,error}=await sb.auth.signUp({email,password:pw,options:{data:{full_name:fname,role}}});
+  if(error){showToast('Error: '+error.message);return;}
+  if(data.user)await sb.from('profiles').upsert({id:data.user.id,email,full_name:fname,role,school_id:school||null});
+  closeModal('m-user');showToast('✓ Usuario creado');
 }
 
-async function saveRubric() {
-  const schoolId = currentProfile.school_id || (currentSchools[0]?.id);
-  const grade = document.getElementById('rub-grade').value;
-  const shift = document.getElementById('rub-shift').value;
-  const evaluated = parseInt(document.getElementById('rub-evaluated').value) || 0;
-  const noManual = parseInt(document.getElementById('rub-no-manual').value) || 0;
-  const pctInicial = parseFloat(document.getElementById('rub-pct-inicial').value) || 0;
-  const pctAdecuado = parseFloat(document.getElementById('rub-pct-adecuado').value) || 0;
-  const pctExcelente = parseFloat(document.getElementById('rub-pct-excelente').value) || 0;
-  const notes = document.getElementById('rub-notes').value;
-
-  const avgScore = ((1 * pctInicial/100) + (2 * pctAdecuado/100) + (3 * pctExcelente/100)).toFixed(2);
-
-  const { error } = await sb.from('rubrics').insert({
-    school_id: schoolId,
-    grade, shift,
-    students_evaluated: evaluated,
-    students_no_manual: noManual,
-    pct_inicial: pctInicial,
-    pct_adecuado: pctAdecuado,
-    pct_excelente: pctExcelente,
-    average_score: parseFloat(avgScore),
-    notes,
-    block: 2,
-    teacher_id: currentUser.id
-  });
-
-  if (error) { showToast('Error al guardar rúbrica.'); console.error(error); return; }
-
-  closeModal('modal-rubrica');
-  showToast('✓ Rúbrica guardada correctamente');
-  navigateTo('rubrica');
+async function saveIncident(){
+  const schoolId=document.getElementById('inc-school').value;
+  const type=document.getElementById('inc-type').value;
+  const reason=document.getElementById('inc-reason').value;
+  const date=document.getElementById('inc-date').value;
+  if(!reason||!date||!schoolId){showToast('Completa todos los campos');return;}
+  const{error}=await sb.from('incidents').insert({school_id:schoolId,type,reason,incident_date:date,reported_by:CU.id});
+  if(error){showToast('Error al guardar');return;}
+  closeModal('m-session');showToast('✓ Incidencia registrada');
 }
 
-async function validateEvidence(evidenceId) {
-  const { error } = await sb.from('evidence').update({
-    validated: true,
-    validated_by: currentUser.id,
-    validated_at: new Date().toISOString()
-  }).eq('id', evidenceId);
-
-  if (!error) {
-    showToast('✓ Evidencia validada');
-    renderEvidencia();
-  }
+async function saveRubric(){
+  const schoolId=document.getElementById('rub-school').value;
+  const block=parseInt(document.getElementById('rub-block').value);
+  const grade=document.getElementById('rub-grade').value;
+  const shift=document.getElementById('rub-shift').value;
+  const evaluated=parseInt(document.getElementById('rub-eval').value)||0;
+  const noManual=parseInt(document.getElementById('rub-nm').value)||0;
+  const pctIni=parseFloat(document.getElementById('rub-ini').value)||0;
+  const pctAde=parseFloat(document.getElementById('rub-ade').value)||0;
+  const pctExc=parseFloat(document.getElementById('rub-exc').value)||0;
+  const notes=document.getElementById('rub-notes').value;
+  if(!schoolId){showToast('Selecciona una escuela');return;}
+  const avg=((1*pctIni/100)+(2*pctAde/100)+(3*pctExc/100)).toFixed(2);
+  const{error}=await sb.from('rubrics').insert({school_id:schoolId,grade,shift,block,students_evaluated:evaluated,students_no_manual:noManual,pct_inicial:pctIni,pct_adecuado:pctAde,pct_excelente:pctExc,average_score:parseFloat(avg),notes,teacher_id:CU.id});
+  if(error){showToast('Error: '+error.message);return;}
+  closeModal('m-rubric');showToast('✓ Rúbrica guardada');renderRubrica();
 }
 
-function exportData() {
-  showToast('Exportación en desarrollo 🚧');
+async function saveEvidence(){
+  const schoolId=document.getElementById('ev-school').value;
+  const type=document.getElementById('ev-type').value;
+  const url=document.getElementById('ev-url').value;
+  const desc=document.getElementById('ev-desc').value;
+  if(!schoolId){showToast('Selecciona una escuela');return;}
+  const{error}=await sb.from('evidence').insert({school_id:schoolId,type,url,description:desc,uploaded_by:CU.id,validated:false});
+  if(error){showToast('Error al guardar');return;}
+  closeModal('m-evidence');showToast('✓ Evidencia cargada');renderEvidencia();
 }
 
-function openModal(id) { document.getElementById(id).classList.add('open'); }
-function closeModal(id) { document.getElementById(id).classList.remove('open'); }
-
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 3000);
+async function validateEv(id){
+  await sb.from('evidence').update({validated:true,validated_by:CU.id,validated_at:new Date().toISOString()}).eq('id',id);
+  showToast('✓ Evidencia validada');renderEvidencia();
 }
 
-// ══════════════════════════════════════════════════════════════
-// INIT — Verificar sesión existente
-// ══════════════════════════════════════════════════════════════
-(async () => {
-  const { data: { session } } = await sb.auth.getSession();
-  if (session?.user) {
-    await initApp(session.user);
-  }
-})();
+function openModal(id){document.getElementById(id).classList.add('open');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
+
+(async()=>{const{data:{session}}=await sb.auth.getSession();if(session?.user)await initApp(session.user);})();
 </script>
 </body>
 </html>
