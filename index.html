@@ -968,531 +968,504 @@
   </div>
 </div>
 
-
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-// ══ SUPABASE ══════════════════════════════════════════════════
-const SU='https://kcdckzcsnqjqfsdxwemd.supabase.co';
-const SK='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtjZGNremNzbnFqcWZzZHh3ZW1kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MzI2NTMsImV4cCI6MjA5MzAwODY1M30.4PueblwJJUe5aTsmXhkS2KifKRjgaFkesfyiZjS0580';
+// ═══════════════════════════════════════════════════
+// HOUP PLATFORM — Real Supabase Integration
+// ═══════════════════════════════════════════════════
+const SU = 'https://kcdckzcsnqjqfsdxwemd.supabase.co';
+const SK = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtjZGNremNzbnFqcWZzZHh3ZW1kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MzI2NTMsImV4cCI6MjA5MzAwODY1M30.4PueblwJJUe5aTsmXhkS2KifKRjgaFkesfyiZjS0580';
 const sb = supabase.createClient(SU, SK);
 
-let CU=null, CP=null, schools=[], ctaFn=null;
-const RL={admin_houp:'Admin Houp',responsable:'Responsable',docente:'Docente',fundacion:'Fundación'};
+let CU = null, CP = null, schools = [];
+const RL = { admin_houp:'Admin Houp', responsable:'Responsable', docente:'Docente', fundacion:'Fundación' };
 
-// ══ LOGIN SCREEN ══════════════════════════════════════════════
-// Overlay login on top of the mockup
-const loginHTML = `
-<div id="login-overlay" style="position:fixed;inset:0;background:#012B38;z-index:9999;display:flex;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:16px;padding:44px 40px;width:100%;max-width:400px;box-shadow:0 24px 80px rgba(0,0,0,0.4)">
+// ── LOGIN OVERLAY ─────────────────────────────────
+document.body.insertAdjacentHTML('beforeend', `
+<div id="login-ov" style="position:fixed;inset:0;background:#012B38;z-index:9999;display:flex;align-items:center;justify-content:center;font-family:'Open Sans',sans-serif">
+  <div style="background:#fff;border-radius:16px;padding:44px 40px;width:400px;box-shadow:0 24px 80px rgba(0,0,0,0.4)">
     <div style="text-align:center;margin-bottom:28px">
-      <div style="display:flex;align-items:center;justify-content:center;gap:2px;margin-bottom:6px">
-        <span style="color:#02c1f4;font-family:'Montserrat',sans-serif;font-size:34px;font-weight:800;letter-spacing:-1px">H</span>
+      <div style="display:flex;align-items:center;justify-content:center;gap:1px;margin-bottom:6px">
+        <span style="color:#02c1f4;font-family:Montserrat,sans-serif;font-size:34px;font-weight:800;letter-spacing:-1px">H</span>
         <span style="width:24px;height:24px;border-radius:50%;border:4px solid #02c1f4;display:inline-block;margin:0 3px;position:relative;top:3px"></span>
-        <span style="font-family:'Montserrat',sans-serif;font-size:34px;font-weight:800;color:#000;letter-spacing:-1px">UP</span>
+        <span style="font-family:Montserrat,sans-serif;font-size:34px;font-weight:800;color:#000;letter-spacing:-1px">UP</span>
       </div>
       <div style="font-size:11px;color:#797979;letter-spacing:.5px">Plataforma de bienestar socioemocional</div>
     </div>
-    <div style="font-family:'Montserrat',sans-serif;font-size:17px;font-weight:700;margin-bottom:20px">Iniciar sesión</div>
+    <div style="font-family:Montserrat,sans-serif;font-size:17px;font-weight:700;margin-bottom:20px">Iniciar sesión</div>
     <div style="margin-bottom:14px">
-      <label style="display:block;font-size:11px;font-weight:600;font-family:'Montserrat',sans-serif;margin-bottom:5px">Correo electrónico</label>
-      <input type="email" id="li-email" placeholder="tu@houp.mx" autocomplete="email"
-        style="width:100%;padding:11px 14px;border:1.5px solid rgba(0,0,0,0.14);border-radius:6px;font-size:13px;outline:none">
+      <label style="display:block;font-size:11px;font-weight:600;font-family:Montserrat,sans-serif;margin-bottom:5px">Correo electrónico</label>
+      <input id="li-em" type="email" placeholder="tu@houp.mx" style="width:100%;padding:11px 14px;border:1.5px solid rgba(0,0,0,0.14);border-radius:6px;font-size:13px;outline:none;font-family:inherit">
     </div>
     <div style="margin-bottom:14px">
-      <label style="display:block;font-size:11px;font-weight:600;font-family:'Montserrat',sans-serif;margin-bottom:5px">Contraseña</label>
-      <input type="password" id="li-pw" placeholder="••••••••"
-        style="width:100%;padding:11px 14px;border:1.5px solid rgba(0,0,0,0.14);border-radius:6px;font-size:13px;outline:none">
+      <label style="display:block;font-size:11px;font-weight:600;font-family:Montserrat,sans-serif;margin-bottom:5px">Contraseña</label>
+      <input id="li-pw" type="password" placeholder="••••••••" style="width:100%;padding:11px 14px;border:1.5px solid rgba(0,0,0,0.14);border-radius:6px;font-size:13px;outline:none;font-family:inherit">
     </div>
-    <button onclick="doLogin()" id="btn-li"
-      style="width:100%;padding:13px;background:#02c1f4;color:#fff;border:none;border-radius:6px;font-family:'Montserrat',sans-serif;font-size:13px;font-weight:700;cursor:pointer;margin-top:4px">
-      Entrar
-    </button>
-    <div id="l-err" style="color:#e03535;font-size:12px;margin-top:10px;text-align:center;display:none"></div>
-    <div id="l-load" style="text-align:center;font-size:12px;color:#797979;margin-top:10px;display:none">Verificando...</div>
+    <button id="li-btn" onclick="doLogin()" style="width:100%;padding:13px;background:#02c1f4;color:#fff;border:none;border-radius:6px;font-family:Montserrat,sans-serif;font-size:13px;font-weight:700;cursor:pointer">Entrar</button>
+    <div id="li-err" style="color:#e03535;font-size:12px;margin-top:10px;text-align:center;display:none"></div>
+    <div id="li-ld" style="text-align:center;font-size:12px;color:#797979;margin-top:10px;display:none">Verificando...</div>
   </div>
-</div>`;
+</div>
 
-document.body.insertAdjacentHTML('beforeend', loginHTML);
-
-// Toast
-document.body.insertAdjacentHTML('beforeend',
-  '<div id="houp-toast" style="position:fixed;bottom:24px;right:24px;background:#012B38;color:#fff;padding:12px 20px;border-radius:10px;font-family:Montserrat,sans-serif;font-size:13px;font-weight:600;z-index:9998;transform:translateY(100px);opacity:0;transition:all .3s"></div>'
-);
-
-// Modals HTML
-document.body.insertAdjacentHTML('beforeend', `
-<div id="m-school" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:5000;display:none;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:14px;padding:28px;width:100%;max-width:560px;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
-    <div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:20px" id="m-school-t">Nueva escuela</div>
+<!-- MODALES -->
+<div id="m-school" style="position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:8000;display:none;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:28px;width:560px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.25)">
+    <div id="m-school-t" style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:20px">Nueva escuela</div>
     <input type="hidden" id="sc-id">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
-      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:5px">Nombre</label><input type="text" id="sc-name" placeholder="Ej: Secundaria 3" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"></div>
-      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:5px">Nombre corto</label><input type="text" id="sc-short" maxlength="5" placeholder="SEC3" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:4px">Nombre completo</label><input id="sc-name" type="text" placeholder="Ej: Secundaria 3" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"></div>
+      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:4px">Nombre corto</label><input id="sc-short" type="text" maxlength="5" placeholder="SEC3" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"></div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
-      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:5px">Tipo</label><select id="sc-type" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"><option value="publica">Pública</option><option value="privada">Privada</option></select></div>
-      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:5px">Año del modelo</label><select id="sc-year" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"><option value="arranque">Arranque</option><option value="año1">Año 1</option><option value="año2">Año 2</option><option value="año3">Año 3</option><option value="licencia">Licencia</option></select></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:4px">Tipo</label><select id="sc-type" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"><option value="publica">Pública</option><option value="privada">Privada</option></select></div>
+      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:4px">Año del modelo</label><select id="sc-year" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"><option value="arranque">Arranque</option><option value="año1">Año 1</option><option value="año2">Año 2</option><option value="año3">Año 3</option><option value="licencia">Licencia</option></select></div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">
-      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:5px">Alumnos</label><input type="number" id="sc-students" placeholder="0" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"></div>
-      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:5px">Ciudad</label><input type="text" id="sc-city" value="Monterrey" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:4px">Total alumnos</label><input id="sc-students" type="number" placeholder="0" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"></div>
+      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:4px">Ciudad</label><input id="sc-city" type="text" value="Monterrey" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"></div>
     </div>
     <div style="display:flex;gap:10px;justify-content:flex-end">
-      <button onclick="closeM('m-school')" style="background:#fff;border:1px solid rgba(0,0,0,0.14);color:#444;padding:8px 16px;border-radius:6px;font-size:12px;cursor:pointer">Cancelar</button>
-      <button onclick="saveSchool()" style="background:#02c1f4;color:#fff;border:none;padding:8px 16px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:600;cursor:pointer">Guardar</button>
+      <button onclick="cM('m-school')" style="background:#fff;border:1px solid rgba(0,0,0,0.14);color:#444;padding:8px 16px;border-radius:6px;font-size:12px;cursor:pointer">Cancelar</button>
+      <button onclick="saveSchool()" style="background:#02c1f4;color:#fff;border:none;padding:8px 16px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:600;cursor:pointer">Guardar escuela</button>
     </div>
   </div>
 </div>
 
-<div id="m-incident" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:5000;display:none;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:14px;padding:28px;width:100%;max-width:520px;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
+<div id="m-user" style="position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:8000;display:none;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:28px;width:520px;box-shadow:0 20px 60px rgba(0,0,0,0.25)">
+    <div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:20px">Nuevo usuario</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:4px">Nombre completo</label><input id="u-fn" type="text" placeholder="Nombre Apellido" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"></div>
+      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:4px">Correo</label><input id="u-fe" type="email" placeholder="correo@houp.mx" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:4px">Rol</label><select id="u-fr" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"><option value="admin_houp">Admin Houp</option><option value="responsable">Responsable</option><option value="docente">Docente</option><option value="fundacion">Fundación</option></select></div>
+      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:4px">Escuela</label><select id="u-fs" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"><option value="">— Sin escuela —</option></select></div>
+    </div>
+    <div style="margin-bottom:20px"><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:4px">Contraseña temporal</label><input id="u-fp" type="password" placeholder="Mínimo 6 caracteres" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="cM('m-user')" style="background:#fff;border:1px solid rgba(0,0,0,0.14);color:#444;padding:8px 16px;border-radius:6px;font-size:12px;cursor:pointer">Cancelar</button>
+      <button onclick="saveUser()" style="background:#02c1f4;color:#fff;border:none;padding:8px 16px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:600;cursor:pointer">Crear usuario</button>
+    </div>
+  </div>
+</div>
+
+<div id="m-inc" style="position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:8000;display:none;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:28px;width:520px;box-shadow:0 20px 60px rgba(0,0,0,0.25)">
     <div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:20px">Registrar incidencia</div>
     <input type="hidden" id="inc-sid">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
-      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:5px">Escuela</label><select id="inc-school" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"></select></div>
-      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:5px">Tipo</label><select id="inc-type" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"><option value="cancelacion">Cancelación</option><option value="doble">Sesión doble</option><option value="saltada">Saltada</option><option value="reagendada">Reagendada</option></select></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:4px">Escuela</label><select id="inc-sc" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"></select></div>
+      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:4px">Tipo</label><select id="inc-ty" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"><option value="cancelacion">Cancelación</option><option value="doble">Sesión doble</option><option value="saltada">Saltada</option><option value="reagendada">Reagendada</option></select></div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">
-      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:5px">Fecha</label><input type="date" id="inc-date" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"></div>
-      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:5px">Motivo</label><input type="text" id="inc-reason" placeholder="Ej: Paro docente..." style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:4px">Fecha</label><input id="inc-dt" type="date" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"></div>
+      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:4px">Motivo</label><input id="inc-rs" type="text" placeholder="Ej: Paro docente..." style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"></div>
     </div>
     <div style="display:flex;gap:10px;justify-content:flex-end">
-      <button onclick="closeM('m-incident')" style="background:#fff;border:1px solid rgba(0,0,0,0.14);color:#444;padding:8px 16px;border-radius:6px;font-size:12px;cursor:pointer">Cancelar</button>
-      <button onclick="saveIncident()" style="background:#02c1f4;color:#fff;border:none;padding:8px 16px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:600;cursor:pointer">Guardar</button>
+      <button onclick="cM('m-inc')" style="background:#fff;border:1px solid rgba(0,0,0,0.14);color:#444;padding:8px 16px;border-radius:6px;font-size:12px;cursor:pointer">Cancelar</button>
+      <button onclick="saveInc()" style="background:#02c1f4;color:#fff;border:none;padding:8px 16px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:600;cursor:pointer">Guardar</button>
     </div>
   </div>
 </div>
 
-<div id="m-rubric" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:5000;display:none;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:14px;padding:28px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
+<div id="m-rub" style="position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:8000;display:none;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:28px;width:560px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.25)">
     <div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:20px">Cargar rúbrica del manual</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
-      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:5px">Escuela</label><select id="rub-school" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"></select></div>
-      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:5px">Bloque</label><select id="rub-block" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"><option value="1">Bloque 1</option><option value="2" selected>Bloque 2</option><option value="3">Bloque 3</option></select></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:4px">Escuela</label><select id="rub-sc" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"></select></div>
+      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:4px">Bloque</label><select id="rub-bl" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"><option value="1">Bloque 1</option><option value="2" selected>Bloque 2</option><option value="3">Bloque 3</option></select></div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
-      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:5px">Grado</label><select id="rub-grade" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"><option value="1°">1°</option><option value="2°">2°</option><option value="3°">3°</option></select></div>
-      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:5px">Turno</label><select id="rub-shift" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"><option value="matutino">Matutino</option><option value="vespertino">Vespertino</option></select></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:4px">Grado</label><select id="rub-gr" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"><option value="1°">1°</option><option value="2°">2°</option><option value="3°">3°</option></select></div>
+      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:4px">Turno</label><select id="rub-sh" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"><option value="matutino">Matutino</option><option value="vespertino">Vespertino</option></select></div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
-      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:5px">Evaluados</label><input type="number" id="rub-eval" placeholder="0" min="0" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"></div>
-      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:5px">Sin manual</label><input type="number" id="rub-nm" placeholder="0" min="0" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:4px">Evaluados</label><input id="rub-ev" type="number" placeholder="0" min="0" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"></div>
+      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:4px">Sin manual</label><input id="rub-nm" type="number" placeholder="0" min="0" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"></div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
-      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:5px">% Inicial</label><input type="number" id="rub-ini" placeholder="0" min="0" max="100" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"></div>
-      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:5px">% Adecuado</label><input type="number" id="rub-ade" placeholder="0" min="0" max="100" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"></div>
-      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:5px">% Excelente</label><input type="number" id="rub-exc" placeholder="0" min="0" max="100" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:4px">% Inicial</label><input id="rub-in" type="number" placeholder="0" min="0" max="100" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"></div>
+      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:4px">% Adecuado</label><input id="rub-ad" type="number" placeholder="0" min="0" max="100" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"></div>
+      <div><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:4px">% Excelente</label><input id="rub-ex" type="number" placeholder="0" min="0" max="100" style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none"></div>
     </div>
-    <div style="margin-bottom:20px"><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:5px">Notas</label><textarea id="rub-notes" rows="3" placeholder="Observaciones del bloque..." style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none;resize:vertical"></textarea></div>
+    <div style="margin-bottom:20px"><label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;display:block;margin-bottom:4px">Notas</label><textarea id="rub-no" rows="3" placeholder="Observaciones..." style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.13);border-radius:6px;font-size:12px;outline:none;resize:vertical;font-family:inherit"></textarea></div>
     <div style="display:flex;gap:10px;justify-content:flex-end">
-      <button onclick="closeM('m-rubric')" style="background:#fff;border:1px solid rgba(0,0,0,0.14);color:#444;padding:8px 16px;border-radius:6px;font-size:12px;cursor:pointer">Cancelar</button>
-      <button onclick="saveRubric()" style="background:#02c1f4;color:#fff;border:none;padding:8px 16px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:600;cursor:pointer">Guardar</button>
+      <button onclick="cM('m-rub')" style="background:#fff;border:1px solid rgba(0,0,0,0.14);color:#444;padding:8px 16px;border-radius:6px;font-size:12px;cursor:pointer">Cancelar</button>
+      <button onclick="saveRub()" style="background:#02c1f4;color:#fff;border:none;padding:8px 16px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:600;cursor:pointer">Guardar</button>
     </div>
   </div>
 </div>
+
+<div id="houp-toast" style="position:fixed;bottom:24px;right:24px;background:#012B38;color:#fff;padding:12px 20px;border-radius:10px;font-family:Montserrat,sans-serif;font-size:13px;font-weight:600;z-index:9998;transform:translateY(100px);opacity:0;transition:all .3s;pointer-events:none"></div>
 `);
 
-// ══ AUTH ══════════════════════════════════════════════════════
+// ── AUTH ──────────────────────────────────────────
 async function doLogin() {
-  const email = document.getElementById('li-email').value.trim();
+  const email = document.getElementById('li-em').value.trim();
   const pw = document.getElementById('li-pw').value;
-  const btn = document.getElementById('btn-li');
-  if (!email||!pw) { document.getElementById('l-err').textContent='Completa los campos'; document.getElementById('l-err').style.display='block'; return; }
+  const btn = document.getElementById('li-btn');
+  if (!email||!pw) { showErr('Completa los campos'); return; }
   btn.disabled = true;
-  document.getElementById('l-err').style.display = 'none';
-  document.getElementById('l-load').style.display = 'block';
-  const {data, error} = await sb.auth.signInWithPassword({email, password: pw});
-  if (error) { document.getElementById('l-err').textContent='Correo o contraseña incorrectos'; document.getElementById('l-err').style.display='block'; btn.disabled=false; document.getElementById('l-load').style.display='none'; return; }
+  document.getElementById('li-err').style.display = 'none';
+  document.getElementById('li-ld').style.display = 'block';
+  const {data,error} = await sb.auth.signInWithPassword({email,password:pw});
+  if (error) { showErr('Correo o contraseña incorrectos'); btn.disabled=false; document.getElementById('li-ld').style.display='none'; return; }
   await initApp(data.user);
 }
+function showErr(m){const e=document.getElementById('li-err');e.textContent=m;e.style.display='block';}
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.getElementById('login-ov'))doLogin();});
 
-document.addEventListener('keydown', e => {
-  if (e.key==='Enter' && document.getElementById('login-overlay')) doLogin();
-});
-
-async function doLogout() {
-  await sb.auth.signOut();
-  location.reload();
-}
-
-// ══ INIT ══════════════════════════════════════════════════════
 async function initApp(user) {
   CU = user;
-  const {data: p} = await sb.from('profiles').select('*').eq('id', user.id).single();
-  CP = p || {id:user.id, email:user.email, full_name:user.email.split('@')[0], role:'admin_houp', school_id:null};
+  const {data:p} = await sb.from('profiles').select('*').eq('id',user.id).single();
+  CP = p || {id:user.id,email:user.email,full_name:user.email.split('@')[0],role:'admin_houp',school_id:null};
   if (!p) await sb.from('profiles').upsert(CP);
-
-  // Hide login
-  const ov = document.getElementById('login-overlay');
-  if (ov) ov.remove();
-
-  // Update sidebar user info
+  document.getElementById('login-ov').remove();
+  // Set user info in sidebar
   const ini = (CP.full_name||CP.email).split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
   document.getElementById('ua').textContent = ini;
   document.getElementById('un').textContent = CP.full_name||CP.email;
   document.getElementById('ur').textContent = RL[CP.role]||CP.role;
-
-  // Load schools & update nav
   await loadSchools();
-  setupRealNav();
-  loadScreen('s-dash');
+  nav(document.querySelector('#nav-admin .nav-item'), 's-dash');
 }
 
 async function loadSchools() {
-  const {data} = await sb.from('schools').select('*').eq('active', true).order('name');
-  schools = data || [];
-  // Populate school selects in modals
-  ['inc-school','rub-school'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.innerHTML = schools.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+  const {data} = await sb.from('schools').select('*').eq('active',true).order('name');
+  schools = data||[];
+  ['inc-sc','rub-sc','u-fs'].forEach(id=>{
+    const el=document.getElementById(id);if(!el)return;
+    const def = id==='u-fs'?'<option value="">— Sin escuela —</option>':'';
+    el.innerHTML = def + schools.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
   });
 }
 
-// ══ NAV SETUP ════════════════════════════════════════════════
-function setupRealNav() {
-  // Wire up role switcher buttons to use real roles
-  document.querySelectorAll('.role-btn').forEach(btn => {
-    const txt = btn.textContent.trim();
-    if (txt.includes('Houp')) btn.onclick = () => switchToRole('admin');
-    else if (txt.includes('responsable') || txt.includes('Responsable')) btn.onclick = () => switchToRole('responsable');
-    else if (txt.includes('Docente') || txt.includes('docente')) btn.onclick = () => switchToRole('docente');
-    else if (txt.includes('undaci')) btn.onclick = () => switchToRole('fundacion');
-  });
-
-  // Wire topbar CTA based on current screen
-  const ctaBtn = document.getElementById('tb-cta') || document.querySelector('.btn-p[id="tb-cta"]');
-}
-
-function switchToRole(role) {
-  // Keep original role switching for demo purposes
-  const roleMap = {admin:'admin', responsable:'responsable', docente:'docente', fundacion:'fundacion'};
-  if (window.switchRole) {
-    // find the button
-    const btns = document.querySelectorAll('.role-btn');
-    btns.forEach(b => {
-      const t = b.textContent.toLowerCase();
-      if ((role==='admin'&&t.includes('houp')) || (role==='responsable'&&t.includes('responsable')) || (role==='docente'&&t.includes('docente')) || (role==='fundacion'&&t.includes('fundaci'))) {
-        b.classList.add('active');
-      } else { b.classList.remove('active'); }
-    });
-    switchRole(role);
+// ── NAV — replaces original nav() ────────────────
+function nav(el, screenId) {
+  // Update active nav item
+  if (el) {
+    const parentNav = el.closest('.nav');
+    if (parentNav) parentNav.querySelectorAll('.nav-item').forEach(i=>i.classList.remove('active'));
+    el.classList.add('active');
   }
-}
-
-// ══ REAL DATA LOADERS ════════════════════════════════════════
-async function loadRealEscuelas() {
-  const c = document.getElementById('s-escuelas');
-  if (!c) return;
-  const alerts = schools.filter(s=>s.alert_days>14);
-  c.innerHTML = `
-    ${alerts.length ? `<div style="background:#fff5f5;border:1px solid rgba(224,53,53,0.22);border-radius:6px;padding:12px 16px;margin-bottom:16px;display:flex;gap:12px"><div style="width:8px;height:8px;border-radius:50%;background:#e03535;flex-shrink:0;margin-top:4px"></div><div style="font-size:12.5px;color:#333"><strong>${alerts.length} escuela(s) en alerta</strong> — ${alerts.map(s=>s.name).join(', ')} llevan más de 2 semanas sin sesión.</div></div>` : ''}
-    <div style="display:flex;justify-content:flex-end;margin-bottom:14px">
-      <button onclick="openSchoolModal()" style="background:#02c1f4;color:#fff;border:none;padding:8px 16px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:600;cursor:pointer">+ Nueva escuela</button>
-    </div>
-    <div style="background:#fff;border-radius:10px;border:1px solid rgba(0,0,0,0.06);padding:0;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
-      <table style="width:100%;border-collapse:collapse;font-size:12px;font-family:'Open Sans',sans-serif">
-        <thead><tr>
-          <th style="text-align:left;padding:10px 16px;color:#797979;font-family:Montserrat,sans-serif;font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #f0f0f0">Escuela</th>
-          <th style="text-align:left;padding:10px 12px;color:#797979;font-family:Montserrat,sans-serif;font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #f0f0f0">Tipo</th>
-          <th style="text-align:left;padding:10px 12px;color:#797979;font-family:Montserrat,sans-serif;font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #f0f0f0">Año</th>
-          <th style="text-align:left;padding:10px 12px;color:#797979;font-family:Montserrat,sans-serif;font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #f0f0f0">Alumnos</th>
-          <th style="text-align:left;padding:10px 12px;color:#797979;font-family:Montserrat,sans-serif;font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #f0f0f0">Estado</th>
-          <th style="border-bottom:1px solid #f0f0f0"></th>
-        </tr></thead>
-        <tbody>
-          ${schools.map(s=>`
-            <tr style="${s.alert_days>14?'background:#fff8f8':''}">
-              <td style="padding:10px 16px">
-                <div style="display:flex;align-items:center;gap:10px">
-                  <div style="width:34px;height:34px;border-radius:8px;background:${s.alert_days>14?'#fdecea':'rgba(2,193,244,0.1)'};display:flex;align-items:center;justify-content:center;color:${s.alert_days>14?'#c62828':'#02c1f4'};font-family:Montserrat,sans-serif;font-size:11px;font-weight:800;flex-shrink:0">${s.short_name}</div>
-                  <div>
-                    <div style="font-family:Montserrat,sans-serif;font-size:12.5px;font-weight:700;${s.alert_days>14?'color:#c62828':''}">${s.name}</div>
-                    <div style="font-size:11px;color:#797979">${s.total_students} alumnos</div>
-                  </div>
-                </div>
-              </td>
-              <td style="padding:10px 12px"><span style="background:${s.type==='privada'?'#f3e5f5':'#f0f0f0'};color:${s.type==='privada'?'#4a148c':'#555'};font-family:Montserrat,sans-serif;font-size:10px;font-weight:600;padding:3px 10px;border-radius:20px">${s.type==='privada'?'Privada':'Pública'}</span></td>
-              <td style="padding:10px 12px"><span style="background:rgba(2,193,244,0.12);color:#015F7A;font-family:Montserrat,sans-serif;font-size:10px;font-weight:600;padding:3px 10px;border-radius:20px">${s.year_model}</span></td>
-              <td style="padding:10px 12px;font-size:12px">${s.total_students}</td>
-              <td style="padding:10px 12px"><span style="background:${s.alert_days>14?'#fdecea':s.alert_days>7?'#fff8e1':'#e8f5e9'};color:${s.alert_days>14?'#c62828':s.alert_days>7?'#bf360c':'#1b5e20'};font-family:Montserrat,sans-serif;font-size:10px;font-weight:600;padding:3px 10px;border-radius:20px">${s.alert_days>14?`⚠ ${s.alert_days} días`:s.alert_days>7?'Pendiente':'Al día'}</span></td>
-              <td style="padding:10px 12px"><button onclick="openSchoolModal('${s.id}')" style="background:#fff;border:1px solid rgba(0,0,0,0.14);color:#444;padding:5px 12px;border-radius:6px;font-size:11px;cursor:pointer">Editar</button></td>
-            </tr>`).join('')}
-        </tbody>
-      </table>
-    </div>`;
-}
-
-async function loadRealIncidencias() {
-  const {data} = await sb.from('incidents').select('*, schools(name)').order('created_at',{ascending:false}).limit(20);
-  return data || [];
-}
-
-async function loadRealRubricas() {
-  const {data} = await sb.from('rubrics').select('*, schools(name)').order('created_at',{ascending:false}).limit(50);
-  return data || [];
-}
-
-// ══ SCREEN LOADER — intercepts nav clicks ════════════════════
-function loadScreen(screenId) {
-  // Show screen in mockup style
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  // Hide all screens
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   const sc = document.getElementById(screenId);
   if (sc) sc.classList.add('active');
-
-  // Load real data into certain screens
-  if (screenId === 's-escuelas') loadRealEscuelas();
-  if (screenId === 's-sesiones') loadRealSesiones();
-  if (screenId === 's-found-dash' || screenId === 's-dash') loadRealDash();
-  if (screenId === 's-found-rubrics') loadRealFundRubricas();
-  if (screenId === 's-evidencia') loadRealEvidencia();
+  // Update topbar
+  const titles = {
+    's-dash':'Panel general','s-escuelas':'Escuelas','s-sesiones':'Seguimiento de sesiones',
+    's-modulos':'Módulos','s-evidencia':'Evidencia','s-found-dash':'Fundación Zorrilla',
+    's-found-rubrics':'Rúbricas y calificaciones','s-found-reports':'Descargar reportes',
+    's-resp-home':'Mi programa','s-resp-sesiones':'Mis sesiones','s-resp-equipo':'Mi equipo',
+    's-doc-home':'Mis clases','s-doc-material':'Material','s-doc-plan':'Planeación',
+  };
+  const tbCta = document.getElementById('tb-cta');
+  tbCta.style.display = 'none';
+  document.getElementById('tb-title').textContent = titles[screenId]||screenId;
+  // Load real data
+  if (screenId==='s-dash') renderDash();
+  else if (screenId==='s-escuelas') { tbCta.style.display='block'; tbCta.textContent='+ Nueva escuela'; tbCta.onclick=()=>openSchoolModal(); renderEscuelas(); }
+  else if (screenId==='s-sesiones') { tbCta.style.display='block'; tbCta.textContent='+ Incidencia'; tbCta.onclick=()=>openIncModal(); renderSesiones(); }
+  else if (screenId==='s-evidencia') renderEvidencia();
+  else if (screenId==='s-found-dash') renderFundDash();
+  else if (screenId==='s-found-rubrics') { tbCta.style.display='block'; tbCta.textContent='+ Nueva rúbrica'; tbCta.onclick=()=>oM('m-rub'); renderFundRubricas(); }
+  else if (screenId==='s-found-reports') renderFundReportes();
 }
 
-async function loadRealDash() {
+// ── SWITCH ROLE — replaces original switchRole() ─
+function switchRole(r) {
+  // Switch nav visibility
+  document.querySelectorAll('.nav').forEach(n=>n.style.display='none');
+  document.querySelectorAll('.role-btn').forEach(b=>b.classList.remove('active'));
+  const roleMap = {admin:'nav-admin',responsable:'nav-responsable',docente:'nav-docente',fundacion:'nav-fundacion'};
+  const navEl = document.getElementById(roleMap[r]);
+  if (navEl) navEl.style.display='block';
+  event.target.classList.add('active');
+  // Go to first screen of role
+  const firstScreens = {admin:'s-dash',responsable:'s-resp-home',docente:'s-doc-home',fundacion:'s-found-dash'};
+  const firstNav = navEl ? navEl.querySelector('.nav-item') : null;
+  nav(firstNav, firstScreens[r]||'s-dash');
+  // Update user display for demo roles
+  const roleLabels = {admin:'Admin Houp',responsable:'Responsable · Tonalli',docente:'Docente · Tonalli',fundacion:'Fundación Zorrilla'};
+  document.getElementById('ur').textContent = CP ? (RL[CP.role]||CP.role) : roleLabels[r];
+}
+
+// ── SCREENS ──────────────────────────────────────
+async function renderDash() {
   const c = document.getElementById('s-dash');
   if (!c) return;
   const alerts = schools.filter(s=>s.alert_days>14);
   const total = schools.reduce((a,b)=>a+(b.total_students||0),0);
-  const {data:rubrics} = await sb.from('rubrics').select('average_score');
-  const avg = rubrics&&rubrics.length ? (rubrics.reduce((a,b)=>a+(parseFloat(b.average_score)||0),0)/rubrics.length).toFixed(2) : '2.01';
-
-  // Update stat cards if they exist in the mockup screen
-  const statVals = c.querySelectorAll('.stat-val');
-  if (statVals.length >= 4) {
-    statVals[0].textContent = schools.length;
-    statVals[1].textContent = total;
-    statVals[2].textContent = avg;
-    statVals[3].textContent = alerts.length;
-    if (alerts.length > 0) statVals[3].style.color = '#e03535';
-  }
-}
-
-async function loadRealSesiones() {
-  const c = document.getElementById('s-sesiones');
-  if (!c) return;
-  const {data:incidents} = await sb.from('incidents').select('*, schools(name)').order('created_at',{ascending:false});
-  if (!incidents || incidents.length === 0) return;
-
-  const typeLabels = {cancelacion:'Cancelación',doble:'Doble',saltada:'Saltada',reagendada:'Reagendada'};
-  const incList = incidents.map(i=>`
-    <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f5f5f5">
-      <div style="flex:1">
-        <div style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:600">${i.schools?.name||'—'}</div>
-        <div style="font-size:11px;color:#797979">${typeLabels[i.type]||i.type} · ${i.reason}</div>
+  const {data:rubs} = await sb.from('rubrics').select('average_score');
+  const avg = rubs&&rubs.length?(rubs.reduce((a,b)=>a+(parseFloat(b.average_score)||0),0)/rubs.length).toFixed(2):'—';
+  c.innerHTML = `
+    ${alerts.length?`<div class="alert-red"><div class="alert-dot ad-red"></div><div class="alert-txt"><strong>${alerts.length} escuela(s) en alerta crítica</strong> — ${alerts.map(s=>s.name).join(', ')} llevan más de 2 semanas sin sesión.</div></div>`:''}
+    <div class="stats-row">
+      <div class="stat"><div class="stat-val c-blue">${schools.length}</div><div class="stat-lbl">Escuelas activas</div></div>
+      <div class="stat"><div class="stat-val">${total}</div><div class="stat-lbl">Alumnos en programa</div></div>
+      <div class="stat"><div class="stat-val c-blue">${avg}</div><div class="stat-lbl">Prom. rúbrica</div></div>
+      <div class="stat"><div class="stat-val ${alerts.length>0?'c-red':''}">${alerts.length}</div><div class="stat-lbl">Escuelas con atraso</div></div>
+    </div>
+    <div class="two-col">
+      <div class="card">
+        <div class="card-hd"><div><div class="card-title">Estado por escuela</div><div class="card-sub">Semáforo en tiempo real</div></div></div>
+        ${schools.map(s=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <div class="ind ${s.alert_days>14?'ind-r':s.alert_days>7?'ind-a':'ind-g'}"></div>
+          <div style="flex:1;font-family:var(--font-title);font-size:12px;font-weight:600;${s.alert_days>14?'color:var(--red-dark)':''}">${s.name}</div>
+          <span class="badge ${s.alert_days>14?'b-red':s.alert_days>7?'b-amber':'b-green'}">${s.alert_days>14?`⚠ ${s.alert_days} días`:s.alert_days>7?'1 sesión pendiente':'Al día'}</span>
+        </div>`).join('')}
       </div>
-      <div style="font-size:11px;color:#797979">${new Date(i.incident_date).toLocaleDateString('es-MX')}</div>
-      <span style="background:#fdecea;color:#c62828;font-family:Montserrat,sans-serif;font-size:10px;font-weight:600;padding:3px 10px;border-radius:20px">${typeLabels[i.type]||i.type}</span>
-    </div>`).join('');
-
-  // Append real incidents to screen
-  const existing = c.querySelector('.real-incidents');
-  if (existing) existing.remove();
-  const div = document.createElement('div');
-  div.className = 'real-incidents';
-  div.innerHTML = `
-    <div style="background:#fff;border-radius:10px;border:1px solid rgba(0,0,0,0.06);padding:18px 20px;box-shadow:0 1px 3px rgba(0,0,0,0.08);margin-top:16px">
-      <div style="font-family:Montserrat,sans-serif;font-size:13px;font-weight:700;margin-bottom:14px">Incidencias registradas (${incidents.length})</div>
-      ${incList}
+      <div class="card">
+        <div class="card-hd"><div class="card-title">Modelo a 3 años</div></div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-family:var(--font-title);font-size:12px;font-weight:600">Arranque · Capacitación</span><span class="badge b-green">Completado</span></div></div>
+          <div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-family:var(--font-title);font-size:12px;font-weight:600">Año 1 · Implementación</span><span class="badge b-blue">En curso</span></div><div class="progress-bar" style="height:5px;background:#eee;border-radius:10px;overflow:hidden"><div style="width:68%;height:5px;background:var(--blue);border-radius:10px"></div></div><div style="font-size:10px;color:var(--gray);margin-top:4px">68% · 14/20 sesiones</div></div>
+          <div><div style="display:flex;justify-content:space-between"><span style="font-family:var(--font-title);font-size:12px;color:var(--gray)">Año 2 · Co-implementación</span><span class="badge b-gray">Pendiente</span></div></div>
+          <div><div style="display:flex;justify-content:space-between"><span style="font-family:var(--font-title);font-size:12px;color:var(--gray)">Año 3 · Transferencia</span><span class="badge b-gray">Pendiente</span></div></div>
+        </div>
+      </div>
     </div>`;
-  c.appendChild(div);
 }
 
-async function loadRealFundRubricas() {
-  const c = document.getElementById('s-found-rubrics');
+async function renderEscuelas() {
+  const c = document.getElementById('s-escuelas');
   if (!c) return;
-  const rubrics = await loadRealRubricas();
-  if (!rubrics.length) return;
-
-  const existing = c.querySelector('.real-rubrics');
-  if (existing) existing.remove();
-  const div = document.createElement('div');
-  div.className = 'real-rubrics';
-  div.innerHTML = `
-    <div style="background:#fff;border-radius:10px;border:1px solid rgba(0,0,0,0.06);padding:0;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);margin-top:16px">
-      <div style="padding:14px 20px;border-bottom:1px solid #f0f0f0">
-        <div style="font-family:Montserrat,sans-serif;font-size:13px;font-weight:700">Rúbricas reales del programa</div>
-        <div style="font-size:11px;color:#797979;margin-top:2px">${rubrics.length} evaluaciones cargadas</div>
-      </div>
-      <table style="width:100%;border-collapse:collapse;font-size:12px">
-        <thead><tr>
-          ${['Escuela','Grado·Turno','Bloque','Evaluados','Promedio','% Inicial','% Adecuado','% Excelente'].map(h=>`<th style="text-align:left;padding:9px 12px;color:#797979;font-family:Montserrat,sans-serif;font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #f0f0f0">${h}</th>`).join('')}
-        </tr></thead>
+  const alerts = schools.filter(s=>s.alert_days>14);
+  c.innerHTML = `
+    ${alerts.length?`<div class="alert-red"><div class="alert-dot ad-red"></div><div class="alert-txt">Las filas en rojo llevan 2+ semanas sin sesión.</div></div>`:''}
+    <div class="card" style="padding:0;overflow:hidden">
+      <table class="t">
+        <thead><tr><th style="padding:11px 16px">Escuela</th><th>Tipo</th><th>Año</th><th>Alumnos</th><th>Última sesión</th><th>Estado</th><th></th></tr></thead>
         <tbody>
-          ${rubrics.map(r=>`<tr>
-            <td style="padding:9px 12px;font-weight:600">${r.schools?.name||'—'}</td>
-            <td style="font-size:11px;color:#797979">${r.grade}·${r.shift}</td>
-            <td style="padding:9px 12px"><span style="background:rgba(2,193,244,0.12);color:#015F7A;font-family:Montserrat,sans-serif;font-size:10px;font-weight:600;padding:3px 10px;border-radius:20px">B${r.block}</span></td>
-            <td style="padding:9px 12px;font-size:12px">${r.students_evaluated||0}</td>
-            <td style="padding:9px 12px"><strong style="font-family:Montserrat,sans-serif;font-size:16px;color:${parseFloat(r.average_score)>=2?'#43a047':'#ffa000'}">${r.average_score||'—'}</strong></td>
-            <td style="padding:9px 12px;font-size:11px;color:${parseFloat(r.pct_inicial)>30?'#c62828':'#797979'}">${r.pct_inicial||0}%</td>
-            <td style="padding:9px 12px;font-size:11px;font-weight:600;color:#02c1f4">${r.pct_adecuado||0}%</td>
-            <td style="padding:9px 12px;font-size:11px;color:#43a047">${r.pct_excelente||0}%</td>
+          ${schools.map(s=>`<tr class="${s.alert_days>14?'row-red':''}">
+            <td style="padding:10px 16px"><div style="display:flex;align-items:center;gap:10px">
+              <div style="width:34px;height:34px;border-radius:8px;background:${s.alert_days>14?'var(--red-light)':'rgba(2,193,244,0.1)'};display:flex;align-items:center;justify-content:center;color:${s.alert_days>14?'var(--red-dark)':'var(--blue)'};font-family:var(--font-title);font-size:11px;font-weight:800;flex-shrink:0">${s.short_name}</div>
+              <div><div style="font-family:var(--font-title);font-size:12.5px;font-weight:700;${s.alert_days>14?'color:var(--red-dark)':''}">${s.name}</div><div style="font-size:11px;color:var(--gray)">${s.total_students} alumnos</div></div>
+            </div></td>
+            <td><span class="badge ${s.type==='privada'?'b-purple':'b-gray'}">${s.type==='privada'?'Privada':'Pública'}</span></td>
+            <td><span class="badge b-blue">${s.year_model}</span></td>
+            <td style="font-size:12px">${s.total_students}</td>
+            <td style="font-size:11px;color:${s.alert_days>14?'var(--red-dark)':'var(--gray)'}">
+              ${s.last_session_date?new Date(s.last_session_date).toLocaleDateString('es-MX'):'Sin registro'}
+              ${s.alert_days>14?` <strong>(${s.alert_days}d ⚠)</strong>`:''}
+            </td>
+            <td><span class="badge ${s.alert_days>14?'b-red':s.alert_days>7?'b-amber':'b-green'}">${s.alert_days>14?'Atraso crítico':s.alert_days>7?'Pendiente':'Al día'}</span></td>
+            <td><button onclick="openSchoolModal('${s.id}')" class="btn-g" style="font-size:10px;padding:4px 10px">Editar</button></td>
           </tr>`).join('')}
         </tbody>
       </table>
     </div>`;
-  c.appendChild(div);
 }
 
-async function loadRealEvidencia() {
+async function renderSesiones() {
+  const c = document.getElementById('s-sesiones');
+  if (!c) return;
+  const {data:incs} = await sb.from('incidents').select('*,schools(name)').order('created_at',{ascending:false});
+  const tl = {cancelacion:'Cancelación',doble:'Doble',saltada:'Saltada',reagendada:'Reagendada'};
+  c.innerHTML = `
+    <div class="sess-legend" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+      ${[['sc-done','Completada'],['sc-double','Dobleteada'],['sc-skip','Saltada'],['sc-cancel','Cancelada'],['sc-pend','Pendiente'],['sc-late','En atraso ⚠']].map(([cls,lbl])=>`<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--gray)"><div class="${cls}" style="width:16px;height:16px;border-radius:4px"></div>${lbl}</div>`).join('')}
+    </div>
+    ${schools.map(s=>`
+      <div class="card ${s.alert_days>14?'':''}">
+        <div class="card-hd">
+          <div><div class="card-title">${s.name} ${s.alert_days>14?'⚠':''}</div><div class="card-sub">${s.year_model} · ${s.total_students} alumnos</div></div>
+          <button class="btn-g" style="font-size:11px" onclick="openIncModal('${s.id}')">+ Incidencia</button>
+        </div>
+        <div style="font-size:12px;color:var(--gray);margin-bottom:${(incs||[]).filter(i=>i.school_id===s.id).length?'10px':'0'}">Sin sesiones programadas aún</div>
+        ${(incs||[]).filter(i=>i.school_id===s.id).length?`
+          <div style="margin-top:8px">
+            <div style="font-size:11px;font-weight:600;font-family:var(--font-title);color:var(--gray);margin-bottom:6px;text-transform:uppercase;letter-spacing:.8px">Incidencias registradas</div>
+            ${(incs||[]).filter(i=>i.school_id===s.id).map(i=>`
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f5f5f5">
+                <span class="badge ${i.type==='cancelacion'?'b-red':i.type==='doble'?'b-blue':i.type==='saltada'?'b-amber':'b-gray'}">${tl[i.type]||i.type}</span>
+                <div style="flex:1;font-size:12px">${i.reason}</div>
+                <div style="font-size:11px;color:var(--gray)">${new Date(i.incident_date).toLocaleDateString('es-MX')}</div>
+              </div>`).join('')}
+          </div>`:''
+        }
+      </div>`).join('')}`;
+}
+
+async function renderEvidencia() {
   const c = document.getElementById('s-evidencia');
   if (!c) return;
-  const {data:ev} = await sb.from('evidence').select('*, schools(name)').order('created_at',{ascending:false});
-  if (!ev||!ev.length) return;
-  const existing = c.querySelector('.real-evidence');
-  if (existing) existing.remove();
-  const div = document.createElement('div');
-  div.className = 'real-evidence';
-  div.innerHTML = `
-    <div style="background:#fff;border-radius:10px;border:1px solid rgba(0,0,0,0.06);padding:0;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);margin-top:16px">
-      <table style="width:100%;border-collapse:collapse;font-size:12px">
-        <thead><tr>${['Escuela','Tipo','Descripción','Fecha','Estado',''].map(h=>`<th style="text-align:left;padding:9px 12px;color:#797979;font-family:Montserrat,sans-serif;font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #f0f0f0">${h}</th>`).join('')}</tr></thead>
-        <tbody>${ev.map(e=>`<tr>
-          <td style="padding:9px 12px;font-weight:600">${e.schools?.name||'—'}</td>
-          <td style="font-size:11px;color:#797979">${e.type}</td>
-          <td style="font-size:11px;color:#797979">${e.description||e.url||'—'}</td>
-          <td style="font-size:11px;color:#797979">${new Date(e.created_at).toLocaleDateString('es-MX')}</td>
-          <td><span style="background:${e.validated?'#e8f5e9':'#fff8e1'};color:${e.validated?'#1b5e20':'#bf360c'};font-family:Montserrat,sans-serif;font-size:10px;font-weight:600;padding:3px 10px;border-radius:20px">${e.validated?'Validada':'Pendiente'}</span></td>
-          <td>${!e.validated?`<button onclick="validateEv('${e.id}')" style="background:#02c1f4;color:#fff;border:none;padding:5px 11px;border-radius:6px;font-size:10px;cursor:pointer">Validar</button>`:''}</td>
-        </tr>`).join('')}</tbody>
-      </table>
-    </div>`;
-  c.appendChild(div);
+  const {data:ev} = await sb.from('evidence').select('*,schools(name),profiles(full_name)').order('created_at',{ascending:false});
+  const pend = (ev||[]).filter(e=>!e.validated);
+  c.innerHTML = `
+    ${pend.length?`<div class="alert-blue"><div class="alert-dot ad-blue"></div><div class="alert-txt">${pend.length} evidencia(s) pendiente(s) de validación.</div></div>`:''}
+    <div style="display:flex;justify-content:flex-end;margin-bottom:14px">
+      <button onclick="oM('m-ev')" class="btn-p" style="font-size:12px">+ Cargar evidencia</button>
+    </div>
+    ${!ev||!ev.length?'<div style="text-align:center;padding:40px;color:var(--gray)">Sin evidencia cargada aún</div>':
+    `<div class="card" style="padding:0;overflow:hidden"><table class="t">
+      <thead><tr><th style="padding:11px 16px">Escuela</th><th>Tipo</th><th>Por</th><th>Fecha</th><th>Estado</th><th></th></tr></thead>
+      <tbody>${(ev||[]).map(e=>`<tr>
+        <td style="padding:10px 16px;font-weight:600">${e.schools?.name||'—'}</td>
+        <td style="font-size:11px;color:var(--gray)">${e.type}</td>
+        <td style="font-size:11px;color:var(--gray)">${e.profiles?.full_name||'—'}</td>
+        <td style="font-size:11px;color:var(--gray)">${new Date(e.created_at).toLocaleDateString('es-MX')}</td>
+        <td><span class="badge ${e.validated?'b-green':'b-amber'}">${e.validated?'Validada':'Pendiente'}</span></td>
+        <td>${!e.validated?`<button class="btn-p" style="font-size:10px;padding:4px 10px" onclick="valEv('${e.id}')">Validar</button>`:''}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`}`;
 }
 
-// ══ ACTIONS ══════════════════════════════════════════════════
+async function renderFundDash() {
+  const c = document.getElementById('s-found-dash');
+  if (!c) return;
+  const total = schools.reduce((a,b)=>a+(b.total_students||0),0);
+  const {data:rubs} = await sb.from('rubrics').select('*');
+  const avg = rubs&&rubs.length?(rubs.reduce((a,b)=>a+(parseFloat(b.average_score)||0),0)/rubs.length).toFixed(2):'—';
+  c.innerHTML = `
+    <div class="alert-blue"><div class="alert-dot ad-blue"></div><div class="alert-txt"><strong>Fundación Zorrilla</strong> — Datos en tiempo real actualizados automáticamente.</div></div>
+    <div class="stats-row">
+      <div class="stat"><div class="stat-val c-blue">${total}</div><div class="stat-lbl">Alumnos beneficiados</div></div>
+      <div class="stat"><div class="stat-val">${schools.length}</div><div class="stat-lbl">Escuelas activas</div></div>
+      <div class="stat"><div class="stat-val c-blue">${avg}</div><div class="stat-lbl">Prom. rúbrica (1–3)</div></div>
+      <div class="stat"><div class="stat-val">B2</div><div class="stat-lbl">Bloque actual</div></div>
+    </div>
+    <div class="two-col">
+      <div class="card">
+        <div class="card-hd"><div><div class="card-title">Calificación por escuela</div><div class="card-sub">Promedio de rúbricas validadas</div></div></div>
+        ${schools.map(s=>{const sr=(rubs||[]).filter(r=>r.school_id===s.id);const sa=sr.length?(sr.reduce((a,b)=>a+(parseFloat(b.average_score)||0),0)/sr.length).toFixed(2):'—';const pct=sa!=='—'?Math.round(parseFloat(sa)/3*100):0;return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:9px"><div style="font-size:11.5px;width:150px;flex-shrink:0">${s.name}</div><div style="flex:1;height:6px;background:#ebebeb;border-radius:10px;overflow:hidden"><div style="width:${pct}%;height:6px;background:var(--blue);border-radius:10px"></div></div><div style="font-family:var(--font-title);font-size:13px;font-weight:800;color:var(--blue);width:36px;text-align:right">${sa}</div></div>`;}).join('')}
+      </div>
+      <div class="card">
+        <div class="card-hd"><div class="card-title">Impacto del ciclo 2024–2025</div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div style="background:var(--blue-light);border-radius:8px;padding:14px;text-align:center"><div style="font-family:var(--font-title);font-size:24px;font-weight:800;color:var(--blue)">${(rubs||[]).length}</div><div style="font-size:10px;color:var(--gray);margin-top:4px">Rúbricas completadas</div></div>
+          <div style="background:var(--green-light);border-radius:8px;padding:14px;text-align:center"><div style="font-family:var(--font-title);font-size:24px;font-weight:800;color:var(--green)">${schools.filter(s=>s.type==='publica').length}</div><div style="font-size:10px;color:var(--gray);margin-top:4px">Escuelas públicas</div></div>
+          <div style="background:#f3e5f5;border-radius:8px;padding:14px;text-align:center"><div style="font-family:var(--font-title);font-size:24px;font-weight:800;color:#6a1b9a">${total}</div><div style="font-size:10px;color:var(--gray);margin-top:4px">Alumnos totales</div></div>
+          <div style="background:var(--amber-light);border-radius:8px;padding:14px;text-align:center"><div style="font-family:var(--font-title);font-size:24px;font-weight:800;color:var(--amber)">3</div><div style="font-size:10px;color:var(--gray);margin-top:4px">Años del modelo</div></div>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function renderFundRubricas() {
+  const c = document.getElementById('s-found-rubrics');
+  if (!c) return;
+  const {data:rubs} = await sb.from('rubrics').select('*,schools(name)').order('created_at',{ascending:false});
+  c.innerHTML = !rubs||!rubs.length ? '<div style="text-align:center;padding:40px;color:var(--gray)">Sin rúbricas cargadas aún</div>' : `
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:14px 20px;border-bottom:1px solid #f0f0f0"><div class="card-title">Rúbricas y calificaciones — tiempo real</div><div class="card-sub">${rubs.length} evaluaciones · 1=Inicial · 2=Adecuado · 3=Excelente</div></div>
+      <table class="t"><thead><tr><th style="padding:9px 16px">Escuela</th><th>Grado·Turno</th><th>Bloque</th><th>Evaluados</th><th>Promedio</th><th>% Inicial</th><th>% Adecuado</th><th>% Excelente</th></tr></thead>
+      <tbody>${rubs.map(r=>`<tr>
+        <td style="padding:9px 16px;font-weight:600">${r.schools?.name||'—'}</td>
+        <td style="font-size:11px;color:var(--gray)">${r.grade}·${r.shift}</td>
+        <td><span class="badge b-blue">B${r.block}</span></td>
+        <td style="font-size:12px">${r.students_evaluated||0}</td>
+        <td><strong style="font-family:var(--font-title);font-size:16px;color:${parseFloat(r.average_score)>=2?'var(--green)':'var(--amber)'}">${r.average_score||'—'}</strong></td>
+        <td style="font-size:11px;color:${parseFloat(r.pct_inicial)>30?'var(--red-dark)':'var(--gray)'}">${r.pct_inicial||0}%</td>
+        <td style="font-size:11px;font-weight:600;color:var(--blue)">${r.pct_adecuado||0}%</td>
+        <td style="font-size:11px;color:var(--green)">${r.pct_excelente||0}%</td>
+      </tr>`).join('')}</tbody></table>
+    </div>`;
+}
+
+function renderFundReportes() {
+  const c = document.getElementById('s-found-reports');
+  if (!c) return;
+  c.innerHTML = `
+    <div class="alert-blue"><div class="alert-dot ad-blue"></div><div class="alert-txt">Los reportes se generan con los datos más recientes.</div></div>
+    ${[{t:'Reporte Bloque 2 — Sec. 3 · Fundación Zorrilla',m:'617 alumnos · PERMAH + Rúbrica + Plan de transferencia',bg:'var(--blue-light)'},
+       {t:'Comparativo B1 vs B2 — Rúbricas completas',m:'Todos los grados · Tablas de promedio y niveles',bg:'var(--green-light)'},
+       {t:'Bienestar PERMAH por dimensión',m:'Emociones positivas, relaciones, propósito · Mat. vs Vesp.',bg:'#f3e5f5'},
+       {t:'Plan de transferencia de capacidad',m:'Modelo a 3 años · Acciones Bloque 2 · Piloto primaria',bg:'var(--amber-light)'}
+    ].map(r=>`<div style="display:flex;align-items:center;gap:14px;padding:16px 20px;background:#fff;border-radius:10px;border:1px solid rgba(0,0,0,0.06);margin-bottom:10px">
+      <div style="width:42px;height:42px;border-radius:9px;background:${r.bg};flex-shrink:0"></div>
+      <div style="flex:1"><div style="font-family:var(--font-title);font-size:13px;font-weight:700">${r.t}</div><div style="font-size:11px;color:var(--gray);margin-top:2px">${r.m}</div></div>
+      <button class="btn-p" style="font-size:11px;flex-shrink:0">Descargar PDF</button>
+    </div>`).join('')}`;
+}
+
+// ── SCHOOL CRUD ───────────────────────────────────
 function openSchoolModal(id) {
   document.getElementById('sc-id').value = id||'';
   if (id) {
     const s = schools.find(x=>x.id===id);
-    if (s) {
-      document.getElementById('sc-name').value = s.name||'';
-      document.getElementById('sc-short').value = s.short_name||'';
-      document.getElementById('sc-type').value = s.type||'publica';
-      document.getElementById('sc-year').value = s.year_model||'año1';
-      document.getElementById('sc-students').value = s.total_students||0;
-      document.getElementById('sc-city').value = s.city||'Monterrey';
-    }
+    if (s) { document.getElementById('sc-name').value=s.name||''; document.getElementById('sc-short').value=s.short_name||''; document.getElementById('sc-type').value=s.type||'publica'; document.getElementById('sc-year').value=s.year_model||'año1'; document.getElementById('sc-students').value=s.total_students||0; document.getElementById('sc-city').value=s.city||'Monterrey'; }
     document.getElementById('m-school-t').textContent = 'Editar escuela';
   } else {
     document.getElementById('m-school-t').textContent = 'Nueva escuela';
     ['sc-name','sc-short','sc-students'].forEach(i=>document.getElementById(i).value='');
     document.getElementById('sc-city').value = 'Monterrey';
   }
-  openM('m-school');
+  oM('m-school');
 }
 
 async function saveSchool() {
   const id = document.getElementById('sc-id').value;
-  const data = {
-    name: document.getElementById('sc-name').value.trim(),
-    short_name: document.getElementById('sc-short').value.trim().toUpperCase(),
-    type: document.getElementById('sc-type').value,
-    year_model: document.getElementById('sc-year').value,
-    total_students: parseInt(document.getElementById('sc-students').value)||0,
-    city: document.getElementById('sc-city').value||'Monterrey',
-    active: true
-  };
-  if (!data.name||!data.short_name) { showT('Completa nombre y nombre corto'); return; }
-  const {error} = id ? await sb.from('schools').update(data).eq('id',id) : await sb.from('schools').insert(data);
-  if (error) { showT('Error: '+error.message); return; }
-  closeM('m-school');
-  showT(id ? '✓ Escuela actualizada' : '✓ Escuela creada');
-  await loadSchools();
-  loadRealEscuelas();
+  const d = {name:document.getElementById('sc-name').value.trim(), short_name:document.getElementById('sc-short').value.trim().toUpperCase(), type:document.getElementById('sc-type').value, year_model:document.getElementById('sc-year').value, total_students:parseInt(document.getElementById('sc-students').value)||0, city:document.getElementById('sc-city').value||'Monterrey', active:true};
+  if (!d.name||!d.short_name) { toast('Completa nombre y nombre corto'); return; }
+  const {error} = id ? await sb.from('schools').update(d).eq('id',id) : await sb.from('schools').insert(d);
+  if (error) { toast('Error: '+error.message); return; }
+  cM('m-school'); toast(id?'✓ Escuela actualizada':'✓ Escuela creada');
+  await loadSchools(); renderEscuelas();
 }
 
-async function saveIncident() {
-  const schoolId = document.getElementById('inc-school').value;
-  const type = document.getElementById('inc-type').value;
-  const reason = document.getElementById('inc-reason').value;
-  const date = document.getElementById('inc-date').value;
-  if (!schoolId||!reason||!date) { showT('Completa todos los campos'); return; }
-  const {error} = await sb.from('incidents').insert({school_id:schoolId, type, reason, incident_date:date, reported_by:CU.id});
-  if (error) { showT('Error: '+error.message); return; }
-  closeM('m-incident');
-  showT('✓ Incidencia registrada');
-  document.getElementById('inc-reason').value = '';
-  loadRealSesiones(); // Refresh the sesiones screen
+// ── INCIDENTS ─────────────────────────────────────
+function openIncModal(schoolId) {
+  document.getElementById('inc-dt').value = new Date().toISOString().split('T')[0];
+  document.getElementById('inc-rs').value = '';
+  if (schoolId) document.getElementById('inc-sc').value = schoolId;
+  oM('m-inc');
 }
 
-async function saveRubric() {
-  const schoolId = document.getElementById('rub-school').value;
-  const block = parseInt(document.getElementById('rub-block').value);
-  const grade = document.getElementById('rub-grade').value;
-  const shift = document.getElementById('rub-shift').value;
-  const evaluated = parseInt(document.getElementById('rub-eval').value)||0;
-  const noManual = parseInt(document.getElementById('rub-nm').value)||0;
-  const pctIni = parseFloat(document.getElementById('rub-ini').value)||0;
-  const pctAde = parseFloat(document.getElementById('rub-ade').value)||0;
-  const pctExc = parseFloat(document.getElementById('rub-exc').value)||0;
-  const notes = document.getElementById('rub-notes').value;
-  if (!schoolId) { showT('Selecciona una escuela'); return; }
-  const avg = ((1*pctIni/100)+(2*pctAde/100)+(3*pctExc/100)).toFixed(2);
-  const {error} = await sb.from('rubrics').insert({school_id:schoolId, grade, shift, block, students_evaluated:evaluated, students_no_manual:noManual, pct_inicial:pctIni, pct_adecuado:pctAde, pct_excelente:pctExc, average_score:parseFloat(avg), notes, teacher_id:CU.id});
-  if (error) { showT('Error: '+error.message); return; }
-  closeM('m-rubric');
-  showT('✓ Rúbrica guardada');
-  loadRealFundRubricas();
+async function saveInc() {
+  const sid = document.getElementById('inc-sc').value;
+  const ty = document.getElementById('inc-ty').value;
+  const rs = document.getElementById('inc-rs').value;
+  const dt = document.getElementById('inc-dt').value;
+  if (!sid||!rs||!dt) { toast('Completa todos los campos'); return; }
+  const {error} = await sb.from('incidents').insert({school_id:sid,type:ty,reason:rs,incident_date:dt,reported_by:CU.id});
+  if (error) { toast('Error: '+error.message); return; }
+  cM('m-inc'); toast('✓ Incidencia registrada');
+  renderSesiones();
 }
 
-async function validateEv(id) {
-  await sb.from('evidence').update({validated:true, validated_by:CU.id, validated_at:new Date().toISOString()}).eq('id',id);
-  showT('✓ Evidencia validada');
-  loadRealEvidencia();
+// ── RUBRICS ───────────────────────────────────────
+async function saveRub() {
+  const sc=document.getElementById('rub-sc').value, bl=parseInt(document.getElementById('rub-bl').value), gr=document.getElementById('rub-gr').value, sh=document.getElementById('rub-sh').value;
+  const ev=parseInt(document.getElementById('rub-ev').value)||0, nm=parseInt(document.getElementById('rub-nm').value)||0;
+  const ini=parseFloat(document.getElementById('rub-in').value)||0, ade=parseFloat(document.getElementById('rub-ad').value)||0, exc=parseFloat(document.getElementById('rub-ex').value)||0;
+  const no=document.getElementById('rub-no').value;
+  if (!sc) { toast('Selecciona una escuela'); return; }
+  const avg = ((1*ini/100)+(2*ade/100)+(3*exc/100)).toFixed(2);
+  const {error} = await sb.from('rubrics').insert({school_id:sc,grade:gr,shift:sh,block:bl,students_evaluated:ev,students_no_manual:nm,pct_inicial:ini,pct_adecuado:ade,pct_excelente:exc,average_score:parseFloat(avg),notes:no,teacher_id:CU.id});
+  if (error) { toast('Error: '+error.message); return; }
+  cM('m-rub'); toast('✓ Rúbrica guardada');
+  renderFundRubricas();
 }
 
-function openM(id) { const el=document.getElementById(id); if(el){el.style.display='flex';} }
-function closeM(id) { const el=document.getElementById(id); if(el){el.style.display='none';} }
-
-function showT(msg) {
-  const t = document.getElementById('houp-toast');
-  t.textContent = msg; t.style.transform='translateY(0)'; t.style.opacity='1';
-  setTimeout(()=>{t.style.transform='translateY(100px)';t.style.opacity='0';}, 3000);
+// ── EVIDENCE ──────────────────────────────────────
+async function saveUser() {
+  const fn=document.getElementById('u-fn').value.trim(), fe=document.getElementById('u-fe').value.trim(), fr=document.getElementById('u-fr').value, fs=document.getElementById('u-fs').value, fp=document.getElementById('u-fp').value;
+  if (!fn||!fe||!fp) { toast('Completa todos los campos'); return; }
+  if (fp.length<6) { toast('Contraseña mínimo 6 caracteres'); return; }
+  const {data,error} = await sb.auth.signUp({email:fe,password:fp,options:{data:{full_name:fn,role:fr}}});
+  if (error) { toast('Error: '+error.message); return; }
+  if (data.user) await sb.from('profiles').upsert({id:data.user.id,email:fe,full_name:fn,role:fr,school_id:fs||null});
+  cM('m-user'); toast('✓ Usuario creado');
 }
 
-// ══ INTERCEPT ORIGINAL NAV ════════════════════════════════════
-// Override the original nav() function to also load real data
-const _origNav = window.nav;
-window.nav = function(el, screenId) {
-  if (_origNav) _origNav(el, screenId);
-  // Load real data for this screen
-  setTimeout(() => {
-    if (screenId === 's-escuelas') loadRealEscuelas();
-    if (screenId === 's-sesiones') loadRealSesiones();
-    if (screenId === 's-dash') loadRealDash();
-    if (screenId === 's-found-dash') loadRealDash();
-    if (screenId === 's-found-rubrics') loadRealFundRubricas();
-    if (screenId === 's-evidencia') loadRealEvidencia();
-  }, 50);
-};
+async function valEv(id) {
+  await sb.from('evidence').update({validated:true,validated_by:CU.id,validated_at:new Date().toISOString()}).eq('id',id);
+  toast('✓ Evidencia validada'); renderEvidencia();
+}
 
-// Override switchRole to also update user display
-const _origSR = window.switchRole;
-window.switchRole = function(r) {
-  if (_origSR) _origSR(r);
-};
+// ── UTILS ─────────────────────────────────────────
+function oM(id){const e=document.getElementById(id);if(e)e.style.display='flex';}
+function cM(id){const e=document.getElementById(id);if(e)e.style.display='none';}
+function toast(m){const t=document.getElementById('houp-toast');t.textContent=m;t.style.transform='translateY(0)';t.style.opacity='1';setTimeout(()=>{t.style.transform='translateY(100px)';t.style.opacity='0';},3000);}
 
-// Add "+ Incidencia" button behavior to existing button
-document.addEventListener('click', e => {
-  const btn = e.target.closest('[onclick*="modal-incidencia"]') || e.target.closest('[onclick*="Incidencia"]');
-  if (btn && btn.textContent.includes('Incidencia')) {
-    document.getElementById('inc-date').value = new Date().toISOString().split('T')[0];
-    openM('m-incident');
-  }
-  // Rubrica button
-  if (btn && btn.textContent.includes('rubrica') || (e.target.closest && e.target.closest('[onclick*="rubric"]'))) {
-    if (e.target.textContent && e.target.textContent.includes('rúbrica')) {
-      openM('m-rubric');
-    }
-  }
-});
-
-// ══ AUTO LOGIN ════════════════════════════════════════════════
+// ── AUTO LOGIN ────────────────────────────────────
 (async()=>{
   const {data:{session}} = await sb.auth.getSession();
   if (session?.user) await initApp(session.user);
 })();
 </script>
-
 </body>
 </html>
