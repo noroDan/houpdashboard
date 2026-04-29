@@ -1660,10 +1660,6 @@ async function renderModulosEscuela(schoolId){
     db.from('actions').select('*').eq('school_id',schoolId).order('created_at',{ascending:false}).catch(()=>({data:[]})),
     db.from('rubrics').select('*').eq('school_id',schoolId),
   ]);
-    db.from('incidents').select('*').eq('school_id',schoolId).order('incident_date',{ascending:false}),
-    db.from('actions').select('*').eq('school_id',schoolId).order('created_at',{ascending:false}).catch(()=>({data:[]})),
-    db.from('rubrics').select('*').eq('school_id',schoolId),
-  ]);
 
   // Find current session (first non-completada)
   const currentSess=sessions.find(s=>s.status!=='completada')||sessions[sessions.length-1];
