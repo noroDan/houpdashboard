@@ -973,457 +973,580 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 // ═══════════════════════════════════════════════════════════════════
-//  HOUP PLATFORM v4  |  Supabase: kcdckzcsnqjqfsdxwemd
+//  HOUP PLATFORM v5
+//  Supabase: kcdckzcsnqjqfsdxwemd
 // ═══════════════════════════════════════════════════════════════════
-const _SU = 'https://kcdckzcsnqjqfsdxwemd.supabase.co';
-const _SK = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtjZGNremNzbnFqcWZzZHh3ZW1kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MzI2NTMsImV4cCI6MjA5MzAwODY1M30.4PueblwJJUe5aTsmXhkS2KifKRjgaFkesfyiZjS0580';
-const db = supabase.createClient(_SU, _SK);
+const _SU='https://kcdckzcsnqjqfsdxwemd.supabase.co';
+const _SK='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtjZGNremNzbnFqcWZzZHh3ZW1kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MzI2NTMsImV4cCI6MjA5MzAwODY1M30.4PueblwJJUe5aTsmXhkS2KifKRjgaFkesfyiZjS0580';
+const db=supabase.createClient(_SU,_SK);
 
-let ME=null, PROFILE=null, SCHOOLS=[], SCREEN='s-dash';
-const RL = {admin_houp:'Admin Houp',responsable:'Responsable',docente:'Docente',fundacion:'Fundacion'};
-const INC_L = {cancelacion:'Cancelacion',doble:'Sesion doble',saltada:'Saltada',reagendada:'Reagendada'};
-const INC_B = {cancelacion:'b-red',doble:'b-blue',saltada:'b-amber',reagendada:'b-gray'};
+let ME=null,PROFILE=null,SCHOOLS=[],SCREEN='s-dash';
+const RL={admin_houp:'Admin Houp',responsable:'Responsable',docente:'Docente',fundacion:'Fundacion'};
+const IL={cancelacion:'Cancelacion',doble:'Sesion doble',saltada:'Saltada',reagendada:'Reagendada'};
+const IB={cancelacion:'b-red',doble:'b-blue',saltada:'b-amber',reagendada:'b-gray'};
+const SL={pendiente:'Pendiente',completada:'Completada',cancelada:'Cancelada',doble:'Doble',reagendada:'Reagendada'};
+const SB={pendiente:'b-gray',completada:'b-green',cancelada:'b-red',doble:'b-blue',reagendada:'b-amber'};
+const DIAS=['','Lunes','Martes','Miercoles','Jueves','Viernes'];
+const MODULOS=[
+  {n:1,name:'Identidad y autoconocimiento',sessions:4},
+  {n:2,name:'Gestion emocional',sessions:4},
+  {n:3,name:'Relaciones y empatia',sessions:4},
+  {n:4,name:'Proposito y fortalezas',sessions:4},
+  {n:5,name:'Liderazgo y comunidad',sessions:4},
+];
+
+document.addEventListener('DOMContentLoaded',()=>{ _injectUI(); db.auth.getSession().then(({data:{session}})=>{ if(session?.user) _initApp(session.user); }); });
 
 // ─────────────────────────────────────────────────────────────────
-//  BOOT
+//  UI INJECTION
 // ─────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  _injectUI();
-  db.auth.getSession().then(({data:{session}}) => {
-    if (session?.user) _initApp(session.user);
-  });
-});
+function _injectUI(){
+  // LOGIN
+  const lov=document.createElement('div');
+  lov.id='ov-login';
+  lov.style.cssText='position:fixed;inset:0;background:#012B38;z-index:9999;display:flex;align-items:center;justify-content:center';
+  lov.innerHTML=`<div style="background:#fff;border-radius:16px;padding:44px 40px;width:400px;box-shadow:0 24px 80px rgba(0,0,0,.45)">
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="display:flex;align-items:center;justify-content:center;margin-bottom:6px">
+        <span style="color:#02c1f4;font-family:Montserrat,sans-serif;font-size:34px;font-weight:800;letter-spacing:-1px">H</span>
+        <span style="width:22px;height:22px;border-radius:50%;border:4px solid #02c1f4;display:inline-block;margin:0 4px;position:relative;top:2px"></span>
+        <span style="font-family:Montserrat,sans-serif;font-size:34px;font-weight:800;color:#000;letter-spacing:-1px">UP</span>
+      </div>
+      <div style="font-size:11px;color:#797979;letter-spacing:.5px">Plataforma de bienestar socioemocional</div>
+    </div>
+    <div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:20px">Iniciar sesion</div>
+    <div style="margin-bottom:14px"><label style="display:block;font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;margin-bottom:5px">Correo</label>
+      <input id="li-email" type="email" autocomplete="email" placeholder="tu@houp.mx" style="width:100%;padding:11px 14px;border:1.5px solid rgba(0,0,0,.14);border-radius:6px;font-size:13px;outline:none;box-sizing:border-box"></div>
+    <div style="margin-bottom:18px"><label style="display:block;font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;margin-bottom:5px">Contrasena</label>
+      <input id="li-pass" type="password" placeholder="..." style="width:100%;padding:11px 14px;border:1.5px solid rgba(0,0,0,.14);border-radius:6px;font-size:13px;outline:none;box-sizing:border-box"></div>
+    <button id="li-btn" onclick="doLogin()" style="width:100%;padding:13px;background:#02c1f4;color:#fff;border:none;border-radius:6px;font-family:Montserrat,sans-serif;font-size:13px;font-weight:700;cursor:pointer">Entrar</button>
+    <div id="li-err" style="color:#e03535;font-size:12px;margin-top:10px;text-align:center;min-height:16px"></div>
+  </div>`;
+  document.body.appendChild(lov);
+  document.addEventListener('keydown',e=>{ if(e.key==='Enter'&&document.getElementById('ov-login')) doLogin(); });
 
-function _injectUI() {
-  // ── Login overlay
-  const login = document.createElement('div');
-  login.id = 'ov-login';
-  login.style.cssText = 'position:fixed;inset:0;background:#012B38;z-index:9999;display:flex;align-items:center;justify-content:center';
-  login.innerHTML = `
-    <div style="background:#fff;border-radius:16px;padding:44px 40px;width:400px;box-shadow:0 24px 80px rgba(0,0,0,.45)">
-      <div style="text-align:center;margin-bottom:28px">
-        <div style="display:flex;align-items:center;justify-content:center;margin-bottom:6px">
-          <span style="color:#02c1f4;font-family:Montserrat,sans-serif;font-size:34px;font-weight:800;letter-spacing:-1px">H</span>
-          <span style="width:22px;height:22px;border-radius:50%;border:4px solid #02c1f4;display:inline-block;margin:0 4px;position:relative;top:2px"></span>
-          <span style="font-family:Montserrat,sans-serif;font-size:34px;font-weight:800;color:#000;letter-spacing:-1px">UP</span>
-        </div>
-        <div style="font-size:11px;color:#797979;letter-spacing:.5px">Plataforma de bienestar socioemocional</div>
-      </div>
-      <div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:20px">Iniciar sesion</div>
-      <div style="margin-bottom:14px">
-        <label style="display:block;font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;margin-bottom:5px">Correo</label>
-        <input id="li-email" type="email" autocomplete="email" placeholder="tu@houp.mx"
-          style="width:100%;padding:11px 14px;border:1.5px solid rgba(0,0,0,.14);border-radius:6px;font-size:13px;outline:none;box-sizing:border-box">
-      </div>
-      <div style="margin-bottom:18px">
-        <label style="display:block;font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;margin-bottom:5px">Contrasena</label>
-        <input id="li-pass" type="password" placeholder="..."
-          style="width:100%;padding:11px 14px;border:1.5px solid rgba(0,0,0,.14);border-radius:6px;font-size:13px;outline:none;box-sizing:border-box">
-      </div>
-      <button id="li-btn" onclick="doLogin()"
-        style="width:100%;padding:13px;background:#02c1f4;color:#fff;border:none;border-radius:6px;font-family:Montserrat,sans-serif;font-size:13px;font-weight:700;cursor:pointer">
-        Entrar
-      </button>
-      <div id="li-err" style="color:#e03535;font-size:12px;margin-top:10px;text-align:center;min-height:16px"></div>
-    </div>`;
-  document.body.appendChild(login);
-  document.addEventListener('keydown', e => { if (e.key==='Enter' && document.getElementById('ov-login')) doLogin(); });
-
-  // ── Confirm dialog (for destructive actions)
-  const conf = document.createElement('div');
-  conf.id = 'ov-confirm';
-  conf.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9000;display:none;align-items:center;justify-content:center';
-  conf.innerHTML = `
-    <div style="background:#fff;border-radius:14px;padding:28px;width:420px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
-      <div id="conf-title" style="font-family:Montserrat,sans-serif;font-size:15px;font-weight:700;margin-bottom:8px">Confirmar accion</div>
-      <div id="conf-msg" style="font-size:13px;color:#555;margin-bottom:22px;line-height:1.5"></div>
-      <div style="display:flex;gap:10px;justify-content:flex-end">
-        <button onclick="closeConfirm()" style="background:#fff;border:1px solid rgba(0,0,0,.14);color:#444;padding:8px 18px;border-radius:6px;font-size:12px;cursor:pointer">Cancelar</button>
-        <button id="conf-ok" style="background:#e03535;color:#fff;border:none;padding:8px 18px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:600;cursor:pointer">Confirmar</button>
-      </div>
-    </div>`;
+  // CONFIRM DIALOG
+  const conf=document.createElement('div');
+  conf.id='ov-confirm';
+  conf.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9100;display:none;align-items:center;justify-content:center';
+  conf.innerHTML=`<div style="background:#fff;border-radius:14px;padding:28px;width:420px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div id="conf-t" style="font-family:Montserrat,sans-serif;font-size:15px;font-weight:700;margin-bottom:8px"></div>
+    <div id="conf-m" style="font-size:13px;color:#555;margin-bottom:22px;line-height:1.5"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="closeConfirm()" style="background:#fff;border:1px solid rgba(0,0,0,.14);color:#444;padding:8px 18px;border-radius:6px;font-size:12px;cursor:pointer">Cancelar</button>
+      <button id="conf-ok" style="padding:8px 18px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:600;cursor:pointer;border:none">Confirmar</button>
+    </div>
+  </div>`;
   document.body.appendChild(conf);
 
-  // ── Toast
-  const t = document.createElement('div');
-  t.id = 'houp-toast';
-  t.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#012B38;color:#fff;padding:12px 20px;border-radius:10px;font-family:Montserrat,sans-serif;font-size:13px;font-weight:600;z-index:9997;transform:translateY(100px);opacity:0;transition:all .3s;pointer-events:none;max-width:340px;line-height:1.4';
+  // TOAST
+  const t=document.createElement('div');
+  t.id='houp-toast';
+  t.style.cssText='position:fixed;bottom:24px;right:24px;background:#012B38;color:#fff;padding:12px 20px;border-radius:10px;font-family:Montserrat,sans-serif;font-size:13px;font-weight:600;z-index:9997;transform:translateY(100px);opacity:0;transition:all .3s;pointer-events:none;max-width:340px;line-height:1.5';
   document.body.appendChild(t);
 
-  // ── Modals
-  const mc = document.createElement('div');
-  mc.innerHTML = `
+  // MODALS
+  const mc=document.createElement('div');
+  mc.innerHTML=`
   <style>
-    ._lbl{display:block;font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;margin-bottom:4px}
+    ._lbl{display:block;font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;margin-bottom:4px;color:#333}
     ._inp{width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,.13);border-radius:6px;font-size:12px;outline:none;box-sizing:border-box;transition:border .15s;font-family:inherit}
     ._inp:focus{border-color:#02c1f4}
-    ._bp{background:#02c1f4;color:#fff;border:none;padding:8px 18px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:600;cursor:pointer}
+    ._mo{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:8000;display:none;align-items:center;justify-content:center}
+    ._mb{background:#fff;border-radius:14px;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.25);max-height:92vh;overflow-y:auto}
+    ._bp{background:#02c1f4;color:#fff;border:none;padding:8px 18px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:background .15s}
     ._bp:hover{background:#00a8d8}
     ._bg{background:#fff;border:1px solid rgba(0,0,0,.14);color:#444;padding:8px 16px;border-radius:6px;font-size:12px;cursor:pointer}
     ._bg:hover{background:#f5f5f5}
-    ._mo{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:8000;display:none;align-items:center;justify-content:center}
-    ._mb{background:#fff;border-radius:14px;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.25);max-height:90vh;overflow-y:auto}
+    ._br{background:#fff5f5;border:1px solid rgba(224,53,53,.25);color:#c62828;padding:8px 16px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:600;cursor:pointer}
+    .upload-zone{border:2px dashed rgba(2,193,244,.4);border-radius:8px;padding:24px;text-align:center;cursor:pointer;transition:all .2s;background:rgba(2,193,244,.03)}
+    .upload-zone:hover{border-color:#02c1f4;background:rgba(2,193,244,.07)}
+    .upload-zone.dragover{border-color:#02c1f4;background:rgba(2,193,244,.12)}
   </style>
 
   <!-- ESCUELA -->
-  <div id="m-escuela" class="_mo">
-    <div class="_mb" style="width:560px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-        <div id="m-escuela-t" style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700">Nueva escuela</div>
-        <button id="btn-archivar-esc" onclick="confirmarArchivarEscuela()" style="display:none;background:#fff5f5;border:1px solid rgba(224,53,53,.25);color:#c62828;padding:6px 14px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;cursor:pointer">Archivar escuela</button>
-      </div>
-      <input type="hidden" id="esc-id">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-        <div><label class="_lbl">Nombre completo</label><input id="esc-nombre" type="text" placeholder="Ej: Secundaria 3" class="_inp"></div>
-        <div><label class="_lbl">Nombre corto</label><input id="esc-corto" type="text" maxlength="5" placeholder="SEC3" class="_inp"></div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-        <div><label class="_lbl">Tipo</label><select id="esc-tipo" class="_inp"><option value="publica">Publica</option><option value="privada">Privada</option></select></div>
-        <div><label class="_lbl">Ano del modelo</label><select id="esc-ano" class="_inp"><option value="arranque">Arranque</option><option value="año1">Año 1</option><option value="año2">Año 2</option><option value="año3">Año 3</option><option value="licencia">Licencia</option></select></div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">
-        <div><label class="_lbl">Alumnos</label><input id="esc-alumnos" type="number" min="0" placeholder="0" class="_inp"></div>
-        <div><label class="_lbl">Ciudad</label><input id="esc-ciudad" type="text" class="_inp"></div>
-        <div><label class="_lbl">Estado</label><input id="esc-estado" type="text" value="Nuevo Leon" class="_inp"></div>
-      </div>
-      <div style="display:flex;gap:10px;justify-content:flex-end">
-        <button onclick="cM('m-escuela')" class="_bg">Cancelar</button>
-        <button onclick="guardarEscuela()" class="_bp">Guardar escuela</button>
-      </div>
+  <div id="m-escuela" class="_mo"><div class="_mb" style="width:560px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div id="m-escuela-t" style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700">Nueva escuela</div>
+      <button id="btn-archivar-esc" onclick="confirmarArchivar()" style="display:none" class="_br">Archivar escuela</button>
     </div>
-  </div>
+    <input type="hidden" id="esc-id">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label class="_lbl">Nombre completo</label><input id="esc-nombre" type="text" placeholder="Ej: Secundaria 3" class="_inp"></div>
+      <div><label class="_lbl">Nombre corto</label><input id="esc-corto" type="text" maxlength="5" placeholder="SEC3" class="_inp"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label class="_lbl">Tipo</label><select id="esc-tipo" class="_inp"><option value="publica">Publica</option><option value="privada">Privada</option></select></div>
+      <div><label class="_lbl">Año del modelo</label><select id="esc-ano" class="_inp"><option value="arranque">Arranque</option><option value="año1">Año 1</option><option value="año2">Año 2</option><option value="año3">Año 3</option><option value="licencia">Licencia</option></select></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">
+      <div><label class="_lbl">Alumnos</label><input id="esc-alumnos" type="number" min="0" placeholder="0" class="_inp"></div>
+      <div><label class="_lbl">Ciudad</label><input id="esc-ciudad" type="text" class="_inp"></div>
+      <div><label class="_lbl">Estado</label><input id="esc-estado" type="text" value="Nuevo Leon" class="_inp"></div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="cM('m-escuela')" class="_bg">Cancelar</button>
+      <button onclick="guardarEscuela()" class="_bp">Guardar escuela</button>
+    </div>
+  </div></div>
 
   <!-- INCIDENCIA -->
-  <div id="m-incidencia" class="_mo">
-    <div class="_mb" style="width:520px">
-      <div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:20px">Registrar incidencia de sesion</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-        <div><label class="_lbl">Escuela</label><select id="inc-escuela" class="_inp"></select></div>
-        <div><label class="_lbl">Tipo</label><select id="inc-tipo" class="_inp">
-          <option value="cancelacion">Cancelacion</option>
-          <option value="doble">Sesion doble (recuperacion)</option>
-          <option value="saltada">Saltada</option>
-          <option value="reagendada">Reagendada</option>
-        </select></div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
-        <div><label class="_lbl">Fecha</label><input id="inc-fecha" type="date" class="_inp"></div>
-        <div><label class="_lbl">Motivo</label><input id="inc-motivo" type="text" placeholder="Ej: Paro docente..." class="_inp"></div>
-      </div>
-      <div style="display:flex;gap:10px;justify-content:flex-end">
-        <button onclick="cM('m-incidencia')" class="_bg">Cancelar</button>
-        <button onclick="guardarIncidencia()" class="_bp">Guardar</button>
-      </div>
+  <div id="m-incidencia" class="_mo"><div class="_mb" style="width:520px">
+    <div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:20px">Registrar incidencia</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label class="_lbl">Escuela</label><select id="inc-escuela" class="_inp"></select></div>
+      <div><label class="_lbl">Tipo</label><select id="inc-tipo" class="_inp">
+        <option value="cancelacion">Cancelacion</option>
+        <option value="doble">Sesion doble (recuperacion)</option>
+        <option value="saltada">Saltada</option>
+        <option value="reagendada">Reagendada</option>
+      </select></div>
     </div>
-  </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+      <div><label class="_lbl">Fecha</label><input id="inc-fecha" type="date" class="_inp"></div>
+      <div><label class="_lbl">Motivo</label><input id="inc-motivo" type="text" placeholder="Ej: Paro docente..." class="_inp"></div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="cM('m-incidencia')" class="_bg">Cancelar</button>
+      <button onclick="guardarIncidencia()" class="_bp">Guardar incidencia</button>
+    </div>
+  </div></div>
+
+  <!-- ACCION RESPONSABLE -->
+  <div id="m-accion" class="_mo"><div class="_mb" style="width:540px">
+    <div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:6px">Asignar accion al responsable</div>
+    <div style="font-size:12px;color:#797979;margin-bottom:20px" id="accion-ctx"></div>
+    <input type="hidden" id="acc-school-id">
+    <input type="hidden" id="acc-session-id">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label class="_lbl">Tipo de accion</label><select id="acc-tipo" class="_inp">
+        <option value="visiteo">Visiteo — determinar causante</option>
+        <option value="agendar_doble">Agendar sesion doble</option>
+        <option value="hablar_director">Hablar con el director</option>
+        <option value="seguimiento">Seguimiento general</option>
+        <option value="otro">Otro</option>
+      </select></div>
+      <div><label class="_lbl">Fecha limite</label><input id="acc-fecha" type="date" class="_inp"></div>
+    </div>
+    <div style="margin-bottom:20px"><label class="_lbl">Descripcion / instruccion</label>
+      <textarea id="acc-desc" rows="3" placeholder="Ej: Agendar sesion doble para el viernes 9 de mayo antes de las 12pm, confirmar con la directora..." class="_inp" style="resize:vertical"></textarea>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="cM('m-accion')" class="_bg">Cancelar</button>
+      <button onclick="guardarAccion()" class="_bp">Asignar accion</button>
+    </div>
+  </div></div>
 
   <!-- RUBRICA -->
-  <div id="m-rubrica" class="_mo">
-    <div class="_mb" style="width:560px">
-      <div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:20px">Cargar rubrica del manual</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-        <div><label class="_lbl">Escuela</label><select id="rub-escuela" class="_inp"></select></div>
-        <div><label class="_lbl">Bloque</label><select id="rub-bloque" class="_inp"><option value="1">Bloque 1</option><option value="2" selected>Bloque 2</option><option value="3">Bloque 3</option></select></div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-        <div><label class="_lbl">Grado</label><select id="rub-grado" class="_inp"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select></div>
-        <div><label class="_lbl">Turno</label><select id="rub-turno" class="_inp"><option value="matutino">Matutino</option><option value="vespertino">Vespertino</option></select></div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-        <div><label class="_lbl">Alumnos evaluados</label><input id="rub-evaluados" type="number" min="0" placeholder="0" class="_inp"></div>
-        <div><label class="_lbl">Sin manual</label><input id="rub-sinmanual" type="number" min="0" placeholder="0" class="_inp"></div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
-        <div><label class="_lbl">% Inicial</label><input id="rub-ini" type="number" min="0" max="100" placeholder="0" class="_inp"></div>
-        <div><label class="_lbl">% Adecuado</label><input id="rub-ade" type="number" min="0" max="100" placeholder="0" class="_inp"></div>
-        <div><label class="_lbl">% Excelente</label><input id="rub-exc" type="number" min="0" max="100" placeholder="0" class="_inp"></div>
-      </div>
-      <div style="margin-bottom:20px"><label class="_lbl">Notas</label><textarea id="rub-notas" rows="3" placeholder="Observaciones..." class="_inp" style="resize:vertical"></textarea></div>
-      <div style="display:flex;gap:10px;justify-content:flex-end">
-        <button onclick="cM('m-rubrica')" class="_bg">Cancelar</button>
-        <button onclick="guardarRubrica()" class="_bp">Guardar rubrica</button>
-      </div>
+  <div id="m-rubrica" class="_mo"><div class="_mb" style="width:560px">
+    <div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:20px">Cargar rubrica del manual</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label class="_lbl">Escuela</label><select id="rub-escuela" class="_inp"></select></div>
+      <div><label class="_lbl">Bloque</label><select id="rub-bloque" class="_inp"><option value="1">Bloque 1</option><option value="2" selected>Bloque 2</option><option value="3">Bloque 3</option></select></div>
     </div>
-  </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label class="_lbl">Grado</label><select id="rub-grado" class="_inp"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></div>
+      <div><label class="_lbl">Turno</label><select id="rub-turno" class="_inp"><option value="matutino">Matutino</option><option value="vespertino">Vespertino</option></select></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label class="_lbl">Alumnos evaluados</label><input id="rub-evaluados" type="number" min="0" placeholder="0" class="_inp"></div>
+      <div><label class="_lbl">Sin manual</label><input id="rub-sinmanual" type="number" min="0" placeholder="0" class="_inp"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label class="_lbl">% Inicial</label><input id="rub-ini" type="number" min="0" max="100" placeholder="0" class="_inp"></div>
+      <div><label class="_lbl">% Adecuado</label><input id="rub-ade" type="number" min="0" max="100" placeholder="0" class="_inp"></div>
+      <div><label class="_lbl">% Excelente</label><input id="rub-exc" type="number" min="0" max="100" placeholder="0" class="_inp"></div>
+    </div>
+    <div style="margin-bottom:20px"><label class="_lbl">Notas</label><textarea id="rub-notas" rows="2" placeholder="Observaciones..." class="_inp" style="resize:vertical"></textarea></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="cM('m-rubrica')" class="_bg">Cancelar</button>
+      <button onclick="guardarRubrica()" class="_bp">Guardar rubrica</button>
+    </div>
+  </div></div>
 
-  <!-- EVIDENCIA -->
-  <div id="m-evidencia" class="_mo">
-    <div class="_mb" style="width:520px">
-      <div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:20px">Cargar evidencia</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-        <div><label class="_lbl">Escuela</label><select id="ev-escuela" class="_inp"></select></div>
-        <div><label class="_lbl">Tipo</label><select id="ev-tipo" class="_inp">
-          <option value="photo">Fotos de sesion</option>
-          <option value="video_link">Link de video</option>
-          <option value="reflection">Reflexion docente</option>
-          <option value="rubric">Rubrica fisica</option>
-          <option value="attendance">Lista de asistencia</option>
-        </select></div>
+  <!-- EVIDENCIA con upload real -->
+  <div id="m-evidencia" class="_mo"><div class="_mb" style="width:540px">
+    <div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:20px">Cargar evidencia</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+      <div><label class="_lbl">Escuela</label><select id="ev-escuela" class="_inp"></select></div>
+      <div><label class="_lbl">Tipo</label><select id="ev-tipo" class="_inp">
+        <option value="photo">Fotos de sesion</option>
+        <option value="video_link">Link de video</option>
+        <option value="reflection">Reflexion docente</option>
+        <option value="attendance">Lista de asistencia</option>
+        <option value="rubric">Rubrica fisica</option>
+      </select></div>
+    </div>
+    <!-- Tab switcher: archivo vs link -->
+    <div style="display:flex;gap:0;margin-bottom:14px;border-radius:8px;overflow:hidden;border:1.5px solid rgba(2,193,244,.3)">
+      <button id="ev-tab-file" onclick="evTab('file')" style="flex:1;padding:8px;background:#02c1f4;color:#fff;border:none;font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;cursor:pointer">Subir archivo</button>
+      <button id="ev-tab-link" onclick="evTab('link')" style="flex:1;padding:8px;background:#fff;color:#02c1f4;border:none;font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;cursor:pointer">Link (Drive/YouTube)</button>
+    </div>
+    <div id="ev-panel-file" style="margin-bottom:14px">
+      <div class="upload-zone" id="ev-dropzone" onclick="document.getElementById('ev-file-input').click()" ondragover="evDragOver(event)" ondragleave="evDragLeave(event)" ondrop="evDrop(event)">
+        <div style="font-size:28px;margin-bottom:8px">📎</div>
+        <div style="font-family:Montserrat,sans-serif;font-size:13px;font-weight:600;margin-bottom:4px">Arrastra tu archivo aqui</div>
+        <div style="font-size:11px;color:#797979">o haz clic para buscar · PDF, JPG, PNG, Excel (max 10MB)</div>
+        <div id="ev-file-name" style="margin-top:10px;font-size:12px;color:#02c1f4;font-weight:600;display:none"></div>
       </div>
-      <div style="margin-bottom:12px">
-        <label class="_lbl">URL / Link (Google Drive, YouTube, etc.)</label>
-        <input id="ev-url" type="text" placeholder="https://drive.google.com/..." class="_inp">
-        <div style="font-size:10px;color:#797979;margin-top:4px">Sube el archivo a Google Drive y pega el link compartido aqui</div>
-      </div>
-      <div style="margin-bottom:20px"><label class="_lbl">Descripcion / notas</label><textarea id="ev-desc" rows="3" placeholder="Describe la evidencia, grupo, modulo..." class="_inp" style="resize:vertical"></textarea></div>
-      <div style="display:flex;gap:10px;justify-content:flex-end">
-        <button onclick="cM('m-evidencia')" class="_bg">Cancelar</button>
-        <button onclick="guardarEvidencia()" class="_bp">Guardar evidencia</button>
+      <input id="ev-file-input" type="file" accept=".pdf,.jpg,.jpeg,.png,.xlsx,.xls,.doc,.docx" style="display:none" onchange="evFileSelected(event)">
+    </div>
+    <div id="ev-panel-link" style="margin-bottom:14px;display:none">
+      <label class="_lbl">URL (Google Drive, YouTube, etc.)</label>
+      <input id="ev-url" type="text" placeholder="https://drive.google.com/..." class="_inp">
+      <div style="font-size:10px;color:#797979;margin-top:4px">Asegurate de que el link sea publico o compartido con el equipo</div>
+    </div>
+    <div style="margin-bottom:20px"><label class="_lbl">Descripcion / notas</label>
+      <textarea id="ev-desc" rows="2" placeholder="Grupo, modulo, sesion, observaciones..." class="_inp" style="resize:vertical"></textarea>
+    </div>
+    <div id="ev-progress" style="display:none;margin-bottom:12px">
+      <div style="font-size:12px;color:#02c1f4;font-family:Montserrat,sans-serif;font-weight:600;margin-bottom:6px">Subiendo archivo...</div>
+      <div style="height:4px;background:#e0e0e0;border-radius:10px;overflow:hidden">
+        <div id="ev-progress-bar" style="width:0%;height:4px;background:#02c1f4;border-radius:10px;transition:width .3s"></div>
       </div>
     </div>
-  </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="cM('m-evidencia')" class="_bg">Cancelar</button>
+      <button id="ev-btn-save" onclick="guardarEvidencia()" class="_bp">Guardar evidencia</button>
+    </div>
+  </div></div>
 
   <!-- USUARIO -->
-  <div id="m-usuario" class="_mo">
-    <div class="_mb" style="width:540px">
-      <div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:20px">Nuevo usuario</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-        <div><label class="_lbl">Nombre completo</label><input id="usr-nombre" type="text" placeholder="Nombre Apellido" class="_inp"></div>
-        <div><label class="_lbl">Correo electronico</label><input id="usr-email" type="email" placeholder="correo@houp.mx" class="_inp"></div>
+  <div id="m-usuario" class="_mo"><div class="_mb" style="width:540px">
+    <div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:20px">Nuevo usuario</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label class="_lbl">Nombre completo</label><input id="usr-nombre" type="text" placeholder="Nombre Apellido" class="_inp"></div>
+      <div><label class="_lbl">Correo electronico</label><input id="usr-email" type="email" placeholder="correo@houp.mx" class="_inp"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label class="_lbl">Rol</label><select id="usr-rol" class="_inp">
+        <option value="admin_houp">Admin Houp</option>
+        <option value="responsable">Responsable de escuela</option>
+        <option value="docente">Docente</option>
+        <option value="fundacion">Fundacion (solo lectura)</option>
+      </select></div>
+      <div><label class="_lbl">Escuela principal</label><select id="usr-escuela" class="_inp"><option value="">-- Sin escuela --</option></select></div>
+    </div>
+    <div style="margin-bottom:20px"><label class="_lbl">Contrasena temporal</label><input id="usr-pass" type="password" placeholder="Minimo 6 caracteres" class="_inp"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="cM('m-usuario')" class="_bg">Cancelar</button>
+      <button onclick="guardarUsuario()" class="_bp">Crear usuario</button>
+    </div>
+  </div></div>
+
+  <!-- PLANEACION DOCENTE -->
+  <div id="m-planeacion" class="_mo"><div class="_mb" style="width:580px">
+    <div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:6px">Subir planeacion de sesion</div>
+    <div style="font-size:12px;color:#797979;margin-bottom:20px" id="plan-ctx"></div>
+    <input type="hidden" id="plan-school-id">
+    <input type="hidden" id="plan-session-id">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label class="_lbl">Modulo</label><select id="plan-modulo" class="_inp">
+        ${MODULOS.map(m=>`<option value="${m.n}">Mod. ${m.n} · ${m.name}</option>`).join('')}
+      </select></div>
+      <div><label class="_lbl">Numero de sesion</label><input id="plan-sesion" type="number" min="1" max="20" placeholder="Ej: 9" class="_inp"></div>
+    </div>
+    <div style="margin-bottom:12px"><label class="_lbl">Activacion inicial (describe como vas a comenzar)</label>
+      <textarea id="plan-activacion" rows="2" placeholder="Ej: Pregunta de reflexion: ¿Que emocion senti esta semana?..." class="_inp" style="resize:vertical"></textarea>
+    </div>
+    <div style="margin-bottom:12px"><label class="_lbl">Notas de teoria / presentacion</label>
+      <textarea id="plan-teoria" rows="2" placeholder="Conceptos clave que vas a explicar..." class="_inp" style="resize:vertical"></textarea>
+    </div>
+    <div style="margin-bottom:14px"><label class="_lbl">Aplicacion practica</label>
+      <textarea id="plan-practica" rows="2" placeholder="Actividad del manual, paginas, dinamica grupal..." class="_inp" style="resize:vertical"></textarea>
+    </div>
+    <!-- Archivo adjunto opcional -->
+    <div style="margin-bottom:20px">
+      <label class="_lbl">Archivo adjunto (opcional) — PDF, Word, imagen</label>
+      <div class="upload-zone" id="plan-dropzone" onclick="document.getElementById('plan-file-input').click()" ondragover="evDragOver2(event)" ondragleave="evDragLeave2(event)" ondrop="planDrop(event)">
+        <div style="font-size:22px;margin-bottom:6px">📄</div>
+        <div style="font-size:12px;color:#797979">Clic para seleccionar o arrastra tu archivo</div>
+        <div id="plan-file-name" style="margin-top:8px;font-size:12px;color:#02c1f4;font-weight:600;display:none"></div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-        <div><label class="_lbl">Rol</label><select id="usr-rol" class="_inp">
-          <option value="admin_houp">Admin Houp</option>
-          <option value="responsable">Responsable de escuela</option>
-          <option value="docente">Docente</option>
-          <option value="fundacion">Fundacion (solo lectura)</option>
-        </select></div>
-        <div><label class="_lbl">Escuela principal</label><select id="usr-escuela" class="_inp"><option value="">-- Sin escuela --</option></select></div>
-      </div>
-      <div style="margin-bottom:20px"><label class="_lbl">Contrasena temporal</label><input id="usr-pass" type="password" placeholder="Minimo 6 caracteres" class="_inp"></div>
-      <div style="background:#f0fbff;border-radius:8px;padding:12px;margin-bottom:20px;font-size:11px;color:#015F7A;line-height:1.6">
-        <strong>Nota:</strong> El usuario recibira un correo para confirmar su cuenta. La contrasena temporal debera cambiarse en el primer inicio de sesion.
-      </div>
-      <div style="display:flex;gap:10px;justify-content:flex-end">
-        <button onclick="cM('m-usuario')" class="_bg">Cancelar</button>
-        <button onclick="guardarUsuario()" class="_bp">Crear usuario</button>
+      <input id="plan-file-input" type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.ppt,.pptx" style="display:none" onchange="planFileSelected(event)">
+    </div>
+    <div id="plan-progress" style="display:none;margin-bottom:12px">
+      <div style="font-size:12px;color:#02c1f4;font-weight:600;margin-bottom:6px">Subiendo archivo...</div>
+      <div style="height:4px;background:#e0e0e0;border-radius:10px;overflow:hidden">
+        <div id="plan-progress-bar" style="width:0%;height:4px;background:#02c1f4;border-radius:10px;transition:width .3s"></div>
       </div>
     </div>
-  </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="cM('m-planeacion')" class="_bg">Cancelar</button>
+      <button id="plan-btn-save" onclick="guardarPlaneacion()" class="_bp">Guardar planeacion</button>
+    </div>
+  </div></div>
+
+  <!-- HORARIO DOCENTE -->
+  <div id="m-horario" class="_mo"><div class="_mb" style="width:500px">
+    <div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:20px">Agregar clase al horario</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label class="_lbl">Escuela</label><select id="hor-escuela" class="_inp"></select></div>
+      <div><label class="_lbl">Dia</label><select id="hor-dia" class="_inp">
+        <option value="1">Lunes</option><option value="2">Martes</option><option value="3">Miercoles</option>
+        <option value="4">Jueves</option><option value="5">Viernes</option>
+      </select></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label class="_lbl">Hora inicio</label><input id="hor-inicio" type="time" class="_inp" value="08:00"></div>
+      <div><label class="_lbl">Hora fin</label><input id="hor-fin" type="time" class="_inp" value="09:00"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+      <div><label class="_lbl">Grado y grupo</label><input id="hor-grado" type="text" placeholder="Ej: 2° A" class="_inp"></div>
+      <div><label class="_lbl">Salon</label><input id="hor-salon" type="text" placeholder="Ej: Aula 5" class="_inp"></div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="cM('m-horario')" class="_bg">Cancelar</button>
+      <button onclick="guardarHorario()" class="_bp">Guardar</button>
+    </div>
+  </div></div>
 
   <!-- VISITA RESPONSABLE -->
-  <div id="m-visita" class="_mo">
-    <div class="_mb" style="width:540px">
-      <div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:20px">Registrar visita de seguimiento</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-        <div><label class="_lbl">Escuela visitada</label><select id="vis-escuela" class="_inp"></select></div>
-        <div><label class="_lbl">Fecha de visita</label><input id="vis-fecha" type="date" class="_inp"></div>
-      </div>
-      <div style="margin-bottom:12px">
-        <label class="_lbl">Sesion observada (modulo y numero)</label>
-        <input id="vis-sesion" type="text" placeholder="Ej: Modulo 2 - Sesion 5" class="_inp">
-      </div>
-      <div style="margin-bottom:12px">
-        <label class="_lbl">Observaciones generales</label>
-        <textarea id="vis-obs" rows="3" placeholder="Describe como fue la sesion, participacion, actitud docente..." class="_inp" style="resize:vertical"></textarea>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
-        <div><label class="_lbl">Clima de aula</label>
-          <select id="vis-clima" class="_inp"><option value="excelente">Excelente</option><option value="bueno" selected>Bueno</option><option value="regular">Regular</option><option value="deficiente">Deficiente</option></select>
-        </div>
-        <div><label class="_lbl">Dominio docente</label>
-          <select id="vis-dominio" class="_inp"><option value="excelente">Excelente</option><option value="bueno" selected>Bueno</option><option value="regular">Regular</option><option value="deficiente">Deficiente</option></select>
-        </div>
-        <div><label class="_lbl">Participacion alumnos</label>
-          <select id="vis-participacion" class="_inp"><option value="alta">Alta</option><option value="media" selected>Media</option><option value="baja">Baja</option></select>
-        </div>
-      </div>
-      <div style="margin-bottom:20px">
-        <label class="_lbl">Compromisos y acuerdos</label>
-        <textarea id="vis-compromisos" rows="2" placeholder="Acciones acordadas con el docente para la proxima sesion..." class="_inp" style="resize:vertical"></textarea>
-      </div>
-      <div style="display:flex;gap:10px;justify-content:flex-end">
-        <button onclick="cM('m-visita')" class="_bg">Cancelar</button>
-        <button onclick="guardarVisita()" class="_bp">Guardar visita</button>
-      </div>
+  <div id="m-visita" class="_mo"><div class="_mb" style="width:540px">
+    <div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:20px">Registrar visita de seguimiento</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label class="_lbl">Escuela visitada</label><select id="vis-escuela" class="_inp"></select></div>
+      <div><label class="_lbl">Fecha de visita</label><input id="vis-fecha" type="date" class="_inp"></div>
     </div>
-  </div>
+    <div style="margin-bottom:12px"><label class="_lbl">Sesion observada</label>
+      <input id="vis-sesion" type="text" placeholder="Ej: Modulo 2 - Sesion 5" class="_inp"></div>
+    <div style="margin-bottom:12px"><label class="_lbl">Observaciones</label>
+      <textarea id="vis-obs" rows="3" placeholder="Describe como fue la sesion..." class="_inp" style="resize:vertical"></textarea></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label class="_lbl">Clima de aula</label><select id="vis-clima" class="_inp"><option value="excelente">Excelente</option><option value="bueno" selected>Bueno</option><option value="regular">Regular</option><option value="deficiente">Deficiente</option></select></div>
+      <div><label class="_lbl">Dominio docente</label><select id="vis-dominio" class="_inp"><option value="excelente">Excelente</option><option value="bueno" selected>Bueno</option><option value="regular">Regular</option><option value="deficiente">Deficiente</option></select></div>
+      <div><label class="_lbl">Participacion</label><select id="vis-participacion" class="_inp"><option value="alta">Alta</option><option value="media" selected>Media</option><option value="baja">Baja</option></select></div>
+    </div>
+    <div style="margin-bottom:20px"><label class="_lbl">Compromisos acordados</label>
+      <textarea id="vis-compromisos" rows="2" placeholder="Acciones para la proxima sesion..." class="_inp" style="resize:vertical"></textarea></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="cM('m-visita')" class="_bg">Cancelar</button>
+      <button onclick="guardarVisita()" class="_bp">Guardar visita</button>
+    </div>
+  </div></div>
   `;
   document.body.appendChild(mc);
 }
 
 // ─────────────────────────────────────────────────────────────────
+//  FILE UPLOAD STATE
+// ─────────────────────────────────────────────────────────────────
+let _evFile=null, _planFile=null;
+
+function evTab(t){
+  document.getElementById('ev-panel-file').style.display=t==='file'?'block':'none';
+  document.getElementById('ev-panel-link').style.display=t==='link'?'block':'none';
+  document.getElementById('ev-tab-file').style.background=t==='file'?'#02c1f4':'#fff';
+  document.getElementById('ev-tab-file').style.color=t==='file'?'#fff':'#02c1f4';
+  document.getElementById('ev-tab-link').style.background=t==='link'?'#02c1f4':'#fff';
+  document.getElementById('ev-tab-link').style.color=t==='link'?'#fff':'#02c1f4';
+}
+function evDragOver(e){e.preventDefault();document.getElementById('ev-dropzone').classList.add('dragover');}
+function evDragLeave(e){document.getElementById('ev-dropzone').classList.remove('dragover');}
+function evDrop(e){e.preventDefault();document.getElementById('ev-dropzone').classList.remove('dragover');const f=e.dataTransfer.files[0];if(f)_setEvFile(f);}
+function evFileSelected(e){const f=e.target.files[0];if(f)_setEvFile(f);}
+function _setEvFile(f){_evFile=f;const n=document.getElementById('ev-file-name');n.textContent='✓ '+f.name+' ('+_fmtSize(f.size)+')';n.style.display='block';}
+function evDragOver2(e){e.preventDefault();document.getElementById('plan-dropzone').classList.add('dragover');}
+function evDragLeave2(e){document.getElementById('plan-dropzone').classList.remove('dragover');}
+function planDrop(e){e.preventDefault();document.getElementById('plan-dropzone').classList.remove('dragover');const f=e.dataTransfer.files[0];if(f)_setPlanFile(f);}
+function planFileSelected(e){const f=e.target.files[0];if(f)_setPlanFile(f);}
+function _setPlanFile(f){_planFile=f;const n=document.getElementById('plan-file-name');n.textContent='✓ '+f.name+' ('+_fmtSize(f.size)+')';n.style.display='block';}
+function _fmtSize(b){return b>1048576?(b/1048576).toFixed(1)+'MB':(b/1024).toFixed(0)+'KB';}
+
+async function _uploadFile(file, bucket, folder) {
+  const ext = file.name.split('.').pop();
+  const path = `${folder}/${Date.now()}_${Math.random().toString(36).substr(2,8)}.${ext}`;
+  const { data, error } = await db.storage.from(bucket).upload(path, file, { upsert: true });
+  if (error) throw error;
+  const { data: pub } = db.storage.from(bucket).getPublicUrl(path);
+  return { path, url: pub.publicUrl, name: file.name, size: file.size };
+}
+
+// ─────────────────────────────────────────────────────────────────
 //  AUTH
 // ─────────────────────────────────────────────────────────────────
-async function doLogin() {
-  const email = document.getElementById('li-email').value.trim();
-  const pass  = document.getElementById('li-pass').value;
-  const err   = document.getElementById('li-err');
-  const btn   = document.getElementById('li-btn');
-  err.textContent = '';
-  if (!email || !pass) { err.textContent = 'Ingresa correo y contrasena'; return; }
-  btn.disabled = true; btn.textContent = 'Verificando...';
-  const { data, error } = await db.auth.signInWithPassword({ email, password: pass });
-  if (error) { err.textContent = 'Correo o contrasena incorrectos'; btn.disabled=false; btn.textContent='Entrar'; return; }
+async function doLogin(){
+  const email=document.getElementById('li-email').value.trim();
+  const pass=document.getElementById('li-pass').value;
+  const err=document.getElementById('li-err');
+  const btn=document.getElementById('li-btn');
+  err.textContent='';
+  if(!email||!pass){err.textContent='Ingresa correo y contrasena';return;}
+  btn.disabled=true;btn.textContent='Verificando...';
+  const{data,error}=await db.auth.signInWithPassword({email,password:pass});
+  if(error){err.textContent='Correo o contrasena incorrectos';btn.disabled=false;btn.textContent='Entrar';return;}
   await _initApp(data.user);
 }
-
-async function doLogout() {
-  confirm2('Cerrar sesion', 'Se cerrara tu sesion en este dispositivo.', async () => {
-    await db.auth.signOut(); location.reload();
-  }, false);
+async function doLogout(){
+  confirm2('Cerrar sesion','Se cerrara tu sesion en este dispositivo.',async()=>{await db.auth.signOut();location.reload();},false);
 }
-
-async function _initApp(user) {
-  ME = user;
-  const { data: p } = await db.from('profiles').select('*').eq('id', user.id).single();
-  PROFILE = p || { id:user.id, email:user.email, full_name:user.email.split('@')[0], role:'admin_houp', school_id:null };
-  if (!p) await db.from('profiles').upsert(PROFILE);
-  const ov = document.getElementById('ov-login'); if (ov) ov.remove();
-  const ini = (PROFILE.full_name||PROFILE.email).split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
-  document.getElementById('ua').textContent = ini;
-  document.getElementById('un').textContent = PROFILE.full_name || PROFILE.email;
-  document.getElementById('ur').textContent = RL[PROFILE.role] || PROFILE.role;
+async function _initApp(user){
+  ME=user;
+  const{data:p}=await db.from('profiles').select('*').eq('id',user.id).single();
+  PROFILE=p||{id:user.id,email:user.email,full_name:user.email.split('@')[0],role:'admin_houp',school_id:null};
+  if(!p) await db.from('profiles').upsert(PROFILE);
+  document.getElementById('ov-login').remove();
+  const ini=(PROFILE.full_name||PROFILE.email).split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
+  document.getElementById('ua').textContent=ini;
+  document.getElementById('un').textContent=PROFILE.full_name||PROFILE.email;
+  document.getElementById('ur').textContent=RL[PROFILE.role]||PROFILE.role;
   await _loadSchools();
   _showNav(PROFILE.role);
-  const firstScreens = {admin_houp:'s-dash',responsable:'s-resp-home',docente:'s-doc-home',fundacion:'s-found-dash'};
-  const navMap       = {admin_houp:'nav-admin',responsable:'nav-responsable',docente:'nav-docente',fundacion:'nav-fundacion'};
-  const navEl = document.getElementById(navMap[PROFILE.role]||'nav-admin');
-  nav(navEl?.querySelector('.nav-item'), firstScreens[PROFILE.role]||'s-dash');
+  const FS={admin_houp:'s-dash',responsable:'s-resp-home',docente:'s-doc-home',fundacion:'s-found-dash'};
+  const NM={admin_houp:'nav-admin',responsable:'nav-responsable',docente:'nav-docente',fundacion:'nav-fundacion'};
+  const navEl=document.getElementById(NM[PROFILE.role]||'nav-admin');
+  nav(navEl?.querySelector('.nav-item'),FS[PROFILE.role]||'s-dash');
 }
 
 // ─────────────────────────────────────────────────────────────────
 //  DATA
 // ─────────────────────────────────────────────────────────────────
-async function _loadSchools() {
-  const { data } = await db.from('schools').select('*').eq('active', true).order('name');
-  const today = new Date();
-  SCHOOLS = (data||[]).map(s => {
-    s.dias_atraso = s.last_session_date
-      ? Math.floor((today - new Date(s.last_session_date)) / 864e5)
-      : 999;
+async function _loadSchools(){
+  const{data}=await db.from('schools').select('*').eq('active',true).order('name');
+  const today=new Date();
+  SCHOOLS=(data||[]).map(s=>{
+    s.dias_atraso=s.last_session_date?Math.floor((today-new Date(s.last_session_date))/864e5):999;
     return s;
   });
-  ['inc-escuela','rub-escuela','ev-escuela','vis-escuela'].forEach(id => {
-    const el = document.getElementById(id); if (!el) return;
-    el.innerHTML = SCHOOLS.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+  ['inc-escuela','rub-escuela','ev-escuela','vis-escuela','hor-escuela'].forEach(id=>{
+    const el=document.getElementById(id);if(!el)return;
+    el.innerHTML=SCHOOLS.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
   });
-  const ue = document.getElementById('usr-escuela');
-  if (ue) ue.innerHTML = '<option value="">-- Sin escuela --</option>' + SCHOOLS.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+  const ue=document.getElementById('usr-escuela');
+  if(ue) ue.innerHTML='<option value="">-- Sin escuela --</option>'+SCHOOLS.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+}
+
+async function _getSessions(schoolId){
+  const{data}=await db.from('sessions').select('*').eq('school_id',schoolId).order('session_number');
+  return data||[];
+}
+
+async function _ensureSessions(schoolId){
+  const existing=await _getSessions(schoolId);
+  if(existing.length>0) return existing;
+  // Seed 20 sessions for this school
+  const rows=[];
+  let sn=1;
+  for(const mod of MODULOS){
+    for(let i=0;i<mod.sessions;i++){
+      rows.push({school_id:schoolId,session_number:sn,module_number:mod.n,module_name:mod.name,status:'pendiente'});
+      sn++;
+    }
+  }
+  await db.from('sessions').insert(rows);
+  return await _getSessions(schoolId);
 }
 
 // ─────────────────────────────────────────────────────────────────
 //  NAV
 // ─────────────────────────────────────────────────────────────────
-function _showNav(role) {
-  ['nav-admin','nav-responsable','nav-docente','nav-fundacion'].forEach(id => {
-    const el = document.getElementById(id); if (el) el.style.display='none';
+function _showNav(role){
+  ['nav-admin','nav-responsable','nav-docente','nav-fundacion'].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.style.display='none';
   });
-  const map = {admin_houp:'nav-admin',responsable:'nav-responsable',docente:'nav-docente',fundacion:'nav-fundacion'};
-  const el = document.getElementById(map[role]||'nav-admin');
-  if (el) el.style.display = 'block';
+  const map={admin_houp:'nav-admin',responsable:'nav-responsable',docente:'nav-docente',fundacion:'nav-fundacion'};
+  const el=document.getElementById(map[role]||'nav-admin');
+  if(el)el.style.display='block';
 }
 
-function nav(el, screenId) {
-  if (el) {
-    el.closest('.nav')?.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-    el.classList.add('active');
-  }
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+function nav(el,screenId){
+  if(el){el.closest('.nav')?.querySelectorAll('.nav-item').forEach(i=>i.classList.remove('active'));el.classList.add('active');}
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById(screenId)?.classList.add('active');
-  SCREEN = screenId;
-
-  const TITLES = {
-    's-dash':'Panel general','s-escuelas':'Escuelas','s-sesiones':'Seguimiento de sesiones',
-    's-modulos':'Avance por escuela','s-evidencia':'Revision de evidencia',
-    's-found-dash':'Panel Fundacion','s-found-rubrics':'Rubricas y calificaciones','s-found-reports':'Descargar reportes',
+  SCREEN=screenId;
+  const TITLES={'s-dash':'Panel general','s-escuelas':'Escuelas','s-sesiones':'Seguimiento de sesiones',
+    's-modulos':'Avance por escuela','s-evidencia':'Evidencia','s-found-dash':'Panel Fundacion',
+    's-found-rubrics':'Rubricas y calificaciones','s-found-reports':'Descargar reportes',
     's-resp-home':'Mi panel','s-resp-sesiones':'Mis sesiones','s-resp-equipo':'Mis escuelas',
-    's-doc-home':'Mis clases','s-doc-material':'Material didactico','s-doc-plan':'Planeacion de sesion'
-  };
-  const tb = document.getElementById('tb-title'); if (tb) tb.textContent = TITLES[screenId]||screenId;
-
-  const cta = document.getElementById('tb-cta');
-  if (cta) {
-    cta.style.display='none'; cta.onclick=null;
-    const CTA = {
-      's-escuelas':      ['+ Nueva escuela',   () => abrirEscuela()],
-      's-sesiones':      ['+ Incidencia',       () => abrirIncidencia()],
-      's-evidencia':     ['+ Cargar evidencia', () => oM('m-evidencia')],
-      's-found-rubrics': ['+ Nueva rubrica',    () => oM('m-rubrica')],
-      's-resp-home':     ['+ Visita',           () => abrirVisita()],
-      's-resp-sesiones': ['+ Incidencia',       () => abrirIncidencia()],
-      's-resp-equipo':   ['+ Visita',           () => abrirVisita()],
-    };
-    if (CTA[screenId]) { cta.style.display='block'; cta.textContent=CTA[screenId][0]; cta.onclick=CTA[screenId][1]; }
+    's-doc-home':'Mis clases','s-doc-material':'Material didactico','s-doc-plan':'Planeacion de sesion'};
+  const tb=document.getElementById('tb-title');if(tb)tb.textContent=TITLES[screenId]||screenId;
+  const cta=document.getElementById('tb-cta');
+  if(cta){
+    cta.style.display='none';cta.onclick=null;
+    const CM={'s-escuelas':['+ Nueva escuela',()=>abrirEscuela()],'s-sesiones':['+ Incidencia',()=>abrirIncidencia()],
+      's-evidencia':['+ Cargar evidencia',()=>abrirEvidencia()],'s-found-rubrics':['+ Nueva rubrica',()=>oM('m-rubrica')],
+      's-resp-home':['+ Visita',()=>abrirVisita()],'s-resp-sesiones':['+ Incidencia',()=>abrirIncidencia()],
+      's-resp-equipo':['+ Visita',()=>abrirVisita()],'s-doc-home':['+ Planeacion',()=>abrirPlaneacion()],
+      's-doc-plan':['+ Planeacion',()=>abrirPlaneacion()]};
+    if(CM[screenId]){cta.style.display='block';cta.textContent=CM[screenId][0];cta.onclick=CM[screenId][1];}
   }
-
-  const LOADERS = {
-    's-dash':renderDash, 's-escuelas':renderEscuelas, 's-sesiones':renderSesiones,
-    's-evidencia':renderEvidencia, 's-modulos':renderModulos,
-    's-found-dash':renderFundDash, 's-found-rubrics':renderFundRubricas, 's-found-reports':renderFundReportes,
-    's-resp-home':renderRespHome, 's-resp-sesiones':renderRespSesiones, 's-resp-equipo':renderRespEscuelas,
-  };
-  if (LOADERS[screenId]) LOADERS[screenId]();
+  const LOADERS={'s-dash':renderDash,'s-escuelas':renderEscuelas,'s-sesiones':renderSesiones,
+    's-modulos':renderModulos,'s-evidencia':renderEvidencia,'s-found-dash':renderFundDash,
+    's-found-rubrics':renderFundRubricas,'s-found-reports':renderFundReportes,
+    's-resp-home':renderRespHome,'s-resp-sesiones':renderRespSesiones,'s-resp-equipo':renderRespEscuelas,
+    's-doc-home':renderDocHome,'s-doc-material':renderDocMaterial,'s-doc-plan':renderDocPlan};
+  if(LOADERS[screenId])LOADERS[screenId]();
 }
 
-function switchRole(r) {
-  document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
-  if (event?.target) event.target.classList.add('active');
-  const RM = {admin:'admin_houp',responsable:'responsable',docente:'docente',fundacion:'fundacion'};
+function switchRole(r){
+  document.querySelectorAll('.role-btn').forEach(b=>b.classList.remove('active'));
+  if(event?.target)event.target.classList.add('active');
+  const RM={admin:'admin_houp',responsable:'responsable',docente:'docente',fundacion:'fundacion'};
   _showNav(RM[r]||r);
-  const NI = {admin:'nav-admin',responsable:'nav-responsable',docente:'nav-docente',fundacion:'nav-fundacion'};
-  const FS = {admin:'s-dash',responsable:'s-resp-home',docente:'s-doc-home',fundacion:'s-found-dash'};
-  const navEl = document.getElementById(NI[r]);
-  nav(navEl?.querySelector('.nav-item'), FS[r]||'s-dash');
+  const NI={admin:'nav-admin',responsable:'nav-responsable',docente:'nav-docente',fundacion:'nav-fundacion'};
+  const FS={admin:'s-dash',responsable:'s-resp-home',docente:'s-doc-home',fundacion:'s-found-dash'};
+  const navEl=document.getElementById(NI[r]);
+  nav(navEl?.querySelector('.nav-item'),FS[r]||'s-dash');
 }
 
 // ─────────────────────────────────────────────────────────────────
 //  HELPERS
 // ─────────────────────────────────────────────────────────────────
-function oM(id)  { const e=document.getElementById(id); if(e) e.style.display='flex'; }
-function cM(id)  { const e=document.getElementById(id); if(e) e.style.display='none'; }
-
-function toast(msg, isErr) {
-  const t = document.getElementById('houp-toast');
-  t.textContent=msg; t.style.background=isErr?'#c62828':'#012B38';
-  t.style.transform='translateY(0)'; t.style.opacity='1';
-  setTimeout(()=>{ t.style.transform='translateY(100px)'; t.style.opacity='0'; }, 3500);
+function oM(id){const e=document.getElementById(id);if(e)e.style.display='flex';}
+function cM(id){const e=document.getElementById(id);if(e)e.style.display='none';}
+function toast(msg,isErr){
+  const t=document.getElementById('houp-toast');
+  t.textContent=msg;t.style.background=isErr?'#c62828':'#012B38';
+  t.style.transform='translateY(0)';t.style.opacity='1';
+  setTimeout(()=>{t.style.transform='translateY(100px)';t.style.opacity='0';},4000);
 }
-
-function confirm2(title, msg, onOk, danger=true) {
-  document.getElementById('conf-title').textContent = title;
-  document.getElementById('conf-msg').textContent   = msg;
-  const btn = document.getElementById('conf-ok');
-  btn.style.background = danger ? '#e03535' : '#02c1f4';
-  btn.textContent = danger ? 'Confirmar' : 'Aceptar';
-  btn.onclick = () => { closeConfirm(); onOk(); };
-  document.getElementById('ov-confirm').style.display = 'flex';
+function confirm2(title,msg,onOk,danger=true){
+  document.getElementById('conf-t').textContent=title;
+  document.getElementById('conf-m').textContent=msg;
+  const btn=document.getElementById('conf-ok');
+  btn.style.background=danger?'#e03535':'#02c1f4';
+  btn.textContent=danger?'Confirmar':'Aceptar';
+  btn.onclick=()=>{closeConfirm();onOk();};
+  document.getElementById('ov-confirm').style.display='flex';
 }
-function closeConfirm() { document.getElementById('ov-confirm').style.display='none'; }
-
-const bdg  = (t,c) => `<span class="badge ${c}">${t}</span>`;
-const alC  = d => d>14?'b-red':d>7?'b-amber':'b-green';
-const alT  = d => d>14?`ALERTA: ${d} dias`:d>7?'Revisar':'Al dia';
-const fD   = s => s ? new Date(s).toLocaleDateString('es-MX') : 'Sin registro';
-const AVG  = arr => arr.length ? (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(2) : '--';
+function closeConfirm(){document.getElementById('ov-confirm').style.display='none';}
+const bdg=(t,c)=>`<span class="badge ${c}">${t}</span>`;
+const alC=d=>d>14?'b-red':d>7?'b-amber':'b-green';
+const alT=d=>d>14?`ALERTA: ${d}d`:d>7?'Revisar':'Al dia';
+const fD=s=>s?new Date(s).toLocaleDateString('es-MX'):'Sin registro';
+const AVG=arr=>arr.length?(arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(2):'--';
 
 // ─────────────────────────────────────────────────────────────────
-//  SCREENS
+//  SCREENS — ADMIN
 // ─────────────────────────────────────────────────────────────────
-async function renderDash() {
-  const c = document.getElementById('s-dash'); if (!c) return;
-  const alerts = SCHOOLS.filter(s=>s.dias_atraso>14);
-  const total  = SCHOOLS.reduce((a,b)=>a+(b.total_students||0),0);
-  const [{ data:rubs }, { data:incs }] = await Promise.all([
+async function renderDash(){
+  const c=document.getElementById('s-dash');if(!c)return;
+  const alerts=SCHOOLS.filter(s=>s.dias_atraso>14);
+  const total=SCHOOLS.reduce((a,b)=>a+(b.total_students||0),0);
+  const[{data:rubs},{data:incs},{data:actions}]=await Promise.all([
     db.from('rubrics').select('average_score'),
     db.from('incidents').select('type'),
+    db.from('actions').select('status').eq('status','pendiente').catch(()=>({data:[]})),
   ]);
-  const prom = AVG((rubs||[]).map(r=>parseFloat(r.average_score)||0));
-  const cancels = (incs||[]).filter(i=>i.type==='cancelacion').length;
+  const prom=AVG((rubs||[]).map(r=>parseFloat(r.average_score)||0));
+  const cancels=(incs||[]).filter(i=>i.type==='cancelacion').length;
+  const pendActions=(actions||[]).length;
 
-  c.innerHTML = `
+  c.innerHTML=`
     ${alerts.length?`<div class="alert-red"><div class="alert-dot ad-red"></div>
       <div class="alert-txt"><strong>${alerts.length} escuela${alerts.length>1?'s':''} en alerta</strong> — 
       ${alerts.map(s=>`<strong>${s.name}</strong> (${s.dias_atraso}d)`).join(', ')}.</div></div>`:''}
+    ${pendActions?`<div class="alert-blue"><div class="alert-dot ad-blue"></div>
+      <div class="alert-txt"><strong>${pendActions} accion${pendActions>1?'es':''} pendiente${pendActions>1?'s':''}</strong> asignada${pendActions>1?'s':''} a responsables.</div></div>`:''}
     <div class="stats-row">
       <div class="stat"><div class="stat-val c-blue">${SCHOOLS.length}</div><div class="stat-lbl">Escuelas activas</div></div>
       <div class="stat"><div class="stat-val">${total}</div><div class="stat-lbl">Alumnos en programa</div></div>
-      <div class="stat"><div class="stat-val c-blue">${prom}</div><div class="stat-lbl">Prom. rubrica (1-3)</div></div>
-      <div class="stat"><div class="stat-val ${alerts.length?'c-red':''}">${alerts.length}</div><div class="stat-lbl">Escuelas con atraso</div></div>
+      <div class="stat"><div class="stat-val c-blue">${prom}</div><div class="stat-lbl">Prom. rubrica</div></div>
+      <div class="stat"><div class="stat-val ${alerts.length?'c-red':''}">${alerts.length}</div><div class="stat-lbl">En alerta</div></div>
     </div>
     <div class="two-col">
       <div class="card">
-        <div class="card-hd"><div><div class="card-title">Estado por escuela</div><div class="card-sub">Semaforo en tiempo real</div></div></div>
+        <div class="card-hd"><div><div class="card-title">Estado por escuela</div></div></div>
         ${SCHOOLS.map(s=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
           <div class="ind ${s.dias_atraso>14?'ind-r':s.dias_atraso>7?'ind-a':'ind-g'}"></div>
           <div style="flex:1;font-family:var(--font-title);font-size:12px;font-weight:600;${s.dias_atraso>14?'color:var(--red-dark)':''}">${s.name}</div>
@@ -1436,7 +1559,7 @@ async function renderDash() {
           ${[['#02c1f4','+ Nueva escuela','Agregar al programa',"abrirEscuela()"],
              ['#e03535','! Incidencia','Cancelacion / doble / salto',"abrirIncidencia()"],
              ['#43a047','+ Rubrica','Manual del alumno',"oM('m-rubrica')"],
-             ['#f57c00','+ Visita','Seguimiento responsable',"abrirVisita()"],
+             ['#f57c00','+ Visita','Seguimiento de campo',"abrirVisita()"],
              ['#6a1b9a','+ Usuario','Agregar al equipo',"oM('m-usuario')"],
           ].map(([color,title,sub,fn])=>`
             <button onclick="${fn}" style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:${color}18;border:1px solid ${color}28;border-radius:8px;cursor:pointer;width:100%;text-align:left">
@@ -1448,132 +1571,215 @@ async function renderDash() {
     </div>`;
 }
 
-async function renderEscuelas() {
-  const c = document.getElementById('s-escuelas'); if (!c) return;
-  const { data: incs } = await db.from('incidents').select('school_id');
-  const cnt = {}; (incs||[]).forEach(i=>{ cnt[i.school_id]=(cnt[i.school_id]||0)+1; });
-
-  c.innerHTML = `
+async function renderEscuelas(){
+  const c=document.getElementById('s-escuelas');if(!c)return;
+  const{data:incs}=await db.from('incidents').select('school_id');
+  const cnt={};(incs||[]).forEach(i=>{cnt[i.school_id]=(cnt[i.school_id]||0)+1;});
+  c.innerHTML=`
     ${SCHOOLS.filter(s=>s.dias_atraso>14).length?`<div class="alert-red"><div class="alert-dot ad-red"></div>
-      <div class="alert-txt">Las escuelas en rojo llevan mas de 2 semanas sin sesion registrada.</div></div>`:''}
-    <div class="card" style="padding:0;overflow:hidden">
-      <table class="t">
-        <thead><tr>
-          <th style="padding:11px 16px">Escuela</th><th>Ubicacion</th><th>Tipo</th><th>Año</th>
-          <th>Alumnos</th><th>Incidencias</th><th>Ultima sesion</th><th>Estado</th><th></th>
-        </tr></thead>
-        <tbody>${SCHOOLS.map(s=>`
-          <tr style="${s.dias_atraso>14?'background:#fff5f5':''}">
-            <td style="padding:10px 16px">
-              <div style="display:flex;align-items:center;gap:10px">
-                <div style="width:34px;height:34px;border-radius:8px;background:${s.dias_atraso>14?'var(--red-light)':'rgba(2,193,244,.1)'};display:flex;align-items:center;justify-content:center;color:${s.dias_atraso>14?'var(--red-dark)':'var(--blue)'};font-family:var(--font-title);font-size:11px;font-weight:800;flex-shrink:0">${s.short_name}</div>
-                <div><div style="font-family:var(--font-title);font-size:12.5px;font-weight:700;${s.dias_atraso>14?'color:var(--red-dark)':''}">${s.name}</div></div>
-              </div>
-            </td>
-            <td style="font-size:11px;color:var(--gray)">${s.city||'--'}, ${s.state||'NL'}</td>
-            <td>${bdg(s.type==='privada'?'Privada':'Publica',s.type==='privada'?'b-purple':'b-gray')}</td>
-            <td>${bdg(s.year_model,'b-blue')}</td>
-            <td style="font-size:12px">${s.total_students||0}</td>
-            <td style="font-size:12px;color:${cnt[s.id]?'var(--amber)':'var(--gray)'};font-weight:${cnt[s.id]?'600':'400'}">${cnt[s.id]||0}${cnt[s.id]?' ⚠':''}</td>
-            <td style="font-size:11px;color:${s.dias_atraso>14?'var(--red-dark)':'var(--gray)'}">
-              ${fD(s.last_session_date)}${s.dias_atraso<999&&s.dias_atraso>0?` (${s.dias_atraso}d)`:''}
-            </td>
-            <td>${bdg(alT(s.dias_atraso),alC(s.dias_atraso))}</td>
-            <td style="padding:8px 12px"><div style="display:flex;gap:5px">
-              <button onclick="abrirIncidencia('${s.id}')" class="btn-p" style="font-size:10px;padding:4px 10px">+ Incidencia</button>
-              <button onclick="abrirEscuela('${s.id}')" class="btn-g" style="font-size:10px;padding:4px 10px">Editar</button>
-            </div></td>
-          </tr>`).join('')}
-        </tbody>
-      </table>
-    </div>`;
+      <div class="alert-txt">Las escuelas en rojo llevan mas de 2 semanas sin sesion.</div></div>`:''}
+    <div class="card" style="padding:0;overflow:hidden"><table class="t">
+      <thead><tr><th style="padding:11px 16px">Escuela</th><th>Ubicacion</th><th>Tipo</th><th>Año</th><th>Alumnos</th><th>Incidencias</th><th>Ultima sesion</th><th>Estado</th><th></th></tr></thead>
+      <tbody>${SCHOOLS.map(s=>`<tr style="${s.dias_atraso>14?'background:#fff5f5':''}">
+        <td style="padding:10px 16px"><div style="display:flex;align-items:center;gap:10px">
+          <div style="width:34px;height:34px;border-radius:8px;background:${s.dias_atraso>14?'var(--red-light)':'rgba(2,193,244,.1)'};display:flex;align-items:center;justify-content:center;color:${s.dias_atraso>14?'var(--red-dark)':'var(--blue)'};font-family:var(--font-title);font-size:11px;font-weight:800;flex-shrink:0">${s.short_name}</div>
+          <div><div style="font-family:var(--font-title);font-size:12.5px;font-weight:700;${s.dias_atraso>14?'color:var(--red-dark)':''}">${s.name}</div></div>
+        </div></td>
+        <td style="font-size:11px;color:var(--gray)">${s.city||'--'}, ${s.state||'NL'}</td>
+        <td>${bdg(s.type==='privada'?'Privada':'Publica',s.type==='privada'?'b-purple':'b-gray')}</td>
+        <td>${bdg(s.year_model,'b-blue')}</td>
+        <td style="font-size:12px">${s.total_students||0}</td>
+        <td style="font-size:12px;color:${cnt[s.id]?'var(--amber)':'var(--gray)'};font-weight:${cnt[s.id]?'600':'400'}">${cnt[s.id]||0}${cnt[s.id]?' ⚠':''}</td>
+        <td style="font-size:11px;color:${s.dias_atraso>14?'var(--red-dark)':'var(--gray)'}">${fD(s.last_session_date)}${s.dias_atraso<999&&s.dias_atraso>0?` (${s.dias_atraso}d)`:''}</td>
+        <td>${bdg(alT(s.dias_atraso),alC(s.dias_atraso))}</td>
+        <td style="padding:8px 12px"><div style="display:flex;gap:5px">
+          <button onclick="abrirIncidencia('${s.id}')" class="btn-p" style="font-size:10px;padding:4px 10px">+ Incidencia</button>
+          <button onclick="abrirEscuela('${s.id}')" class="btn-g" style="font-size:10px;padding:4px 10px">Editar</button>
+        </div></td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
 }
 
-async function renderModulos() {
-  const c = document.getElementById('s-modulos'); if (!c) return;
-  // Replace the static tabs with a dropdown
-  c.innerHTML = `
+async function renderModulos(){
+  const c=document.getElementById('s-modulos');if(!c)return;
+  c.innerHTML=`
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;background:#fff;padding:14px 18px;border-radius:10px;border:1px solid rgba(0,0,0,.06)">
-      <label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;white-space:nowrap">Selecciona escuela:</label>
-      <select id="mod-selector" onchange="renderModulosEscuela(this.value)" style="flex:1;padding:9px 12px;border:1.5px solid rgba(2,193,244,.3);border-radius:6px;font-size:13px;font-family:Montserrat,sans-serif;font-weight:600;color:#012B38;outline:none;background:#fff;cursor:pointer">
+      <label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;white-space:nowrap;color:#333">Ver escuela:</label>
+      <select id="mod-selector" onchange="renderModulosEscuela(this.value)" style="flex:1;padding:9px 12px;border:1.5px solid rgba(2,193,244,.35);border-radius:6px;font-size:13px;font-family:Montserrat,sans-serif;font-weight:600;color:#012B38;outline:none;cursor:pointer">
         ${SCHOOLS.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}
       </select>
     </div>
     <div id="mod-content"></div>`;
-  if (SCHOOLS.length) renderModulosEscuela(SCHOOLS[0].id);
+  if(SCHOOLS.length) renderModulosEscuela(SCHOOLS[0].id);
 }
 
-async function renderModulosEscuela(schoolId) {
-  const c = document.getElementById('mod-content'); if (!c) return;
-  const school = SCHOOLS.find(s=>s.id===schoolId);
-  if (!school) { c.innerHTML='<div style="color:var(--gray);padding:20px">Selecciona una escuela</div>'; return; }
+async function renderModulosEscuela(schoolId){
+  const c=document.getElementById('mod-content');if(!c)return;
+  c.innerHTML=`<div style="text-align:center;padding:30px;color:var(--gray)">Cargando...</div>`;
+  const school=SCHOOLS.find(s=>s.id===schoolId);
+  if(!school){c.innerHTML='<div style="color:var(--gray);padding:20px">Selecciona una escuela</div>';return;}
 
-  const [{ data: incs }, { data: rubs }] = await Promise.all([
-    db.from('incidents').select('*').eq('school_id', schoolId).order('incident_date',{ascending:false}),
-    db.from('rubrics').select('*').eq('school_id', schoolId).order('block'),
+  const[sessions,{data:incs},{data:actions},{data:rubs}]=await Promise.all([
+    _ensureSessions(schoolId),
+    db.from('incidents').select('*').eq('school_id',schoolId).order('incident_date',{ascending:false}),
+    db.from('actions').select('*').eq('school_id',schoolId).order('created_at',{ascending:false}).catch(()=>({data:[]})),
+    db.from('rubrics').select('*').eq('school_id',schoolId),
   ]);
-  const prom = AVG((rubs||[]).map(r=>parseFloat(r.average_score)||0));
 
-  c.innerHTML = `
-    <div class="two-col">
-      <div class="card">
-        <div class="card-hd"><div>
-          <div class="card-title">${school.name}</div>
-          <div class="card-sub">${school.year_model} · ${school.total_students||0} alumnos · ${school.city}</div>
-        </div>${bdg(alT(school.dias_atraso),alC(school.dias_atraso))}</div>
-        <div style="margin:12px 0;padding:12px;background:rgba(2,193,244,.05);border-radius:8px;display:flex;justify-content:space-around">
-          <div style="text-align:center"><div style="font-family:var(--font-title);font-size:20px;font-weight:800;color:var(--blue)">${prom}</div><div style="font-size:10px;color:var(--gray)">Prom. rubrica</div></div>
-          <div style="text-align:center"><div style="font-family:var(--font-title);font-size:20px;font-weight:800">${(rubs||[]).length}</div><div style="font-size:10px;color:var(--gray)">Rubricas</div></div>
-          <div style="text-align:center"><div style="font-family:var(--font-title);font-size:20px;font-weight:800;${school.dias_atraso>14?'color:var(--red-dark)':''}">${school.dias_atraso<999?school.dias_atraso:0}d</div><div style="font-size:10px;color:var(--gray)">Sin sesion</div></div>
+  // Find current session (first non-completada)
+  const currentSess=sessions.find(s=>s.status!=='completada')||sessions[sessions.length-1];
+  const completedCount=sessions.filter(s=>s.status==='completada').length;
+  const canceledCount=sessions.filter(s=>s.status==='cancelada').length;
+  const pct=Math.round(completedCount/sessions.length*100);
+  const prom=AVG((rubs||[]).map(r=>parseFloat(r.average_score)||0));
+
+  c.innerHTML=`
+    <!-- HEADER ESCUELA -->
+    <div class="card" style="margin-bottom:14px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div>
+          <div style="font-family:Montserrat,sans-serif;font-size:18px;font-weight:800">${school.name}</div>
+          <div style="font-size:12px;color:var(--gray);margin-top:2px">${school.city} · ${school.year_model} · ${school.total_students||0} alumnos</div>
         </div>
-        <div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">Progreso del programa</div>
-        ${[
-          ['Modulo 1 · Identidad y autoconocimiento',100,'var(--green)'],
-          ['Modulo 2 · Gestion emocional',60,'var(--blue)'],
-          ['Modulo 3 · Relaciones y empatia',0,'var(--gray)'],
-          ['Modulo 4 · Proposito y fortalezas',0,'var(--gray)'],
-          ['Modulo 5 · Liderazgo y comunidad',0,'var(--gray)'],
-        ].map(([name,pct,color])=>`<div style="margin-bottom:10px">
-          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-            <span style="font-size:12px">${name}</span>
-            <span style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:${pct===100?'var(--green)':pct>0?'var(--blue)':'var(--gray)'}">${pct===100?'Completado':pct>0?pct+'%':'Pendiente'}</span>
-          </div>
-          <div style="height:5px;background:#ebebeb;border-radius:10px;overflow:hidden"><div style="width:${pct}%;height:5px;background:${color};border-radius:10px;transition:width .4s"></div></div>
-        </div>`).join('')}
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${bdg(alT(school.dias_atraso),alC(school.dias_atraso))}
+          ${school.dias_atraso>14?`<button onclick="abrirAccion('${schoolId}','')" style="background:#fdecea;border:1px solid rgba(224,53,53,.3);color:#c62828;padding:5px 12px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;cursor:pointer">Asignar accion al responsable</button>`:''}
+        </div>
       </div>
-      <div>
-        <div class="card" style="margin-bottom:12px">
-          <div class="card-hd"><div class="card-title">Rubricas por bloque</div></div>
-          ${!(rubs||[]).length?'<div style="font-size:12px;color:var(--gray);font-style:italic">Sin rubricas cargadas</div>':
-          `<table class="t"><thead><tr><th>Bloque</th><th>Grado</th><th>Promedio</th><th>% Inicial</th><th>% Adec.</th></tr></thead>
-          <tbody>${(rubs||[]).map(r=>`<tr>
-            <td>${bdg('B'+r.block,'b-blue')}</td>
-            <td style="font-size:12px">${r.grade}° ${r.shift?.substring(0,3)||''}</td>
-            <td><strong style="font-family:var(--font-title);font-size:15px;color:${parseFloat(r.average_score)>=2?'var(--green)':'var(--amber)'}">${r.average_score||'--'}</strong></td>
-            <td style="font-size:11px;color:${parseFloat(r.pct_inicial)>30?'var(--red-dark)':'var(--gray)'}">${r.pct_inicial||0}%</td>
-            <td style="font-size:11px;font-weight:600;color:var(--blue)">${r.pct_adecuado||0}%</td>
-          </tr>`).join('')}</tbody></table>`}
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px">
+        <div style="background:rgba(2,193,244,.07);border-radius:8px;padding:12px;text-align:center">
+          <div style="font-family:Montserrat,sans-serif;font-size:22px;font-weight:800;color:var(--blue)">${completedCount}/${sessions.length}</div>
+          <div style="font-size:10px;color:var(--gray)">Sesiones</div>
         </div>
-        <div class="card">
-          <div class="card-hd"><div class="card-title">Incidencias recientes</div>
-            <button onclick="abrirIncidencia('${schoolId}')" class="btn-p" style="font-size:11px">+ Nueva</button>
-          </div>
-          ${!(incs||[]).length?'<div style="font-size:12px;color:var(--gray);font-style:italic">Sin incidencias</div>':
-          (incs||[]).slice(0,5).map(i=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f5f5f5">
-            ${bdg(INC_L[i.type]||i.type,INC_B[i.type]||'b-gray')}
+        <div style="background:${parseFloat(prom)>=2?'var(--green-light)':'var(--amber-light)'};border-radius:8px;padding:12px;text-align:center">
+          <div style="font-family:Montserrat,sans-serif;font-size:22px;font-weight:800;color:${parseFloat(prom)>=2?'var(--green)':'var(--amber)'}">${prom}</div>
+          <div style="font-size:10px;color:var(--gray)">Prom. rubrica</div>
+        </div>
+        <div style="background:var(--red-light);border-radius:8px;padding:12px;text-align:center">
+          <div style="font-family:Montserrat,sans-serif;font-size:22px;font-weight:800;color:var(--red-dark)">${canceledCount}</div>
+          <div style="font-size:10px;color:var(--gray)">Canceladas</div>
+        </div>
+        <div style="background:${school.dias_atraso>14?'var(--red-light)':'var(--green-light)'};border-radius:8px;padding:12px;text-align:center">
+          <div style="font-family:Montserrat,sans-serif;font-size:22px;font-weight:800;color:${school.dias_atraso>14?'var(--red-dark)':'var(--green)'}">${school.dias_atraso<999?school.dias_atraso:0}d</div>
+          <div style="font-size:10px;color:var(--gray)">Sin sesion</div>
+        </div>
+      </div>
+      <!-- Progress bar -->
+      <div style="margin-top:14px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+          <span style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600">Avance del programa</span>
+          <span style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:var(--blue)">${pct}%</span>
+        </div>
+        <div style="height:8px;background:#e8e8e8;border-radius:10px;overflow:hidden">
+          <div style="width:${pct}%;height:8px;background:var(--blue);border-radius:10px;transition:width .5s"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <!-- CALENDARIO DE SESIONES -->
+      <div class="card">
+        <div class="card-hd"><div><div class="card-title">Sesiones del programa</div>
+          <div class="card-sub">Sesion actual: <strong>${currentSess?'S'+currentSess.session_number+' · Mod.'+currentSess.module_number:'--'}</strong></div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button onclick="abrirIncidencia('${schoolId}')" class="btn-g" style="font-size:10px;padding:5px 10px">+ Incidencia</button>
+        </div></div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+          ${sessions.map(s=>{
+            const isCurrent=currentSess&&s.id===currentSess.id;
+            const bg=s.status==='completada'?'var(--green)':s.status==='cancelada'?'var(--red-dark)':s.status==='doble'?'var(--blue)':s.status==='reagendada'?'var(--amber)':isCurrent?'#012B38':'#e8e8e8';
+            const color=s.status!=='pendiente'||isCurrent?'#fff':'#797979';
+            const label=SL[s.status]||s.status;
+            return `<div title="S${s.session_number} · ${s.module_name} · ${label}"
+              style="width:36px;height:36px;border-radius:8px;background:${bg};display:flex;align-items:center;justify-content:center;color:${color};font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;cursor:pointer;position:relative;${isCurrent?'box-shadow:0 0 0 3px rgba(2,193,244,.5)':''}"
+              onclick="updateSessionStatus('${s.id}','${schoolId}')">
+              ${s.session_number}
+              ${isCurrent?'<div style="position:absolute;top:-4px;right:-4px;width:10px;height:10px;border-radius:50%;background:#02c1f4;border:2px solid #fff"></div>':''}
+            </div>`;
+          }).join('')}
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:10px">
+          ${[['var(--green)','Completada'],['var(--red-dark)','Cancelada'],['var(--blue)','Doble'],['var(--amber)','Reagendada'],['#012B38','Sesion actual'],['#e8e8e8','Pendiente']].map(([bg,lbl])=>`
+            <div style="display:flex;align-items:center;gap:5px;color:var(--gray)"><div style="width:12px;height:12px;border-radius:3px;background:${bg}"></div>${lbl}</div>`).join('')}
+        </div>
+        <!-- Incidencias -->
+        ${(incs||[]).length?`<div style="margin-top:14px;border-top:1px solid #f5f5f5;padding-top:12px">
+          <div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">Incidencias</div>
+          ${(incs||[]).slice(0,4).map(i=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f9f9f9">
+            ${bdg(IL[i.type]||i.type,IB[i.type]||'b-gray')}
             <div style="flex:1;font-size:12px">${i.reason}</div>
             <div style="font-size:11px;color:var(--gray)">${fD(i.incident_date)}</div>
           </div>`).join('')}
+        </div>`:''}
+      </div>
+
+      <!-- ACCIONES Y MODULOS -->
+      <div>
+        <!-- Acciones pendientes -->
+        <div class="card" style="margin-bottom:12px">
+          <div class="card-hd">
+            <div><div class="card-title">Acciones asignadas</div><div class="card-sub">${(actions||[]).filter(a=>a.status==='pendiente').length} pendientes</div></div>
+            <button onclick="abrirAccion('${schoolId}','')" class="btn-p" style="font-size:11px">+ Accion</button>
+          </div>
+          ${!(actions||[]).length?`<div style="font-size:12px;color:var(--gray);font-style:italic">Sin acciones asignadas</div>`:
+          (actions||[]).map(a=>{
+            const aColors={visiteo:'#f57c00',agendar_doble:'var(--blue)',hablar_director:'#6a1b9a',seguimiento:'var(--green)',otro:'var(--gray)'};
+            const aLabels={visiteo:'Visiteo',agendar_doble:'Agendar doble',hablar_director:'Hablar director',seguimiento:'Seguimiento',otro:'Otro'};
+            return `<div style="padding:10px;background:${a.status==='completada'?'#f9f9f9':'#fffbf0'};border-radius:8px;margin-bottom:8px;border-left:3px solid ${aColors[a.type]||'var(--gray)'}">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+                <span style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:${aColors[a.type]||'var(--gray)'}">${aLabels[a.type]||a.type}</span>
+                <div style="display:flex;gap:5px;align-items:center">
+                  ${a.due_date?`<span style="font-size:10px;color:var(--gray)">Limite: ${fD(a.due_date)}</span>`:''}
+                  ${bdg(a.status==='completada'?'Completada':'Pendiente',a.status==='completada'?'b-green':'b-amber')}
+                  ${a.status!=='completada'?`<button onclick="resolverAccion('${a.id}')" style="background:#e8f5e9;border:1px solid rgba(67,160,71,.3);color:var(--green);padding:3px 8px;border-radius:4px;font-size:10px;cursor:pointer;font-family:Montserrat,sans-serif;font-weight:600">Resolver</button>`:''}
+                </div>
+              </div>
+              <div style="font-size:12px;color:#555">${a.description}</div>
+              ${a.resolution_notes?`<div style="font-size:11px;color:var(--green);margin-top:4px;font-style:italic">Resolucion: ${a.resolution_notes}</div>`:''}
+            </div>`;
+          }).join('')}
+        </div>
+
+        <!-- Avance por modulo -->
+        <div class="card">
+          <div class="card-hd"><div class="card-title">Avance por modulo</div></div>
+          ${MODULOS.map(mod=>{
+            const modSessions=sessions.filter(s=>s.module_number===mod.n);
+            const done=modSessions.filter(s=>s.status==='completada').length;
+            const pctM=modSessions.length?Math.round(done/modSessions.length*100):0;
+            const color=pctM===100?'var(--green)':pctM>0?'var(--blue)':'#e8e8e8';
+            return `<div style="margin-bottom:10px">
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                <span style="font-size:12px">Mod.${mod.n} · ${mod.name}</span>
+                <span style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:${pctM===100?'var(--green)':pctM>0?'var(--blue)':'var(--gray)'}">${pctM===100?'✓ Completado':pctM>0?done+'/'+modSessions.length:'Pendiente'}</span>
+              </div>
+              <div style="height:5px;background:#ebebeb;border-radius:10px;overflow:hidden">
+                <div style="width:${pctM}%;height:5px;background:${color};border-radius:10px;transition:width .4s"></div>
+              </div>
+            </div>`;
+          }).join('')}
         </div>
       </div>
     </div>`;
 }
 
-async function renderSesiones() {
-  const c = document.getElementById('s-sesiones'); if (!c) return;
-  const { data: incs } = await db.from('incidents').select('*,schools(name)').order('incident_date',{ascending:false});
+async function updateSessionStatus(sessionId, schoolId){
+  const{data:sess}=await db.from('sessions').select('status').eq('id',sessionId).single();
+  const cycle=['pendiente','completada','cancelada','doble','reagendada'];
+  const next=cycle[(cycle.indexOf(sess?.status||'pendiente')+1)%cycle.length];
+  await db.from('sessions').update({status:next,updated_at:new Date().toISOString()}).eq('id',sessionId);
+  if(next==='completada'||next==='doble'){
+    await db.from('schools').update({last_session_date:new Date().toISOString().split('T')[0],alert_days:0}).eq('id',schoolId);
+  }
+  await _loadSchools();
+  renderModulosEscuela(schoolId);
+}
 
-  c.innerHTML = `
+async function renderSesiones(){
+  const c=document.getElementById('s-sesiones');if(!c)return;
+  const{data:incs}=await db.from('incidents').select('*,schools(name)').order('incident_date',{ascending:false});
+  c.innerHTML=`
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;background:#fff;padding:12px 16px;border-radius:10px;border:1px solid rgba(0,0,0,.06)">
       <span style="font-family:Montserrat,sans-serif;font-size:10px;font-weight:700;color:#797979;margin-right:4px;align-self:center">LEYENDA:</span>
       ${bdg('Cancelada','b-red')} ${bdg('Doble','b-blue')} ${bdg('Saltada','b-amber')} ${bdg('Reagendada','b-gray')}
@@ -1584,18 +1790,19 @@ async function renderSesiones() {
       return `<div class="card" style="${ha?'border:1.5px solid rgba(224,53,53,.35);background:#fffafa':''}">
         <div class="card-hd">
           <div><div class="card-title" style="${ha?'color:var(--red-dark)':''}">${s.name}${ha?' ⚠':''}</div>
-            <div class="card-sub">${s.year_model} · ${s.total_students||0} alumnos · ${si.length} incidencia${si.length!==1?'s':''}</div>
+            <div class="card-sub">${s.year_model} · ${si.length} incidencia${si.length!==1?'s':''}</div>
           </div>
-          <button onclick="abrirIncidencia('${s.id}')" class="${ha?'btn-p':'btn-g'}" style="font-size:11px">
-            ${ha?'Agendar recuperacion':'+ Incidencia'}
-          </button>
+          <div style="display:flex;gap:6px">
+            ${ha?`<button onclick="abrirAccion('${s.id}','')" style="background:#fdecea;border:1px solid rgba(224,53,53,.25);color:#c62828;padding:5px 10px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:10px;font-weight:600;cursor:pointer">Asignar accion</button>`:''}
+            <button onclick="abrirIncidencia('${s.id}')" class="${ha?'btn-p':'btn-g'}" style="font-size:11px">${ha?'Agendar recuperacion':'+ Incidencia'}</button>
+          </div>
         </div>
         ${ha?`<div style="background:var(--red-light);border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--red-dark)">
           <strong>Ultima sesion:</strong> ${fD(s.last_session_date)} — ${s.dias_atraso} dias de atraso.</div>`:''}
-        ${!si.length?`<div style="font-size:12px;color:var(--gray);font-style:italic">Sin incidencias registradas.</div>`:
+        ${!si.length?`<div style="font-size:12px;color:var(--gray);font-style:italic">Sin incidencias.</div>`:
         `<table class="t"><thead><tr><th>Tipo</th><th>Motivo</th><th>Fecha</th></tr></thead>
         <tbody>${si.map(i=>`<tr>
-          <td>${bdg(INC_L[i.type]||i.type,INC_B[i.type]||'b-gray')}</td>
+          <td>${bdg(IL[i.type]||i.type,IB[i.type]||'b-gray')}</td>
           <td style="font-size:12px">${i.reason}</td>
           <td style="font-size:11px;color:var(--gray)">${fD(i.incident_date)}</td>
         </tr>`).join('')}</tbody></table>`}
@@ -1603,50 +1810,51 @@ async function renderSesiones() {
     }).join('')}`;
 }
 
-async function renderEvidencia() {
-  const c = document.getElementById('s-evidencia'); if (!c) return;
-  const { data: ev } = await db.from('evidence').select('*,schools(name),profiles(full_name)').order('created_at',{ascending:false});
-  const pend = (ev||[]).filter(e=>!e.validated);
+async function renderEvidencia(){
+  const c=document.getElementById('s-evidencia');if(!c)return;
+  const{data:ev}=await db.from('evidence').select('*,schools(name),profiles(full_name)').order('created_at',{ascending:false});
+  const pend=(ev||[]).filter(e=>!e.validated);
 
-  c.innerHTML = `
+  c.innerHTML=`
     ${pend.length?`<div class="alert-blue"><div class="alert-dot ad-blue"></div>
       <div class="alert-txt"><strong>${pend.length} evidencia${pend.length>1?'s':''} pendiente${pend.length>1?'s':''} de validacion.</strong></div></div>`:''}
-    ${!(ev||[]).length
-      ? `<div style="text-align:center;padding:60px;color:var(--gray)">
-           <div style="font-family:Montserrat,sans-serif;font-size:14px;font-weight:600;margin-bottom:10px">Sin evidencia cargada</div>
-           <div style="font-size:12px;margin-bottom:20px">Las evidencias ayudan a dar fe y legalidad de las sesiones</div>
-           <button onclick="oM('m-evidencia')" class="btn-p">+ Cargar primera evidencia</button>
-         </div>`
-      : `<div class="card" style="padding:0;overflow:hidden">
-           <table class="t">
-             <thead><tr><th style="padding:11px 16px">Escuela</th><th>Tipo</th><th>Descripcion</th><th>Por</th><th>Fecha</th><th>Estado</th><th></th></tr></thead>
-             <tbody>${(ev||[]).map(e=>`<tr>
-               <td style="padding:10px 16px;font-family:var(--font-title);font-weight:600">${e.schools?.name||'--'}</td>
-               <td style="font-size:11px;color:var(--gray)">${e.type}</td>
-               <td style="font-size:11px;color:var(--gray);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${e.description||''}">${e.description||e.url||'--'}</td>
-               <td style="font-size:11px;color:var(--gray)">${e.profiles?.full_name||'--'}</td>
-               <td style="font-size:11px;color:var(--gray)">${fD(e.created_at)}</td>
-               <td>${bdg(e.validated?'Validada':'Pendiente',e.validated?'b-green':'b-amber')}</td>
-               <td style="padding:8px 12px"><div style="display:flex;gap:5px">
-                 ${e.url?`<a href="${e.url}" target="_blank" class="btn-g" style="font-size:10px;padding:4px 10px;text-decoration:none">Ver enlace</a>`:''}
-                 ${!e.validated?`<button onclick="validarEvidencia('${e.id}')" class="btn-p" style="font-size:10px;padding:4px 10px">Validar</button>`:''}
-               </div></td>
-             </tr>`).join('')}</tbody>
-           </table>
-         </div>`}`;
+    ${!(ev||[]).length?`<div style="text-align:center;padding:60px;color:var(--gray)">
+        <div style="font-size:28px;margin-bottom:10px">📎</div>
+        <div style="font-family:Montserrat,sans-serif;font-size:14px;font-weight:600;margin-bottom:8px">Sin evidencia cargada</div>
+        <button onclick="abrirEvidencia()" class="btn-p">+ Cargar primera evidencia</button>
+      </div>`:
+    `<div class="card" style="padding:0;overflow:hidden"><table class="t">
+      <thead><tr><th style="padding:11px 16px">Escuela</th><th>Tipo</th><th>Descripcion</th><th>Por</th><th>Fecha</th><th>Archivo / Link</th><th>Estado</th><th></th></tr></thead>
+      <tbody>${(ev||[]).map(e=>{
+        const hasFile=e.storage_path||e.url;
+        const fileIcon=e.type==='photo'?'🖼️':e.type==='video_link'?'🎥':e.type==='attendance'?'📋':'📄';
+        return `<tr>
+          <td style="padding:10px 16px;font-family:var(--font-title);font-weight:600">${e.schools?.name||'--'}</td>
+          <td style="font-size:11px;color:var(--gray)">${e.type}</td>
+          <td style="font-size:11px;color:var(--gray);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${e.description||''}">${e.description||'--'}</td>
+          <td style="font-size:11px;color:var(--gray)">${e.profiles?.full_name||'--'}</td>
+          <td style="font-size:11px;color:var(--gray)">${fD(e.created_at)}</td>
+          <td style="padding:8px 12px">
+            ${hasFile?`<a href="${e.url||'#'}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;background:var(--blue-light);border:1px solid rgba(2,193,244,.25);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;color:var(--blue);text-decoration:none;font-family:Montserrat,sans-serif">
+              ${fileIcon} ${e.file_name||'Ver archivo'}
+            </a>`:`<span style="font-size:11px;color:var(--gray)">Sin archivo</span>`}
+          </td>
+          <td>${bdg(e.validated?'Validada':'Pendiente',e.validated?'b-green':'b-amber')}</td>
+          <td style="padding:8px 12px">
+            ${!e.validated?`<button onclick="validarEvidencia('${e.id}')" class="btn-p" style="font-size:10px;padding:4px 10px">Validar</button>`:''}
+          </td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>`}`;
 }
 
-async function renderFundDash() {
-  const c = document.getElementById('s-found-dash'); if (!c) return;
-  const total = SCHOOLS.reduce((a,b)=>a+(b.total_students||0),0);
-  const [{data:rubs},{data:incs}] = await Promise.all([
-    db.from('rubrics').select('*'),
-    db.from('incidents').select('type'),
-  ]);
-  const prom    = AVG((rubs||[]).map(r=>parseFloat(r.average_score)||0));
-  const cancels = (incs||[]).filter(i=>i.type==='cancelacion').length;
-
-  c.innerHTML = `
+async function renderFundDash(){
+  const c=document.getElementById('s-found-dash');if(!c)return;
+  const total=SCHOOLS.reduce((a,b)=>a+(b.total_students||0),0);
+  const[{data:rubs},{data:incs}]=await Promise.all([db.from('rubrics').select('*'),db.from('incidents').select('type')]);
+  const prom=AVG((rubs||[]).map(r=>parseFloat(r.average_score)||0));
+  const cancels=(incs||[]).filter(i=>i.type==='cancelacion').length;
+  c.innerHTML=`
     <div class="alert-blue"><div class="alert-dot ad-blue"></div>
       <div class="alert-txt"><strong>Fundacion Zorrilla</strong> — Vista de solo lectura. Datos en tiempo real.</div></div>
     <div class="stats-row">
@@ -1657,7 +1865,7 @@ async function renderFundDash() {
     </div>
     <div class="two-col">
       <div class="card">
-        <div class="card-hd"><div><div class="card-title">Calificacion por escuela</div><div class="card-sub">Promedio de rubricas</div></div></div>
+        <div class="card-hd"><div><div class="card-title">Calificacion por escuela</div></div></div>
         ${SCHOOLS.map(s=>{
           const sr=(rubs||[]).filter(r=>r.school_id===s.id);
           const sa=AVG(sr.map(r=>parseFloat(r.average_score)||0));
@@ -1687,81 +1895,72 @@ async function renderFundDash() {
     </div>`;
 }
 
-async function renderFundRubricas() {
-  const c = document.getElementById('s-found-rubrics'); if (!c) return;
-  const { data: rubs } = await db.from('rubrics').select('*,schools(name)').order('created_at',{ascending:false});
-
-  c.innerHTML = !(rubs||[]).length
-    ? `<div style="text-align:center;padding:60px;color:var(--gray)">
-        <div style="font-family:Montserrat,sans-serif;font-size:14px;font-weight:600;margin-bottom:6px">Sin rubricas cargadas</div>
-        <div style="font-size:12px">Las rubricas apareceran cuando el equipo las cargue</div>
-      </div>`
-    : `<div class="card" style="padding:0;overflow:hidden">
-        <div style="padding:14px 20px;border-bottom:1px solid #f0f0f0">
-          <div class="card-title">Rubricas y calificaciones</div>
-          <div class="card-sub">${rubs.length} evaluaciones — 1=Inicial · 2=Adecuado · 3=Excelente</div>
-        </div>
-        <div style="overflow-x:auto">
-        <table class="t"><thead><tr>
-          <th style="padding:9px 16px">Escuela</th><th>Grado</th><th>Turno</th><th>Bloque</th>
-          <th>Evaluados</th><th>Sin manual</th><th>Promedio</th><th>% Inicial</th><th>% Adecuado</th><th>% Excelente</th>
-        </tr></thead>
-        <tbody>${rubs.map(r=>`<tr>
-          <td style="padding:9px 16px;font-family:var(--font-title);font-weight:600">${r.schools?.name||'--'}</td>
-          <td style="font-size:12px">${r.grade}</td>
-          <td style="font-size:11px;color:var(--gray)">${r.shift}</td>
-          <td>${bdg('B'+r.block,'b-blue')}</td>
-          <td style="font-size:12px">${r.students_evaluated||0}</td>
-          <td style="font-size:12px;color:${(r.students_no_manual||0)>20?'var(--red-dark)':'var(--gray)'}">${r.students_no_manual||0}</td>
-          <td><strong style="font-family:var(--font-title);font-size:17px;color:${parseFloat(r.average_score)>=2?'var(--green)':'var(--amber)'}">${r.average_score||'--'}</strong></td>
-          <td style="font-size:11px;color:${parseFloat(r.pct_inicial)>30?'var(--red-dark)':'var(--gray)'}">${r.pct_inicial||0}%</td>
-          <td style="font-size:11px;font-weight:600;color:var(--blue)">${r.pct_adecuado||0}%</td>
-          <td style="font-size:11px;color:var(--green)">${r.pct_excelente||0}%</td>
-        </tr>`).join('')}</tbody></table></div>
-      </div>`;
+async function renderFundRubricas(){
+  const c=document.getElementById('s-found-rubrics');if(!c)return;
+  const{data:rubs}=await db.from('rubrics').select('*,schools(name)').order('created_at',{ascending:false});
+  c.innerHTML=!(rubs||[]).length?`<div style="text-align:center;padding:60px;color:var(--gray)">Sin rubricas cargadas</div>`:
+  `<div class="card" style="padding:0;overflow:hidden">
+    <div style="padding:14px 20px;border-bottom:1px solid #f0f0f0">
+      <div class="card-title">Rubricas y calificaciones</div>
+      <div class="card-sub">${rubs.length} evaluaciones — 1=Inicial · 2=Adecuado · 3=Excelente</div>
+    </div>
+    <div style="overflow-x:auto"><table class="t"><thead><tr>
+      <th style="padding:9px 16px">Escuela</th><th>Grado</th><th>Turno</th><th>Bloque</th>
+      <th>Evaluados</th><th>Sin manual</th><th>Promedio</th><th>% Inicial</th><th>% Adec.</th><th>% Exce.</th>
+    </tr></thead>
+    <tbody>${rubs.map(r=>`<tr>
+      <td style="padding:9px 16px;font-family:var(--font-title);font-weight:600">${r.schools?.name||'--'}</td>
+      <td style="font-size:12px">${r.grade}</td><td style="font-size:11px;color:var(--gray)">${r.shift}</td>
+      <td>${bdg('B'+r.block,'b-blue')}</td>
+      <td style="font-size:12px">${r.students_evaluated||0}</td>
+      <td style="font-size:12px;color:${(r.students_no_manual||0)>20?'var(--red-dark)':'var(--gray)'}">${r.students_no_manual||0}</td>
+      <td><strong style="font-family:var(--font-title);font-size:17px;color:${parseFloat(r.average_score)>=2?'var(--green)':'var(--amber)'}">${r.average_score||'--'}</strong></td>
+      <td style="font-size:11px;color:${parseFloat(r.pct_inicial)>30?'var(--red-dark)':'var(--gray)'}">${r.pct_inicial||0}%</td>
+      <td style="font-size:11px;font-weight:600;color:var(--blue)">${r.pct_adecuado||0}%</td>
+      <td style="font-size:11px;color:var(--green)">${r.pct_excelente||0}%</td>
+    </tr>`).join('')}</tbody></table></div>
+  </div>`;
 }
 
-function renderFundReportes() {
-  const c = document.getElementById('s-found-reports'); if (!c) return;
-  c.innerHTML = `<div class="alert-blue"><div class="alert-dot ad-blue"></div>
-      <div class="alert-txt">Los reportes se generan con datos en tiempo real.</div></div>` +
+function renderFundReportes(){
+  const c=document.getElementById('s-found-reports');if(!c)return;
+  c.innerHTML=`<div class="alert-blue"><div class="alert-dot ad-blue"></div><div class="alert-txt">Reportes generados con datos en tiempo real.</div></div>`+
   [['Reporte Bloque 2 — Sec. 3 · Fundacion Zorrilla','617 alumnos · PERMAH + Rubrica + Plan de transferencia','var(--blue-light)'],
    ['Comparativo B1 vs B2 — Rubricas completas','Todos los grados · Tablas de promedio y niveles','var(--green-light)'],
-   ['Bienestar PERMAH por dimension','Emociones positivas, relaciones, proposito · Mat. vs Vesp.','#f3e5f5'],
-   ['Plan de transferencia de capacidad','Modelo a 3 anos · Acciones Bloque 2 · Piloto primaria','var(--amber-light)'],
-  ].map(([t,m,bg])=>`
-    <div style="display:flex;align-items:center;gap:14px;padding:16px 20px;background:#fff;border-radius:10px;border:1px solid rgba(0,0,0,.06);margin-bottom:10px">
-      <div style="width:42px;height:42px;border-radius:9px;background:${bg};flex-shrink:0"></div>
-      <div style="flex:1"><div style="font-family:Montserrat,sans-serif;font-size:13px;font-weight:700">${t}</div>
-        <div style="font-size:11px;color:var(--gray);margin-top:2px">${m}</div></div>
-      <button class="btn-p" style="font-size:11px;flex-shrink:0" onclick="toast('Generando PDF... proximamente')">Descargar PDF</button>
-    </div>`).join('');
+   ['Bienestar PERMAH por dimension','Emociones positivas, relaciones, proposito','#f3e5f5'],
+   ['Plan de transferencia de capacidad','Modelo a 3 anos · Acciones Bloque 2','var(--amber-light)'],
+  ].map(([t,m,bg])=>`<div style="display:flex;align-items:center;gap:14px;padding:16px 20px;background:#fff;border-radius:10px;border:1px solid rgba(0,0,0,.06);margin-bottom:10px">
+    <div style="width:42px;height:42px;border-radius:9px;background:${bg};flex-shrink:0"></div>
+    <div style="flex:1"><div style="font-family:Montserrat,sans-serif;font-size:13px;font-weight:700">${t}</div>
+      <div style="font-size:11px;color:var(--gray);margin-top:2px">${m}</div></div>
+    <button class="btn-p" style="font-size:11px;flex-shrink:0" onclick="toast('Generando PDF... proximamente')">Descargar PDF</button>
+  </div>`).join('');
 }
 
-// ── RESPONSABLE SCREENS ───────────────────────────────────────────
-async function renderRespHome() {
-  const c = document.getElementById('s-resp-home'); if (!c) return;
-  // Responsable can have multiple schools — load all schools for now
-  const [{data:incs},{data:visits}] = await Promise.all([
-    db.from('incidents').select('*,schools(name)').order('created_at',{ascending:false}).limit(10),
-    db.from('visits').select('*,schools(name)').order('visit_date',{ascending:false}).limit(5).catch(()=>({data:[]})),
+// ─────────────────────────────────────────────────────────────────
+//  RESPONSABLE SCREENS
+// ─────────────────────────────────────────────────────────────────
+async function renderRespHome(){
+  const c=document.getElementById('s-resp-home');if(!c)return;
+  const alerts=SCHOOLS.filter(s=>s.dias_atraso>14);
+  const[{data:incs},{data:actions}]=await Promise.all([
+    db.from('incidents').select('*,schools(name)').order('created_at',{ascending:false}).limit(8),
+    db.from('actions').select('*,schools(name)').eq('status','pendiente').order('created_at',{ascending:false}).catch(()=>({data:[]})),
   ]);
-  const alerts = SCHOOLS.filter(s=>s.dias_atraso>14);
-
-  c.innerHTML = `
+  c.innerHTML=`
     ${alerts.length?`<div class="alert-red"><div class="alert-dot ad-red"></div>
       <div class="alert-txt"><strong>${alerts.length} escuela${alerts.length>1?'s':''} requieren atencion urgente.</strong></div></div>`:''}
+    ${(actions||[]).length?`<div class="alert-blue"><div class="alert-dot ad-blue"></div>
+      <div class="alert-txt"><strong>${(actions||[]).length} accion${(actions||[]).length>1?'es':''} pendiente${(actions||[]).length>1?'s':''} asignada${(actions||[]).length>1?'s':''} a ti.</strong> Revisa la pestana "Mis escuelas".</div></div>`:''}
     <div class="stats-row">
       <div class="stat"><div class="stat-val c-blue">${SCHOOLS.length}</div><div class="stat-lbl">Escuelas a cargo</div></div>
       <div class="stat"><div class="stat-val">${SCHOOLS.reduce((a,b)=>a+(b.total_students||0),0)}</div><div class="stat-lbl">Alumnos totales</div></div>
-      <div class="stat"><div class="stat-val ${alerts.length?'c-red':''}">${alerts.length}</div><div class="stat-lbl">Alertas activas</div></div>
-      <div class="stat"><div class="stat-val">${(visits||[]).length}</div><div class="stat-lbl">Visitas registradas</div></div>
+      <div class="stat"><div class="stat-val ${alerts.length?'c-red':''}">${alerts.length}</div><div class="stat-lbl">En alerta</div></div>
+      <div class="stat"><div class="stat-val">${(actions||[]).length}</div><div class="stat-lbl">Acciones pendientes</div></div>
     </div>
     <div class="two-col">
       <div class="card">
-        <div class="card-hd"><div><div class="card-title">Mis escuelas</div></div>
-          <button onclick="nav(document.querySelector('#nav-responsable .nav-item:nth-child(3)'),'s-resp-equipo')" class="btn-g" style="font-size:11px">Ver detalle</button>
-        </div>
+        <div class="card-hd"><div class="card-title">Mis escuelas</div></div>
         ${SCHOOLS.map(s=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
           <div class="ind ${s.dias_atraso>14?'ind-r':s.dias_atraso>7?'ind-a':'ind-g'}"></div>
           <div style="flex:1">
@@ -1772,10 +1971,10 @@ async function renderRespHome() {
         </div>`).join('')}
       </div>
       <div class="card">
-        <div class="card-hd"><div class="card-title">Ultimas incidencias</div></div>
+        <div class="card-hd"><div class="card-title">Incidencias recientes</div></div>
         ${!(incs||[]).length?'<div style="font-size:12px;color:var(--gray);font-style:italic">Sin incidencias</div>':
-        (incs||[]).slice(0,5).map(i=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f5f5f5">
-          ${bdg(INC_L[i.type]||i.type,INC_B[i.type]||'b-gray')}
+        (incs||[]).map(i=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f5f5f5">
+          ${bdg(IL[i.type]||i.type,IB[i.type]||'b-gray')}
           <div style="flex:1"><div style="font-size:12px;font-weight:600">${i.schools?.name||'--'}</div><div style="font-size:11px;color:var(--gray)">${i.reason}</div></div>
           <div style="font-size:11px;color:var(--gray)">${fD(i.incident_date)}</div>
         </div>`).join('')}
@@ -1783,11 +1982,10 @@ async function renderRespHome() {
     </div>`;
 }
 
-async function renderRespSesiones() {
-  const c = document.getElementById('s-resp-sesiones'); if (!c) return;
-  const { data: incs } = await db.from('incidents').select('*,schools(name)').order('incident_date',{ascending:false});
-
-  c.innerHTML = SCHOOLS.map(s=>{
+async function renderRespSesiones(){
+  const c=document.getElementById('s-resp-sesiones');if(!c)return;
+  const{data:incs}=await db.from('incidents').select('*,schools(name)').order('incident_date',{ascending:false});
+  c.innerHTML=SCHOOLS.map(s=>{
     const si=(incs||[]).filter(i=>i.school_id===s.id);
     const ha=s.dias_atraso>14;
     return `<div class="card" style="${ha?'border:1.5px solid rgba(224,53,53,.35);background:#fffafa':''}">
@@ -1797,10 +1995,10 @@ async function renderRespSesiones() {
         </div>
         <button onclick="abrirIncidencia('${s.id}')" class="${ha?'btn-p':'btn-g'}" style="font-size:11px">${ha?'Agendar recuperacion':'+ Incidencia'}</button>
       </div>
-      ${!si.length?'<div style="font-size:12px;color:var(--gray);font-style:italic">Sin incidencias registradas.</div>':
+      ${!si.length?'<div style="font-size:12px;color:var(--gray);font-style:italic">Sin incidencias.</div>':
       `<table class="t"><thead><tr><th>Tipo</th><th>Motivo</th><th>Fecha</th></tr></thead>
       <tbody>${si.slice(0,5).map(i=>`<tr>
-        <td>${bdg(INC_L[i.type]||i.type,INC_B[i.type]||'b-gray')}</td>
+        <td>${bdg(IL[i.type]||i.type,IB[i.type]||'b-gray')}</td>
         <td style="font-size:12px">${i.reason}</td>
         <td style="font-size:11px;color:var(--gray)">${fD(i.incident_date)}</td>
       </tr>`).join('')}</tbody></table>`}
@@ -1808,286 +2006,520 @@ async function renderRespSesiones() {
   }).join('');
 }
 
-async function renderRespEscuelas() {
-  const c = document.getElementById('s-resp-equipo'); if (!c) return;
-  const [{data:incs},{data:rubs},{data:visits}] = await Promise.all([
-    db.from('incidents').select('*').order('created_at',{ascending:false}),
+async function renderRespEscuelas(){
+  const c=document.getElementById('s-resp-equipo');if(!c)return;
+  const[{data:incs},{data:rubs},{data:actions}]=await Promise.all([
+    db.from('incidents').select('*'),
     db.from('rubrics').select('*'),
-    db.from('visits').select('*').order('visit_date',{ascending:false}).catch(()=>({data:[]})),
+    db.from('actions').select('*').catch(()=>({data:[]})),
+  ]);
+  c.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px">
+    ${SCHOOLS.map(s=>{
+      const si=(incs||[]).filter(i=>i.school_id===s.id);
+      const sr=(rubs||[]).filter(r=>r.school_id===s.id);
+      const sa=AVG(sr.map(r=>parseFloat(r.average_score)||0));
+      const pendAcc=(actions||[]).filter(a=>a.school_id===s.id&&a.status==='pendiente').length;
+      const ha=s.dias_atraso>14;
+      return `<div class="card" style="${ha?'border:1.5px solid rgba(224,53,53,.3)':''}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+          <div>
+            <div style="font-family:Montserrat,sans-serif;font-size:14px;font-weight:800;${ha?'color:var(--red-dark)':''}">${s.name}</div>
+            <div style="font-size:11px;color:var(--gray);margin-top:2px">${s.city}, ${s.state||'NL'} · ${s.year_model}</div>
+          </div>
+          ${bdg(alT(s.dias_atraso),alC(s.dias_atraso))}
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">
+          <div style="background:rgba(2,193,244,.07);border-radius:7px;padding:10px;text-align:center">
+            <div style="font-family:var(--font-title);font-size:18px;font-weight:800;color:var(--blue)">${s.total_students||0}</div>
+            <div style="font-size:9px;color:var(--gray)">Alumnos</div>
+          </div>
+          <div style="background:${parseFloat(sa)>=2?'var(--green-light)':'var(--amber-light)'};border-radius:7px;padding:10px;text-align:center">
+            <div style="font-family:var(--font-title);font-size:18px;font-weight:800;color:${parseFloat(sa)>=2?'var(--green)':'var(--amber)'}">${sa}</div>
+            <div style="font-size:9px;color:var(--gray)">Rubrica</div>
+          </div>
+          <div style="background:${ha?'var(--red-light)':'var(--green-light)'};border-radius:7px;padding:10px;text-align:center">
+            <div style="font-family:var(--font-title);font-size:18px;font-weight:800;color:${ha?'var(--red-dark)':'var(--green)'}">${s.dias_atraso<999?s.dias_atraso:0}d</div>
+            <div style="font-size:9px;color:var(--gray)">Sin sesion</div>
+          </div>
+        </div>
+        ${pendAcc?`<div style="background:#fffbf0;border:1px solid rgba(245,124,0,.25);border-radius:6px;padding:8px 10px;margin-bottom:10px;font-size:11px;color:#e65100"><strong>${pendAcc} accion${pendAcc>1?'es':''} pendiente${pendAcc>1?'s':''}</strong> asignada${pendAcc>1?'s':''}.</div>`:''}
+        <div style="display:flex;gap:6px">
+          <button onclick="abrirVisita('${s.id}')" class="btn-p" style="flex:1;font-size:11px;padding:7px">+ Visita</button>
+          <button onclick="abrirIncidencia('${s.id}')" class="btn-g" style="flex:1;font-size:11px;padding:7px">+ Incidencia</button>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  DOCENTE SCREENS
+// ─────────────────────────────────────────────────────────────────
+async function renderDocHome(){
+  const c=document.getElementById('s-doc-home');if(!c)return;
+  // Get school for this docente
+  const mySchool=SCHOOLS.find(s=>s.id===PROFILE.school_id)||SCHOOLS[0];
+  if(!mySchool){c.innerHTML='<div style="text-align:center;padding:40px;color:var(--gray)">Sin escuela asignada</div>';return;}
+
+  const[sessions,{data:plannings},{data:schedules}]=await Promise.all([
+    _ensureSessions(mySchool.id),
+    db.from('plannings').select('*').eq('school_id',mySchool.id).order('submitted_at',{ascending:false}).catch(()=>({data:[]})),
+    db.from('schedules').select('*').eq('school_id',mySchool.id).eq('active',true).order('day_of_week').catch(()=>({data:[]})),
   ]);
 
-  c.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px">
-      ${SCHOOLS.map(s=>{
-        const si=(incs||[]).filter(i=>i.school_id===s.id);
-        const sr=(rubs||[]).filter(r=>r.school_id===s.id);
-        const sv=(visits||[]).filter(v=>v.school_id===s.id);
-        const sa=AVG(sr.map(r=>parseFloat(r.average_score)||0));
-        const ha=s.dias_atraso>14;
-        return `<div class="card" style="${ha?'border:1.5px solid rgba(224,53,53,.3)':''}">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px">
-            <div>
-              <div style="font-family:Montserrat,sans-serif;font-size:14px;font-weight:800;${ha?'color:var(--red-dark)':''}">${s.name}</div>
-              <div style="font-size:11px;color:var(--gray);margin-top:2px">${s.city}, ${s.state||'NL'} · ${s.year_model}</div>
-            </div>
-            ${bdg(alT(s.dias_atraso),alC(s.dias_atraso))}
+  const currentSess=sessions.find(s=>s.status!=='completada')||sessions[sessions.length-1];
+  const nextSess=sessions.find(s=>s.status==='pendiente'&&s.session_number>(currentSess?.session_number||0));
+  const completedCount=sessions.filter(s=>s.status==='completada').length;
+  const pct=Math.round(completedCount/sessions.length*100);
+
+  c.innerHTML=`
+    <!-- Alerta si hay sesion reagendada o doble -->
+    ${currentSess&&(currentSess.status==='doble'||currentSess.status==='reagendada')?`<div class="alert-blue"><div class="alert-dot ad-blue"></div>
+      <div class="alert-txt"><strong>Atencion:</strong> Tu proxima sesion (S${currentSess.session_number}) fue marcada como <strong>${SL[currentSess.status]}</strong>. El equipo Houp te notificara la fecha.</div></div>`:''}
+    ${currentSess&&currentSess.status==='cancelada'?`<div class="alert-red"><div class="alert-dot ad-red"></div>
+      <div class="alert-txt"><strong>Sesion S${currentSess.session_number} cancelada.</strong> Espera instrucciones del equipo Houp para reagendar.</div></div>`:''}
+
+    <div class="stats-row">
+      <div class="stat"><div class="stat-val c-blue">${currentSess?'S'+currentSess.session_number:'--'}</div><div class="stat-lbl">Sesion actual</div></div>
+      <div class="stat"><div class="stat-val">${currentSess?'Mod.'+currentSess.module_number:'--'}</div><div class="stat-lbl">Modulo actual</div></div>
+      <div class="stat"><div class="stat-val c-blue">${pct}%</div><div class="stat-lbl">Avance del programa</div></div>
+      <div class="stat"><div class="stat-val">${(plannings||[]).length}</div><div class="stat-lbl">Planeaciones subidas</div></div>
+    </div>
+
+    <div class="two-col">
+      <!-- CALENDARIO VISUAL DE SESIONES -->
+      <div class="card">
+        <div class="card-hd"><div><div class="card-title">Mis sesiones</div>
+          <div class="card-sub">${completedCount} de ${sessions.length} completadas · Toca para ver detalle</div>
+        </div></div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+          ${sessions.map(s=>{
+            const isCurr=currentSess&&s.id===currentSess.id;
+            const bg=s.status==='completada'?'var(--green)':s.status==='cancelada'?'var(--red-dark)':s.status==='doble'?'var(--blue)':s.status==='reagendada'?'var(--amber)':isCurr?'#012B38':'#e8e8e8';
+            const color=s.status!=='pendiente'||isCurr?'#fff':'#797979';
+            return `<div title="S${s.session_number} · Mod.${s.module_number}: ${s.module_name}" 
+              style="width:36px;height:36px;border-radius:8px;background:${bg};display:flex;align-items:center;justify-content:center;color:${color};font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;cursor:default;position:relative${isCurr?';box-shadow:0 0 0 3px rgba(2,193,244,.5)':''}">
+              ${s.session_number}
+              ${isCurr?'<div style="position:absolute;top:-4px;right:-4px;width:10px;height:10px;border-radius:50%;background:#02c1f4;border:2px solid #fff"></div>':''}
+            </div>`;
+          }).join('')}
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:10px;margin-bottom:14px">
+          ${[['var(--green)','Completada'],['var(--red-dark)','Cancelada'],['var(--blue)','Doble'],['var(--amber)','Reagendada'],['#012B38','Actual'],['#e8e8e8','Pendiente']].map(([bg,lbl])=>`
+            <div style="display:flex;align-items:center;gap:4px;color:var(--gray)"><div style="width:10px;height:10px;border-radius:3px;background:${bg}"></div>${lbl}</div>`).join('')}
+        </div>
+        ${currentSess?`<div style="background:rgba(2,193,244,.06);border-radius:8px;padding:12px;border-left:3px solid var(--blue)">
+          <div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:var(--blue);margin-bottom:4px">PROXIMA SESION</div>
+          <div style="font-size:13px;font-weight:700">Sesion ${currentSess.session_number} · Modulo ${currentSess.module_number}</div>
+          <div style="font-size:12px;color:var(--gray);margin-top:2px">${currentSess.module_name}</div>
+          ${currentSess.status!=='pendiente'?`<div style="margin-top:6px">${bdg(SL[currentSess.status],SB[currentSess.status])}</div>`:''}
+        </div>`:''}
+      </div>
+
+      <div>
+        <!-- HORARIO -->
+        <div class="card" style="margin-bottom:12px">
+          <div class="card-hd"><div><div class="card-title">Mi horario</div></div>
+            <button onclick="oM('m-horario')" class="btn-g" style="font-size:11px">+ Agregar</button>
           </div>
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">
-            <div style="background:rgba(2,193,244,.07);border-radius:7px;padding:10px;text-align:center">
-              <div style="font-family:var(--font-title);font-size:18px;font-weight:800;color:var(--blue)">${s.total_students||0}</div>
-              <div style="font-size:9px;color:var(--gray)">Alumnos</div>
-            </div>
-            <div style="background:${parseFloat(sa)>=2?'var(--green-light)':'var(--amber-light)'};border-radius:7px;padding:10px;text-align:center">
-              <div style="font-family:var(--font-title);font-size:18px;font-weight:800;color:${parseFloat(sa)>=2?'var(--green)':'var(--amber)'}">${sa}</div>
-              <div style="font-size:9px;color:var(--gray)">Prom. rubrica</div>
-            </div>
-            <div style="background:${ha?'var(--red-light)':'var(--green-light)'};border-radius:7px;padding:10px;text-align:center">
-              <div style="font-family:var(--font-title);font-size:18px;font-weight:800;color:${ha?'var(--red-dark)':'var(--green)'}">${s.dias_atraso<999?s.dias_atraso:0}d</div>
-              <div style="font-size:9px;color:var(--gray)">Sin sesion</div>
-            </div>
+          ${!(schedules||[]).length?`<div style="font-size:12px;color:var(--gray);font-style:italic">Sin horario registrado. Agrega tus clases.</div>`:
+          `<table class="t"><thead><tr><th>Dia</th><th>Hora</th><th>Grupo</th><th>Salon</th></tr></thead>
+          <tbody>${(schedules||[]).map(h=>`<tr>
+            <td style="font-family:var(--font-title);font-size:12px;font-weight:600">${DIAS[h.day_of_week]||h.day_of_week}</td>
+            <td style="font-size:11px;color:var(--gray)">${h.start_time?.substring(0,5)||'--'} - ${h.end_time?.substring(0,5)||'--'}</td>
+            <td style="font-size:12px">${h.grade||'--'}</td>
+            <td style="font-size:11px;color:var(--gray)">${h.classroom||'--'}</td>
+          </tr>`).join('')}</tbody></table>`}
+        </div>
+
+        <!-- PLANEACIONES SUBIDAS -->
+        <div class="card">
+          <div class="card-hd"><div><div class="card-title">Mis planeaciones</div></div>
+            <button onclick="abrirPlaneacion()" class="btn-p" style="font-size:11px">+ Subir</button>
           </div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
-            ${bdg(si.length+' incidencias','b-gray')}
-            ${bdg(sv.length+' visitas','b-blue')}
-            ${bdg(sr.length+' rubricas',parseFloat(sa)>=2?'b-green':'b-amber')}
+          ${!(plannings||[]).length?`<div style="font-size:12px;color:var(--gray);font-style:italic">Aun no has subido planeaciones. Presiona "+ Subir" para comenzar.</div>`:
+          (plannings||[]).slice(0,4).map(p=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f5f5f5">
+            <div style="width:32px;height:32px;border-radius:8px;background:var(--green-light);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">✓</div>
+            <div style="flex:1">
+              <div style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:600">Mod.${p.module_number} · Sesion ${p.session_number}</div>
+              <div style="font-size:10px;color:var(--gray)">${p.activation?p.activation.substring(0,50)+'...':'Sin activacion'}</div>
+            </div>
+            ${p.file_url?`<a href="${p.file_url}" target="_blank" style="font-size:10px;color:var(--blue);font-family:Montserrat,sans-serif;font-weight:600;text-decoration:none">📄 Ver</a>`:''}
+            <div style="font-size:10px;color:var(--gray)">${fD(p.submitted_at)}</div>
+          </div>`).join('')}
+        </div>
+      </div>
+    </div>`;
+}
+
+async function renderDocMaterial(){
+  const c=document.getElementById('s-doc-material');if(!c)return;
+  const mySchool=SCHOOLS.find(s=>s.id===PROFILE.school_id)||SCHOOLS[0];
+  if(!mySchool){c.innerHTML='<div style="text-align:center;padding:40px;color:var(--gray)">Sin escuela asignada</div>';return;}
+
+  const sessions=await _ensureSessions(mySchool.id);
+  const currentSess=sessions.find(s=>s.status!=='completada')||sessions[sessions.length-1];
+  const{data:plannings}=await db.from('plannings').select('*').eq('school_id',mySchool.id).eq('visible_to_team',true).order('submitted_at',{ascending:false}).catch(()=>({data:[]}));
+
+  c.innerHTML=`
+    <div class="card" style="margin-bottom:14px;background:linear-gradient(135deg,#012B38,#014a63);border:none">
+      <div style="color:#fff">
+        <div style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:600;color:rgba(255,255,255,.6);margin-bottom:6px">SESION ACTUAL</div>
+        <div style="font-size:20px;font-weight:800;margin-bottom:4px">Sesion ${currentSess?.session_number||'--'} · Modulo ${currentSess?.module_number||'--'}</div>
+        <div style="font-size:13px;color:rgba(255,255,255,.8)">${currentSess?.module_name||'--'}</div>
+        ${currentSess?.status!=='pendiente'?`<div style="margin-top:8px">${bdg(SL[currentSess?.status]||'--',SB[currentSess?.status]||'b-gray')}</div>`:''}
+      </div>
+    </div>
+    <div class="three-col" style="margin-bottom:16px">
+      ${[
+        {icon:'📊',type:'Presentacion',desc:'Slides oficiales de la sesion',label:'Sesion '+currentSess?.session_number+' — slides'},
+        {icon:'📖',type:'Manual alumno',desc:'Paginas del modulo '+currentSess?.module_number,label:'Manual · Mod. '+currentSess?.module_number},
+        {icon:'🎯',type:'Guia docente',desc:'Instrucciones y ejemplos',label:'Guia docente S'+currentSess?.session_number},
+      ].map(m=>`<div class="card" style="cursor:pointer;transition:border .15s" onmouseover="this.style.borderColor='rgba(2,193,244,0.4)'" onmouseout="this.style.borderColor='rgba(0,0,0,0.06)'">
+        <div style="font-size:24px;margin-bottom:8px">${m.icon}</div>
+        <div style="font-family:var(--font-title);font-size:10px;color:var(--blue);font-weight:700;margin-bottom:4px;text-transform:uppercase;letter-spacing:.8px">${m.type}</div>
+        <div style="font-family:var(--font-title);font-size:12px;font-weight:700;margin-bottom:4px">${m.label}</div>
+        <div style="font-size:11px;color:var(--gray)">${m.desc}</div>
+      </div>`).join('')}
+    </div>
+    <!-- Planeaciones del equipo visibles -->
+    ${(plannings||[]).length?`<div class="card">
+      <div class="card-hd"><div><div class="card-title">Planeaciones del equipo</div><div class="card-sub">Subidas por docentes — visibles para todos</div></div></div>
+      ${(plannings||[]).map(p=>`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f5f5f5">
+        <div style="width:34px;height:34px;border-radius:8px;background:var(--green-light);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">📄</div>
+        <div style="flex:1">
+          <div style="font-family:Montserrat,sans-serif;font-size:12.5px;font-weight:700">Mod.${p.module_number} · Sesion ${p.session_number}</div>
+          <div style="font-size:11px;color:var(--gray);margin-top:2px">${p.activation||'Sin notas'}</div>
+        </div>
+        ${p.file_url?`<a href="${p.file_url}" target="_blank" style="background:var(--blue-light);border:1px solid rgba(2,193,244,.25);border-radius:6px;padding:5px 10px;font-size:11px;font-weight:600;color:var(--blue);text-decoration:none;font-family:Montserrat,sans-serif;flex-shrink:0">Ver archivo</a>`:''}
+        <div style="font-size:10px;color:var(--gray);flex-shrink:0">${fD(p.submitted_at)}</div>
+      </div>`).join('')}
+    </div>`:''}`;
+}
+
+async function renderDocPlan(){
+  const c=document.getElementById('s-doc-plan');if(!c)return;
+  const mySchool=SCHOOLS.find(s=>s.id===PROFILE.school_id)||SCHOOLS[0];
+  if(!mySchool){c.innerHTML='<div style="text-align:center;padding:40px;color:var(--gray)">Sin escuela asignada</div>';return;}
+  const sessions=await _ensureSessions(mySchool.id);
+  const currentSess=sessions.find(s=>s.status!=='completada')||sessions[sessions.length-1];
+  const{data:plannings}=await db.from('plannings').select('*').eq('school_id',mySchool.id).order('submitted_at',{ascending:false}).limit(5).catch(()=>({data:[]}));
+
+  c.innerHTML=`
+    <div class="two-col">
+      <div class="card">
+        <div class="card-hd"><div><div class="card-title">Planeacion de sesion</div>
+          <div class="card-sub">Mod.${currentSess?.module_number||'--'} · Sesion ${currentSess?.session_number||'--'}</div>
+        </div></div>
+        <div style="background:rgba(2,193,244,.06);border-radius:8px;padding:12px;margin-bottom:16px">
+          <div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:var(--blue);margin-bottom:4px">SESION PENDIENTE</div>
+          <div style="font-size:13px;font-weight:700">S${currentSess?.session_number||'--'} · ${currentSess?.module_name||'--'}</div>
+          ${currentSess?.status!=='pendiente'?`<div style="margin-top:6px;font-size:12px;color:var(--gray)">${bdg(SL[currentSess?.status||'pendiente'],SB[currentSess?.status||'pendiente'])} Esta sesion fue modificada por el equipo Houp.</div>`:''}
+        </div>
+        <button onclick="abrirPlaneacion('${mySchool.id}','${currentSess?.id||''}')" 
+          style="width:100%;padding:14px;background:#02c1f4;color:#fff;border:none;border-radius:8px;font-family:Montserrat,sans-serif;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:10px">
+          📄 Subir mi planeacion
+        </button>
+        <button onclick="abrirEvidencia()" style="width:100%;padding:12px;background:var(--green-light);color:var(--green);border:1px solid rgba(67,160,71,.2);border-radius:8px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;cursor:pointer">
+          📎 Cargar evidencia post-clase
+        </button>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><div class="card-title">Mis planeaciones subidas</div></div>
+        ${!(plannings||[]).length?`<div style="text-align:center;padding:20px;color:var(--gray)">
+          <div style="font-size:32px;margin-bottom:10px">📝</div>
+          <div style="font-family:Montserrat,sans-serif;font-size:13px;font-weight:600;margin-bottom:6px">Aun no has subido planeaciones</div>
+          <div style="font-size:12px">Presiona el boton de arriba para subir tu primera planeacion</div>
+        </div>`:
+        (plannings||[]).map(p=>`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f5f5f5">
+          <div style="width:36px;height:36px;border-radius:8px;background:var(--green-light);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">✅</div>
+          <div style="flex:1">
+            <div style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:700">Mod.${p.module_number} · Sesion ${p.session_number}</div>
+            <div style="font-size:11px;color:var(--gray);margin-top:2px">${p.activation?p.activation.substring(0,60)+'...':'Sin descripcion'}</div>
+            ${p.file_name?`<div style="font-size:10px;color:var(--blue);margin-top:2px">📄 ${p.file_name}</div>`:''}
           </div>
-          <div style="display:flex;gap:6px">
-            <button onclick="abrirVisita('${s.id}')" class="btn-p" style="flex:1;font-size:11px;padding:7px">+ Visita</button>
-            <button onclick="abrirIncidencia('${s.id}')" class="btn-g" style="flex:1;font-size:11px;padding:7px">+ Incidencia</button>
-          </div>
-        </div>`;
-      }).join('')}
+          ${p.file_url?`<a href="${p.file_url}" target="_blank" style="font-size:10px;color:var(--blue);font-weight:600;text-decoration:none;font-family:Montserrat,sans-serif">Ver</a>`:''}
+          <div style="font-size:10px;color:var(--gray);white-space:nowrap">${fD(p.submitted_at)}</div>
+        </div>`).join('')}
+      </div>
     </div>`;
 }
 
 // ─────────────────────────────────────────────────────────────────
 //  MODAL OPENERS
 // ─────────────────────────────────────────────────────────────────
-function abrirEscuela(id) {
-  document.getElementById('esc-id').value = id||'';
-  const btn = document.getElementById('btn-archivar-esc');
-  if (id) {
-    const s = SCHOOLS.find(x=>x.id===id);
-    if (s) {
-      document.getElementById('esc-nombre').value  = s.name||'';
-      document.getElementById('esc-corto').value   = s.short_name||'';
-      document.getElementById('esc-tipo').value    = s.type||'publica';
-      document.getElementById('esc-ano').value     = s.year_model||'año1';
-      document.getElementById('esc-alumnos').value = s.total_students||0;
-      document.getElementById('esc-ciudad').value  = s.city||'';
-      document.getElementById('esc-estado').value  = s.state||'Nuevo Leon';
-    }
-    document.getElementById('m-escuela-t').textContent = 'Editar escuela';
-    if (btn) btn.style.display = 'block';
-  } else {
-    document.getElementById('m-escuela-t').textContent = 'Nueva escuela';
+function abrirEscuela(id){
+  document.getElementById('esc-id').value=id||'';
+  const btn=document.getElementById('btn-archivar-esc');
+  if(id){
+    const s=SCHOOLS.find(x=>x.id===id);
+    if(s){document.getElementById('esc-nombre').value=s.name||'';document.getElementById('esc-corto').value=s.short_name||'';document.getElementById('esc-tipo').value=s.type||'publica';document.getElementById('esc-ano').value=s.year_model||'año1';document.getElementById('esc-alumnos').value=s.total_students||0;document.getElementById('esc-ciudad').value=s.city||'';document.getElementById('esc-estado').value=s.state||'Nuevo Leon';}
+    document.getElementById('m-escuela-t').textContent='Editar escuela';
+    if(btn)btn.style.display='block';
+  }else{
+    document.getElementById('m-escuela-t').textContent='Nueva escuela';
     ['esc-nombre','esc-corto','esc-alumnos','esc-ciudad'].forEach(i=>document.getElementById(i).value='');
-    document.getElementById('esc-estado').value = 'Nuevo Leon';
-    if (btn) btn.style.display = 'none';
+    document.getElementById('esc-estado').value='Nuevo Leon';
+    if(btn)btn.style.display='none';
   }
   oM('m-escuela');
 }
 
-function abrirIncidencia(schoolId) {
-  document.getElementById('inc-fecha').value  = new Date().toISOString().split('T')[0];
-  document.getElementById('inc-motivo').value = '';
-  if (schoolId) document.getElementById('inc-escuela').value = schoolId;
+function abrirIncidencia(schoolId){
+  document.getElementById('inc-fecha').value=new Date().toISOString().split('T')[0];
+  document.getElementById('inc-motivo').value='';
+  if(schoolId)document.getElementById('inc-escuela').value=schoolId;
   oM('m-incidencia');
 }
 
-function abrirVisita(schoolId) {
-  document.getElementById('vis-fecha').value       = new Date().toISOString().split('T')[0];
-  document.getElementById('vis-sesion').value      = '';
-  document.getElementById('vis-obs').value         = '';
-  document.getElementById('vis-compromisos').value = '';
-  if (schoolId) document.getElementById('vis-escuela').value = schoolId;
+function abrirAccion(schoolId,sessionId){
+  document.getElementById('acc-school-id').value=schoolId||'';
+  document.getElementById('acc-session-id').value=sessionId||'';
+  document.getElementById('acc-fecha').value='';
+  document.getElementById('acc-desc').value='';
+  const school=SCHOOLS.find(s=>s.id===schoolId);
+  document.getElementById('accion-ctx').textContent=school?'Escuela: '+school.name:'';
+  oM('m-accion');
+}
+
+function abrirVisita(schoolId){
+  document.getElementById('vis-fecha').value=new Date().toISOString().split('T')[0];
+  document.getElementById('vis-sesion').value='';document.getElementById('vis-obs').value='';document.getElementById('vis-compromisos').value='';
+  if(schoolId)document.getElementById('vis-escuela').value=schoolId;
   oM('m-visita');
 }
 
-function confirmarArchivarEscuela() {
-  const id   = document.getElementById('esc-id').value;
-  const name = document.getElementById('esc-nombre').value || 'esta escuela';
-  confirm2(`Archivar "${name}"`,
-    `La escuela se marcara como inactiva y dejara de aparecer en el programa. Podra reactivarse mas adelante desde la base de datos.`,
-    () => archivarEscuela(id));
+function abrirEvidencia(){
+  _evFile=null;
+  const fn=document.getElementById('ev-file-name');if(fn){fn.style.display='none';fn.textContent='';}
+  document.getElementById('ev-url').value='';
+  document.getElementById('ev-desc').value='';
+  evTab('file');
+  oM('m-evidencia');
+}
+
+function abrirPlaneacion(schoolId,sessionId){
+  _planFile=null;
+  const fn=document.getElementById('plan-file-name');if(fn){fn.style.display='none';fn.textContent='';}
+  if(schoolId)document.getElementById('plan-school-id').value=schoolId;
+  else document.getElementById('plan-school-id').value=PROFILE.school_id||SCHOOLS[0]?.id||'';
+  document.getElementById('plan-session-id').value=sessionId||'';
+  document.getElementById('plan-activacion').value='';
+  document.getElementById('plan-teoria').value='';
+  document.getElementById('plan-practica').value='';
+  const mySchool=SCHOOLS.find(s=>s.id===(PROFILE.school_id||SCHOOLS[0]?.id));
+  document.getElementById('plan-ctx').textContent=mySchool?'Escuela: '+mySchool.name:'';
+  oM('m-planeacion');
+}
+
+function confirmarArchivar(){
+  const name=document.getElementById('esc-nombre').value||'esta escuela';
+  confirm2(`Archivar "${name}"`,`La escuela se marcara como inactiva. Podra reactivarse desde la base de datos.`,()=>archivarEscuela(document.getElementById('esc-id').value));
 }
 
 // ─────────────────────────────────────────────────────────────────
 //  SAVE ACTIONS
 // ─────────────────────────────────────────────────────────────────
-async function guardarEscuela() {
-  const id = document.getElementById('esc-id').value;
-  const d = {
-    name:           document.getElementById('esc-nombre').value.trim(),
-    short_name:     document.getElementById('esc-corto').value.trim().toUpperCase(),
-    type:           document.getElementById('esc-tipo').value,
-    year_model:     document.getElementById('esc-ano').value,
-    total_students: parseInt(document.getElementById('esc-alumnos').value)||0,
-    city:           document.getElementById('esc-ciudad').value||'',
-    state:          document.getElementById('esc-estado').value||'Nuevo Leon',
-    active: true,
-  };
-  if (!d.name||!d.short_name) { toast('Completa nombre y nombre corto',true); return; }
-  const { error } = id
-    ? await db.from('schools').update(d).eq('id', id)
-    : await db.from('schools').insert(d);
-  if (error) { toast('Error: '+error.message, true); return; }
-  cM('m-escuela');
-  toast(id ? 'Escuela actualizada' : 'Escuela creada');
+async function guardarEscuela(){
+  const id=document.getElementById('esc-id').value;
+  const d={name:document.getElementById('esc-nombre').value.trim(),short_name:document.getElementById('esc-corto').value.trim().toUpperCase(),type:document.getElementById('esc-tipo').value,year_model:document.getElementById('esc-ano').value,total_students:parseInt(document.getElementById('esc-alumnos').value)||0,city:document.getElementById('esc-ciudad').value||'',state:document.getElementById('esc-estado').value||'Nuevo Leon',active:true};
+  if(!d.name||!d.short_name){toast('Completa nombre y nombre corto',true);return;}
+  const{error}=id?await db.from('schools').update(d).eq('id',id):await db.from('schools').insert(d);
+  if(error){toast('Error: '+error.message,true);return;}
+  cM('m-escuela');toast(id?'Escuela actualizada':'Escuela creada');
   await _loadSchools();
-  if (SCREEN==='s-dash') renderDash(); else renderEscuelas();
+  if(SCREEN==='s-dash')renderDash();else renderEscuelas();
 }
 
-async function archivarEscuela(id) {
-  const { error } = await db.from('schools').update({ active: false }).eq('id', id);
-  if (error) { toast('Error: '+error.message, true); return; }
-  cM('m-escuela');
-  toast('Escuela archivada');
+async function archivarEscuela(id){
+  await db.from('schools').update({active:false}).eq('id',id);
+  cM('m-escuela');toast('Escuela archivada');
   await _loadSchools();
-  if (SCREEN==='s-dash') renderDash(); else renderEscuelas();
+  if(SCREEN==='s-dash')renderDash();else renderEscuelas();
 }
 
-async function guardarIncidencia() {
-  const sid    = document.getElementById('inc-escuela').value;
-  const tipo   = document.getElementById('inc-tipo').value;
-  const motivo = document.getElementById('inc-motivo').value.trim();
-  const fecha  = document.getElementById('inc-fecha').value;
-  if (!sid||!motivo||!fecha) { toast('Completa todos los campos', true); return; }
-
-  const { error } = await db.from('incidents').insert({
-    school_id:sid, type:tipo, reason:motivo, incident_date:fecha, reported_by:ME.id
-  });
-  if (error) { toast('Error: '+error.message, true); return; }
-  if (tipo==='doble'||tipo==='reagendada') {
-    await db.from('schools').update({ last_session_date:fecha, alert_days:0 }).eq('id', sid);
+async function guardarIncidencia(){
+  const sid=document.getElementById('inc-escuela').value;
+  const tipo=document.getElementById('inc-tipo').value;
+  const motivo=document.getElementById('inc-motivo').value.trim();
+  const fecha=document.getElementById('inc-fecha').value;
+  if(!sid||!motivo||!fecha){toast('Completa todos los campos',true);return;}
+  const{error}=await db.from('incidents').insert({school_id:sid,type:tipo,reason:motivo,incident_date:fecha,reported_by:ME.id});
+  if(error){toast('Error al guardar: '+error.message,true);return;}
+  if(tipo==='doble'||tipo==='reagendada'){
+    await db.from('schools').update({last_session_date:fecha,alert_days:0}).eq('id',sid);
   }
-  cM('m-incidencia');
-  toast('Incidencia registrada');
+  cM('m-incidencia');toast('Incidencia registrada correctamente');
   await _loadSchools();
-  const refreshMap = {
-    's-sesiones':renderSesiones,'s-resp-sesiones':renderRespSesiones,
-    's-resp-home':renderRespHome,'s-resp-equipo':renderRespEscuelas,'s-dash':renderDash,
-  };
-  if (refreshMap[SCREEN]) refreshMap[SCREEN]();
+  const refreshMap={'s-sesiones':renderSesiones,'s-resp-sesiones':renderRespSesiones,'s-resp-home':renderRespHome,'s-resp-equipo':renderRespEscuelas,'s-dash':renderDash,'s-modulos':()=>renderModulosEscuela(sid)};
+  if(refreshMap[SCREEN])refreshMap[SCREEN]();
 }
 
-async function guardarRubrica() {
-  const sc  = document.getElementById('rub-escuela').value;
-  const bl  = parseInt(document.getElementById('rub-bloque').value);
-  const gr  = document.getElementById('rub-grado').value;
-  const sh  = document.getElementById('rub-turno').value;
-  const ev  = parseInt(document.getElementById('rub-evaluados').value)||0;
-  const nm  = parseInt(document.getElementById('rub-sinmanual').value)||0;
-  const ini = parseFloat(document.getElementById('rub-ini').value)||0;
-  const ade = parseFloat(document.getElementById('rub-ade').value)||0;
-  const exc = parseFloat(document.getElementById('rub-exc').value)||0;
-  const no  = document.getElementById('rub-notas').value;
-  if (!sc) { toast('Selecciona una escuela', true); return; }
-  const avg_score = ((1*ini/100)+(2*ade/100)+(3*exc/100)).toFixed(2);
-  const { error } = await db.from('rubrics').insert({
-    school_id:sc, grade:gr, shift:sh, block:bl,
-    students_evaluated:ev, students_no_manual:nm,
-    pct_inicial:ini, pct_adecuado:ade, pct_excelente:exc,
-    average_score:parseFloat(avg_score), notes:no, teacher_id:ME.id
-  });
-  if (error) { toast('Error: '+error.message, true); return; }
-  cM('m-rubrica');
-  toast('Rubrica guardada (promedio: '+avg_score+')');
-  const r = {
-    's-found-rubrics':renderFundRubricas,'s-found-dash':renderFundDash,
-    's-dash':renderDash,'s-modulos':renderModulos,
-  };
-  if (r[SCREEN]) r[SCREEN]();
+async function guardarAccion(){
+  const sid=document.getElementById('acc-school-id').value;
+  const tipo=document.getElementById('acc-tipo').value;
+  const desc=document.getElementById('acc-desc').value.trim();
+  const fecha=document.getElementById('acc-fecha').value;
+  if(!sid||!desc){toast('Escuela y descripcion son requeridas',true);return;}
+  const{error}=await db.from('actions').insert({school_id:sid,session_id:document.getElementById('acc-session-id').value||null,created_by:ME.id,type:tipo,description:desc,due_date:fecha||null,status:'pendiente'});
+  if(error){toast('Error: '+error.message,true);return;}
+  cM('m-accion');toast('Accion asignada al responsable');
+  if(SCREEN==='s-modulos')renderModulosEscuela(sid);else if(SCREEN==='s-dash')renderDash();
 }
 
-async function guardarEvidencia() {
-  const sc  = document.getElementById('ev-escuela').value;
-  const ty  = document.getElementById('ev-tipo').value;
-  const url = document.getElementById('ev-url').value.trim();
-  const ds  = document.getElementById('ev-desc').value.trim();
-  if (!sc) { toast('Selecciona una escuela', true); return; }
-  if (!url && !ds) { toast('Agrega un link o descripcion', true); return; }
+async function resolverAccion(id){
+  const notes=prompt('Escribe una nota sobre como se resolvio esta accion:');
+  if(notes===null)return;
+  await db.from('actions').update({status:'completada',resolution_notes:notes,resolved_at:new Date().toISOString()}).eq('id',id);
+  toast('Accion marcada como resuelta');
+  renderModulosEscuela(document.getElementById('mod-selector')?.value||SCHOOLS[0]?.id);
+}
 
-  const { data, error } = await db.from('evidence').insert({
-    school_id:sc, type:ty, url:url||null, description:ds||null,
-    uploaded_by:ME.id, validated:false
-  }).select();
-  if (error) { toast('Error al guardar: '+error.message, true); return; }
+async function guardarRubrica(){
+  const sc=document.getElementById('rub-escuela').value,bl=parseInt(document.getElementById('rub-bloque').value),gr=document.getElementById('rub-grado').value,sh=document.getElementById('rub-turno').value;
+  const ev=parseInt(document.getElementById('rub-evaluados').value)||0,nm=parseInt(document.getElementById('rub-sinmanual').value)||0;
+  const ini=parseFloat(document.getElementById('rub-ini').value)||0,ade=parseFloat(document.getElementById('rub-ade').value)||0,exc=parseFloat(document.getElementById('rub-exc').value)||0;
+  const no=document.getElementById('rub-notas').value;
+  if(!sc){toast('Selecciona una escuela',true);return;}
+  const avg_score=((1*ini/100)+(2*ade/100)+(3*exc/100)).toFixed(2);
+  const{error}=await db.from('rubrics').insert({school_id:sc,grade:gr,shift:sh,block:bl,students_evaluated:ev,students_no_manual:nm,pct_inicial:ini,pct_adecuado:ade,pct_excelente:exc,average_score:parseFloat(avg_score),notes:no,teacher_id:ME.id});
+  if(error){toast('Error: '+error.message,true);return;}
+  cM('m-rubrica');toast('Rubrica guardada (promedio: '+avg_score+')');
+  const r={'s-found-rubrics':renderFundRubricas,'s-found-dash':renderFundDash,'s-dash':renderDash};
+  if(r[SCREEN])r[SCREEN]();
+}
+
+async function guardarEvidencia(){
+  const sc=document.getElementById('ev-escuela').value;
+  const ty=document.getElementById('ev-tipo').value;
+  const desc=document.getElementById('ev-desc').value.trim();
+  const isFile=document.getElementById('ev-panel-file').style.display!=='none';
+
+  if(!sc){toast('Selecciona una escuela',true);return;}
+
+  let fileUrl=null,filePath=null,fileName=null,fileSize=null;
+  const urlInput=document.getElementById('ev-url').value.trim();
+
+  if(isFile&&_evFile){
+    // Upload to Supabase Storage
+    try{
+      document.getElementById('ev-progress').style.display='block';
+      document.getElementById('ev-progress-bar').style.width='30%';
+      const res=await _uploadFile(_evFile,'Evidence','uploads');
+      document.getElementById('ev-progress-bar').style.width='100%';
+      fileUrl=res.url;filePath=res.path;fileName=res.name;fileSize=res.size;
+    }catch(err){
+      // Storage might not be set up — fall back to link mode
+      document.getElementById('ev-progress').style.display='none';
+      toast('Storage no disponible. Sube el archivo a Drive y pega el link.',true);return;
+    }
+  }else if(!isFile&&urlInput){
+    fileUrl=urlInput;
+    fileName=urlInput.split('/').pop().split('?')[0]||'Enlace externo';
+  }else if(!_evFile&&!urlInput&&!desc){
+    toast('Agrega un archivo, link o descripcion',true);return;
+  }
+
+  const{error}=await db.from('evidence').insert({school_id:sc,type:ty,url:fileUrl,description:desc||null,uploaded_by:ME.id,validated:false,storage_path:filePath,file_name:fileName,file_size:fileSize});
+  if(error){toast('Error al guardar: '+error.message,true);return;}
+
+  document.getElementById('ev-progress').style.display='none';
   cM('m-evidencia');
-  // Clear fields
-  document.getElementById('ev-url').value = '';
-  document.getElementById('ev-desc').value = '';
-  toast('Evidencia cargada correctamente');
-  if (SCREEN==='s-evidencia') renderEvidencia();
+  _evFile=null;
+  document.getElementById('ev-url').value='';
+  document.getElementById('ev-desc').value='';
+
+  // Show big success feedback
+  toast('✅ Evidencia cargada correctamente');
+  if(SCREEN==='s-evidencia')renderEvidencia();
 }
 
-async function guardarUsuario() {
-  const fn = document.getElementById('usr-nombre').value.trim();
-  const fe = document.getElementById('usr-email').value.trim();
-  const fr = document.getElementById('usr-rol').value;
-  const fs = document.getElementById('usr-escuela').value;
-  const fp = document.getElementById('usr-pass').value;
-  if (!fn||!fe||!fp) { toast('Completa todos los campos', true); return; }
-  if (fp.length<6) { toast('Contrasena minimo 6 caracteres', true); return; }
-  const { data, error } = await db.auth.signUp({ email:fe, password:fp, options:{ data:{ full_name:fn, role:fr } } });
-  if (error) { toast('Error: '+error.message, true); return; }
-  if (data.user) await db.from('profiles').upsert({ id:data.user.id, email:fe, full_name:fn, role:fr, school_id:fs||null });
-  cM('m-usuario');
-  toast('Usuario creado. Revisara su correo para confirmar.');
-}
+async function guardarPlaneacion(){
+  const sc=document.getElementById('plan-school-id').value||PROFILE.school_id||SCHOOLS[0]?.id;
+  const sessId=document.getElementById('plan-session-id').value;
+  const modulo=parseInt(document.getElementById('plan-modulo').value);
+  const sesNum=parseInt(document.getElementById('plan-sesion').value)||1;
+  const activacion=document.getElementById('plan-activacion').value.trim();
+  const teoria=document.getElementById('plan-teoria').value.trim();
+  const practica=document.getElementById('plan-practica').value.trim();
+  if(!sc){toast('Sin escuela asignada',true);return;}
+  if(!activacion&&!teoria&&!practica&&!_planFile){toast('Agrega al menos una nota o archivo',true);return;}
 
-async function guardarVisita() {
-  const sc  = document.getElementById('vis-escuela').value;
-  const fd  = document.getElementById('vis-fecha').value;
-  const ses = document.getElementById('vis-sesion').value.trim();
-  const obs = document.getElementById('vis-obs').value.trim();
-  const cl  = document.getElementById('vis-clima').value;
-  const dom = document.getElementById('vis-dominio').value;
-  const par = document.getElementById('vis-participacion').value;
-  const com = document.getElementById('vis-compromisos').value.trim();
-  if (!sc||!fd) { toast('Selecciona escuela y fecha', true); return; }
-
-  // Try to save — if table doesn't exist yet, show friendly error
-  const { error } = await db.from('visits').insert({
-    school_id:sc, visited_by:ME.id, visit_date:fd,
-    session_observed:ses, observations:obs,
-    classroom_climate:cl, teacher_mastery:dom, student_participation:par,
-    commitments:com
-  });
-  if (error) {
-    // Table might not exist yet — give SQL to create it
-    if (error.message?.includes('visits')) {
-      toast('Tabla "visits" no existe aun. Crea la tabla en Supabase (ver consola)', true);
-      console.info('SQL para crear tabla visits:', `
-CREATE TABLE visits (
-  id uuid default uuid_generate_v4() primary key,
-  school_id uuid references schools(id),
-  visited_by uuid,
-  visit_date date not null,
-  session_observed text,
-  observations text,
-  classroom_climate text,
-  teacher_mastery text,
-  student_participation text,
-  commitments text,
-  created_at timestamptz default now()
-);
-ALTER TABLE visits ENABLE ROW LEVEL SECURITY;
-CREATE POLICY allow_all_visits ON visits FOR ALL USING (true) WITH CHECK (true);`);
-    } else { toast('Error: '+error.message, true); }
-    return;
+  let fileUrl=null,fileName=null;
+  if(_planFile){
+    try{
+      const btn=document.getElementById('plan-btn-save');
+      btn.disabled=true;btn.textContent='Subiendo...';
+      document.getElementById('plan-progress').style.display='block';
+      document.getElementById('plan-progress-bar').style.width='20%';
+      const res=await _uploadFile(_planFile,'Plannings','uploads');
+      document.getElementById('plan-progress-bar').style.width='100%';
+      fileUrl=res.url;fileName=res.name;
+      btn.disabled=false;btn.textContent='Guardar planeacion';
+    }catch(err){
+      document.getElementById('plan-progress').style.display='none';
+      document.getElementById('plan-btn-save').disabled=false;
+      document.getElementById('plan-btn-save').textContent='Guardar planeacion';
+      toast('No se pudo subir el archivo. Verifica Supabase Storage.',true);return;
+    }
   }
-  cM('m-visita');
-  toast('Visita registrada');
-  const r = {'s-resp-home':renderRespHome,'s-resp-equipo':renderRespEscuelas};
-  if (r[SCREEN]) r[SCREEN]();
+
+  const{error}=await db.from('plannings').insert({school_id:sc,session_id:sessId||null,created_by:ME.id,module_number:modulo,session_number:sesNum,activation:activacion,theory_notes:teoria,practice_notes:practica,file_url:fileUrl,file_name:fileName,visible_to_team:true,submitted_at:new Date().toISOString()});
+  if(error){toast('Error: '+error.message,true);return;}
+
+  document.getElementById('plan-progress').style.display='none';
+  cM('m-planeacion');
+  _planFile=null;
+
+  // Big success message for non-tech teachers
+  toast('🎉 Planeacion guardada y visible para el equipo');
+  if(SCREEN==='s-doc-home')renderDocHome();
+  else if(SCREEN==='s-doc-plan')renderDocPlan();
+  else if(SCREEN==='s-doc-material')renderDocMaterial();
 }
 
-async function validarEvidencia(id) {
-  const { error } = await db.from('evidence').update({ validated:true, validated_by:ME.id, validated_at:new Date().toISOString() }).eq('id', id);
-  if (error) { toast('Error: '+error.message, true); return; }
-  toast('Evidencia validada');
-  renderEvidencia();
+async function guardarUsuario(){
+  const fn=document.getElementById('usr-nombre').value.trim(),fe=document.getElementById('usr-email').value.trim(),fr=document.getElementById('usr-rol').value,fs=document.getElementById('usr-escuela').value,fp=document.getElementById('usr-pass').value;
+  if(!fn||!fe||!fp){toast('Completa todos los campos',true);return;}
+  if(fp.length<6){toast('Contrasena minimo 6 caracteres',true);return;}
+  const{data,error}=await db.auth.signUp({email:fe,password:fp,options:{data:{full_name:fn,role:fr}}});
+  if(error){toast('Error: '+error.message,true);return;}
+  if(data.user)await db.from('profiles').upsert({id:data.user.id,email:fe,full_name:fn,role:fr,school_id:fs||null});
+  cM('m-usuario');toast('Usuario creado');
+}
+
+async function guardarVisita(){
+  const sc=document.getElementById('vis-escuela').value,fd=document.getElementById('vis-fecha').value;
+  const ses=document.getElementById('vis-sesion').value.trim(),obs=document.getElementById('vis-obs').value.trim();
+  const cl=document.getElementById('vis-clima').value,dom=document.getElementById('vis-dominio').value,par=document.getElementById('vis-participacion').value;
+  const com=document.getElementById('vis-compromisos').value.trim();
+  if(!sc||!fd){toast('Selecciona escuela y fecha',true);return;}
+  const{error}=await db.from('visits').insert({school_id:sc,visited_by:ME.id,visit_date:fd,session_observed:ses,observations:obs,classroom_climate:cl,teacher_mastery:dom,student_participation:par,commitments:com});
+  if(error){toast('Error: '+error.message,true);return;}
+  cM('m-visita');toast('Visita registrada');
+  const r={'s-resp-home':renderRespHome,'s-resp-equipo':renderRespEscuelas};
+  if(r[SCREEN])r[SCREEN]();
+}
+
+async function guardarHorario(){
+  const sc=document.getElementById('hor-escuela').value;
+  const dia=parseInt(document.getElementById('hor-dia').value);
+  const ini=document.getElementById('hor-inicio').value;
+  const fin=document.getElementById('hor-fin').value;
+  const gr=document.getElementById('hor-grado').value;
+  const sal=document.getElementById('hor-salon').value;
+  if(!sc||!ini||!fin){toast('Completa escuela y horario',true);return;}
+  const{error}=await db.from('schedules').insert({school_id:sc,teacher_id:ME.id,day_of_week:dia,start_time:ini,end_time:fin,grade:gr,classroom:sal,active:true});
+  if(error){toast('Error: '+error.message,true);return;}
+  cM('m-horario');toast('Horario guardado');
+  if(SCREEN==='s-doc-home')renderDocHome();
+}
+
+async function validarEvidencia(id){
+  const{error}=await db.from('evidence').update({validated:true,validated_by:ME.id,validated_at:new Date().toISOString()}).eq('id',id);
+  if(error){toast('Error: '+error.message,true);return;}
+  toast('Evidencia validada');renderEvidencia();
 }
 </script>
 </body>
