@@ -1528,6 +1528,17 @@ const alT=d=>d>14?`ALERTA: ${d}d`:d>7?'Revisar':'Al dia';
 const fD=s=>s?new Date(s).toLocaleDateString('es-MX'):'Sin registro';
 const AVG=arr=>arr.length?(arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(2):'--';
 
+
+// Helper: safely render conditional button
+function _cbtn(cond, id, fn, label, style){
+  if(!cond) return '';
+  return '<button data-id="'+id+'" onclick="'+fn+'(this.dataset.id)" style="'+style+'">'+label+'</button>';
+}
+function _cbtn2(cond, id1, id2, fn, label, style){
+  if(!cond) return '';
+  return '<button data-id1="'+id1+'" data-id2="'+id2+'" onclick="'+fn+'(this.dataset.id1,this.dataset.id2)" style="'+style+'">'+label+'</button>';
+}
+
 // ─────────────────────────────────────────────────────────────────
 //  SCREENS — ADMIN
 // ─────────────────────────────────────────────────────────────────
@@ -1589,8 +1600,8 @@ async function renderEscuelas(){
   const{data:incs}=await db.from('incidents').select('school_id');
   const cnt={};(incs||[]).forEach(i=>{cnt[i.school_id]=(cnt[i.school_id]||0)+1;});
   c.innerHTML=`
-    ${SCHOOLS.filter(s=>s.dias_atraso>14).length?`<div class="alert-red"><div class="alert-dot ad-red"></div>
-      <div class="alert-txt">Las escuelas en rojo llevan mas de 2 semanas sin sesion.</div></div>`:''}
+    ${SCHOOLS.filter(s=>s.dias_atraso>14).length?'<div class="alert-red"><div class="alert-dot ad-red"></div>
+      <div class="alert-txt">Las escuelas en rojo llevan mas de 2 semanas sin sesion.</div></div>':''}
     <div class="card" style="padding:0;overflow:hidden"><table class="t">
       <thead><tr><th style="padding:11px 16px">Escuela</th><th>Ubicacion</th><th>Tipo</th><th>Año</th><th>Alumnos</th><th>Incidencias</th><th>Ultima sesion</th><th>Estado</th><th></th></tr></thead>
       <tbody>${SCHOOLS.map(s=>`<tr style="${s.dias_atraso>14?'background:#fff5f5':''}">
@@ -1668,7 +1679,7 @@ async function renderModulosEscuela(schoolId){
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           ${bdg(alT(school.dias_atraso),alC(school.dias_atraso))}
-          ${school.dias_atraso>14?`<button onclick="abrirAccion('${schoolId}','')" style="background:#fdecea;border:1px solid rgba(224,53,53,.3);color:#c62828;padding:5px 12px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;cursor:pointer">Asignar accion al responsable</button>`:''}
+          ${school.dias_atraso>14?'<button data-sid="'+schoolId+'" onclick="abrirAccion(this.dataset.sid,\'\')" style="background:#fdecea;border:1px solid rgba(224,53,53,.3);color:#c62828;padding:5px 12px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;cursor:pointer">Asignar accion al responsable</button>':''}
         </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px">
@@ -1747,7 +1758,7 @@ async function renderModulosEscuela(schoolId){
             <div><div class="card-title">Acciones asignadas</div><div class="card-sub">${(actions||[]).filter(a=>a.status==='pendiente').length} pendientes</div></div>
             <button onclick="abrirAccion('${schoolId}','')" class="btn-p" style="font-size:11px">+ Accion</button>
           </div>
-          ${!(actions||[]).length?`<div style="font-size:12px;color:var(--gray);font-style:italic">Sin acciones asignadas</div>`:
+          ${!(actions||[]).length?'<div style="font-size:12px;color:var(--gray);font-style:italic">Sin acciones asignadas</div>':
           (actions||[]).map(a=>{
             const aColors={visiteo:'#f57c00',agendar_doble:'var(--blue)',hablar_director:'#6a1b9a',seguimiento:'var(--green)',otro:'var(--gray)'};
             const aLabels={visiteo:'Visiteo',agendar_doble:'Agendar doble',hablar_director:'Hablar director',seguimiento:'Seguimiento',otro:'Otro'};
@@ -1824,7 +1835,7 @@ async function renderSesiones(){
         </div>
         ${ha?`<div style="background:var(--red-light);border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--red-dark)">
           <strong>Ultima sesion:</strong> ${fD(s.last_session_date)} — ${s.dias_atraso} dias de atraso.</div>`:''}
-        ${!si.length?`<div style="font-size:12px;color:var(--gray);font-style:italic">Sin incidencias.</div>`:
+        ${!si.length?'<div style="font-size:12px;color:var(--gray);font-style:italic">Sin incidencias.</div>':
         `<table class="t"><thead><tr><th>Tipo</th><th>Motivo</th><th>Fecha</th></tr></thead>
         <tbody>${si.map(i=>`<tr>
           <td>${bdg(IL[i.type]||i.type,IB[i.type]||'b-gray')}</td>
@@ -1843,11 +1854,11 @@ async function renderEvidencia(){
   c.innerHTML=`
     ${pend.length?`<div class="alert-blue"><div class="alert-dot ad-blue"></div>
       <div class="alert-txt"><strong>${pend.length} evidencia${pend.length>1?'s':''} pendiente${pend.length>1?'s':''} de validacion.</strong></div></div>`:''}
-    ${!(ev||[]).length?`<div style="text-align:center;padding:60px;color:var(--gray)">
+    ${!(ev||[]).length?'<div style="text-align:center;padding:60px;color:var(--gray)">
         <div style="font-size:28px;margin-bottom:10px">📎</div>
         <div style="font-family:Montserrat,sans-serif;font-size:14px;font-weight:600;margin-bottom:8px">Sin evidencia cargada</div>
         <button onclick="abrirEvidencia()" class="btn-p">+ Cargar primera evidencia</button>
-      </div>`:
+      </div>':
     `<div class="card" style="padding:0;overflow:hidden"><table class="t">
       <thead><tr><th style="padding:11px 16px">Escuela</th><th>Tipo</th><th>Descripcion</th><th>Por</th><th>Fecha</th><th>Archivo / Link</th><th>Estado</th><th></th></tr></thead>
       <tbody>${(ev||[]).map(e=>{
@@ -1923,7 +1934,7 @@ async function renderFundDash(){
 async function renderFundRubricas(){
   const c=document.getElementById('s-found-rubrics');if(!c)return;
   const{data:rubs}=await db.from('rubrics').select('*,schools(name)').order('created_at',{ascending:false});
-  c.innerHTML=!(rubs||[]).length?`<div style="text-align:center;padding:60px;color:var(--gray)">Sin rubricas cargadas</div>`:
+  c.innerHTML=!(rubs||[]).length?'<div style="text-align:center;padding:60px;color:var(--gray)">Sin rubricas cargadas</div>':
   `<div class="card" style="padding:0;overflow:hidden">
     <div style="padding:14px 20px;border-bottom:1px solid #f0f0f0">
       <div class="card-title">Rubricas y calificaciones</div>
@@ -2193,41 +2204,55 @@ function confirmarEliminarDocente(id,nombre){
 
 async function verHorarioDocente(teacherId,nombre){
   const{data:schedules}=await db.from('schedules').select('*').eq('teacher_id',teacherId).eq('active',true).order('day_of_week');
+  const existing=document.getElementById('m-horario-docente');
+  if(existing)existing.remove();
   const modal=document.createElement('div');
   modal.id='m-horario-docente';
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:8500;display:flex;align-items:center;justify-content:center';
-  const rows=(schedules||[]).map(h=>`<tr>
-    <td style="padding:8px 12px;font-family:Montserrat,sans-serif;font-weight:600">${DIAS[h.day_of_week]||h.day_of_week}</td>
-    <td style="font-size:12px">${h.start_time?.substring(0,5)||'--'} - ${h.end_time?.substring(0,5)||'--'}</td>
-    <td style="font-size:12px">${h.grade||'--'}</td>
-    <td style="font-size:11px;color:var(--gray)">${h.classroom||'--'}</td>
-    <td><button onclick="eliminarHorario('${h.id}')" style="background:#fff5f5;border:1px solid rgba(224,53,53,.2);color:var(--red-dark);padding:3px 8px;border-radius:5px;font-size:10px;cursor:pointer">X</button></td>
-  </tr>`).join('');
-  modal.innerHTML=`<div style="background:#fff;border-radius:14px;padding:28px;width:560px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25)">
-    <div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:6px">Horario de ${nombre}</div>
-    <div style="font-size:12px;color:var(--gray);margin-bottom:20px">Clases registradas en la plataforma</div>
-    ${!(schedules||[]).length
-      ? '<div style="font-size:12px;color:var(--gray);font-style:italic;margin-bottom:16px">Sin horario registrado todavia.</div>'
-      : `<table class="t" style="margin-bottom:16px"><thead><tr><th style="padding:8px 12px">Dia</th><th>Hora</th><th>Grupo</th><th>Salon</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
-    }
-    <div style="background:#f0fbff;border-radius:8px;padding:14px;margin-bottom:16px">
-      <div style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;margin-bottom:10px;color:var(--blue)">Agregar clase al horario</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-        <div><label class="_lbl">Dia</label><select id="nh-dia" class="_inp"><option value="1">Lunes</option><option value="2">Martes</option><option value="3">Miercoles</option><option value="4">Jueves</option><option value="5">Viernes</option></select></div>
-        <div><label class="_lbl">Escuela</label><select id="nh-escuela" class="_inp">${SCHOOLS.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select></div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px">
-        <div><label class="_lbl">Inicio</label><input id="nh-ini" type="time" value="08:00" class="_inp"></div>
-        <div><label class="_lbl">Fin</label><input id="nh-fin" type="time" value="09:00" class="_inp"></div>
-        <div><label class="_lbl">Grupo</label><input id="nh-grado" type="text" placeholder="2° A" class="_inp"></div>
-        <div><label class="_lbl">Salon</label><input id="nh-salon" type="text" placeholder="Aula 5" class="_inp"></div>
-      </div>
-      <button onclick="agregarHorarioDocente('${teacherId}')" class="_bp" style="margin-top:10px;width:100%;padding:9px">+ Agregar clase</button>
-    </div>
-    <div style="display:flex;justify-content:flex-end">
-      <button onclick="document.getElementById('m-horario-docente').remove()" class="_bg">Cerrar</button>
-    </div>
-  </div>`;
+
+  // Build schedule rows without nested templates
+  let rowsHtml='';
+  (schedules||[]).forEach(h=>{
+    rowsHtml+='<tr>';
+    rowsHtml+='<td style="padding:8px 12px;font-family:Montserrat,sans-serif;font-weight:600">'+(DIAS[h.day_of_week]||h.day_of_week)+'</td>';
+    rowsHtml+='<td style="font-size:12px">'+(h.start_time||'--').substring(0,5)+' - '+(h.end_time||'--').substring(0,5)+'</td>';
+    rowsHtml+='<td style="font-size:12px">'+(h.grade||'--')+'</td>';
+    rowsHtml+='<td style="font-size:11px;color:var(--gray)">'+(h.classroom||'--')+'</td>';
+    rowsHtml+='<td><button data-hid="'+h.id+'" onclick="eliminarHorario(this.dataset.hid)" style="background:#fff5f5;border:1px solid rgba(224,53,53,.2);color:var(--red-dark);padding:3px 8px;border-radius:5px;font-size:10px;cursor:pointer">X</button></td>';
+    rowsHtml+='</tr>';
+  });
+
+  // Build school options without nested templates
+  let schoolOpts='';
+  SCHOOLS.forEach(s=>{ schoolOpts+='<option value="'+s.id+'">'+s.name+'</option>'; });
+
+  const tableHtml = schedules&&schedules.length
+    ? '<table class="t" style="margin-bottom:16px"><thead><tr><th style="padding:8px 12px">Dia</th><th>Hora</th><th>Grupo</th><th>Salon</th><th></th></tr></thead><tbody>'+rowsHtml+'</tbody></table>'
+    : '<div style="font-size:12px;color:var(--gray);font-style:italic;margin-bottom:16px">Sin horario registrado todavia.</div>';
+
+  modal.innerHTML = '<div style="background:#fff;border-radius:14px;padding:28px;width:560px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25)">'
+    + '<div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:6px">Horario de '+nombre+'</div>'
+    + '<div style="font-size:12px;color:var(--gray);margin-bottom:16px">Clases registradas en la plataforma</div>'
+    + tableHtml
+    + '<div style="background:#f0fbff;border-radius:8px;padding:14px;margin-bottom:16px">'
+    + '<div style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;margin-bottom:10px;color:var(--blue)">Agregar clase al horario</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'
+    + '<div><label class="_lbl">Dia</label><select id="nh-dia" class="_inp"><option value="1">Lunes</option><option value="2">Martes</option><option value="3">Miercoles</option><option value="4">Jueves</option><option value="5">Viernes</option></select></div>'
+    + '<div><label class="_lbl">Escuela</label><select id="nh-escuela" class="_inp">'+schoolOpts+'</select></div>'
+    + '</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px">'
+    + '<div><label class="_lbl">Inicio</label><input id="nh-ini" type="time" value="08:00" class="_inp"></div>'
+    + '<div><label class="_lbl">Fin</label><input id="nh-fin" type="time" value="09:00" class="_inp"></div>'
+    + '<div><label class="_lbl">Grupo</label><input id="nh-grado" type="text" placeholder="2 A" class="_inp"></div>'
+    + '<div><label class="_lbl">Salon</label><input id="nh-salon" type="text" placeholder="Aula 5" class="_inp"></div>'
+    + '</div>'
+    + '<button data-tid="'+teacherId+'" onclick="agregarHorarioDocente(this.dataset.tid)" class="_bp" style="margin-top:10px;width:100%;padding:9px">+ Agregar clase</button>'
+    + '</div>'
+    + '<div style="display:flex;justify-content:flex-end">'
+    + '<button onclick="document.getElementById('m-horario-docente').remove()" class="_bg">Cerrar</button>'
+    + '</div>'
+    + '</div>';
+
   document.body.appendChild(modal);
 }
 
@@ -2323,7 +2348,7 @@ async function renderDocHome(){
           <div class="card-hd"><div><div class="card-title">Mi horario</div></div>
             <button onclick="oM('m-horario')" class="btn-g" style="font-size:11px">+ Agregar</button>
           </div>
-          ${!(schedules||[]).length?`<div style="font-size:12px;color:var(--gray);font-style:italic">Sin horario registrado. Agrega tus clases.</div>`:
+          ${!(schedules||[]).length?'<div style="font-size:12px;color:var(--gray);font-style:italic">Sin horario registrado. Agrega tus clases.</div>':
           `<table class="t"><thead><tr><th>Dia</th><th>Hora</th><th>Grupo</th><th>Salon</th></tr></thead>
           <tbody>${(schedules||[]).map(h=>`<tr>
             <td style="font-family:var(--font-title);font-size:12px;font-weight:600">${DIAS[h.day_of_week]||h.day_of_week}</td>
@@ -2338,7 +2363,7 @@ async function renderDocHome(){
           <div class="card-hd"><div><div class="card-title">Mis planeaciones</div></div>
             <button onclick="abrirPlaneacion()" class="btn-p" style="font-size:11px">+ Subir</button>
           </div>
-          ${!(plannings||[]).length?`<div style="font-size:12px;color:var(--gray);font-style:italic">Aun no has subido planeaciones. Presiona "+ Subir" para comenzar.</div>`:
+          ${!(plannings||[]).length?'<div style="font-size:12px;color:var(--gray);font-style:italic">Aun no has subido planeaciones. Presiona "+ Subir" para comenzar.</div>':
           (plannings||[]).slice(0,4).map(p=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f5f5f5">
             <div style="width:32px;height:32px;border-radius:8px;background:var(--green-light);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">✓</div>
             <div style="flex:1">
@@ -2428,11 +2453,11 @@ async function renderDocPlan(){
 
       <div class="card">
         <div class="card-hd"><div class="card-title">Mis planeaciones subidas</div></div>
-        ${!(plannings||[]).length?`<div style="text-align:center;padding:20px;color:var(--gray)">
+        ${!(plannings||[]).length?'<div style="text-align:center;padding:20px;color:var(--gray)">
           <div style="font-size:32px;margin-bottom:10px">📝</div>
           <div style="font-family:Montserrat,sans-serif;font-size:13px;font-weight:600;margin-bottom:6px">Aun no has subido planeaciones</div>
           <div style="font-size:12px">Presiona el boton de arriba para subir tu primera planeacion</div>
-        </div>`:
+        </div>':
         (plannings||[]).map(p=>`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f5f5f5">
           <div style="width:36px;height:36px;border-radius:8px;background:var(--green-light);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">✅</div>
           <div style="flex:1">
