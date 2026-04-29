@@ -1599,9 +1599,10 @@ async function renderEscuelas(){
   const c=document.getElementById('s-escuelas');if(!c)return;
   const{data:incs}=await db.from('incidents').select('school_id');
   const cnt={};(incs||[]).forEach(i=>{cnt[i.school_id]=(cnt[i.school_id]||0)+1;});
-  c.innerHTML=`
-    ${SCHOOLS.filter(s=>s.dias_atraso>14).length?'<div class="alert-red"><div class="alert-dot ad-red"></div>
-      <div class="alert-txt">Las escuelas en rojo llevan mas de 2 semanas sin sesion.</div></div>':''}
+  const alertHtml = SCHOOLS.filter(s=>s.dias_atraso>14).length
+    ? '<div class="alert-red"><div class="alert-dot ad-red"></div><div class="alert-txt">Las escuelas en rojo llevan mas de 2 semanas sin sesion.</div></div>'
+    : '';
+  c.innerHTML = alertHtml + `
     <div class="card" style="padding:0;overflow:hidden"><table class="t">
       <thead><tr><th style="padding:11px 16px">Escuela</th><th>Ubicacion</th><th>Tipo</th><th>Año</th><th>Alumnos</th><th>Incidencias</th><th>Ultima sesion</th><th>Estado</th><th></th></tr></thead>
       <tbody>${SCHOOLS.map(s=>`<tr style="${s.dias_atraso>14?'background:#fff5f5':''}">
@@ -1637,6 +1638,8 @@ async function renderModulos(){
   if(SCHOOLS.length) renderModulosEscuela(SCHOOLS[0].id);
 }
 
+
+function _accionBtn(sid){ return '<button onclick="abrirAccion(\"'+sid+'\",\"\")" style="background:#fdecea;border:1px solid rgba(224,53,53,.3);color:#c62828;padding:5px 12px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;cursor:pointer">Asignar accion al responsable</button>'; }
 async function renderModulosEscuela(schoolId){
   const c=document.getElementById('mod-content');if(!c)return;
   c.innerHTML=`<div style="text-align:center;padding:30px;color:var(--gray)">Cargando...</div>`;
@@ -1679,7 +1682,7 @@ async function renderModulosEscuela(schoolId){
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           ${bdg(alT(school.dias_atraso),alC(school.dias_atraso))}
-          ${school.dias_atraso>14?'<button data-sid="'+schoolId+'" onclick="abrirAccion(this.dataset.sid,\'\')" style="background:#fdecea;border:1px solid rgba(224,53,53,.3);color:#c62828;padding:5px 12px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;cursor:pointer">Asignar accion al responsable</button>':''}
+          ${school.dias_atraso>14 ? _accionBtn(schoolId) : ''}
         </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px">
