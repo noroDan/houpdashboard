@@ -1395,7 +1395,13 @@ async function _initApp(user){
   const FS={admin_houp:'s-dash',responsable:'s-resp-home',docente:'s-doc-home',fundacion:'s-found-dash'};
   const NM={admin_houp:'nav-admin',responsable:'nav-responsable',docente:'nav-docente',fundacion:'nav-fundacion'};
   const navEl=document.getElementById(NM[PROFILE.role]||'nav-admin');
-  nav(navEl?.querySelector('.nav-item'),FS[PROFILE.role]||'s-dash');
+  // Restore last screen from session
+  let startScreen=FS[PROFILE.role]||'s-dash';
+  try{const saved=sessionStorage.getItem('houp_screen');if(saved&&document.getElementById(saved))startScreen=saved;}catch(e){}
+  // Find matching nav item for saved screen
+  const allNavItems=navEl?[...navEl.querySelectorAll('.nav-item')]:[];
+  const matchingNav=allNavItems.find(el=>{const oc=el.getAttribute('onclick')||'';return oc.includes(startScreen);})||navEl?.querySelector('.nav-item');
+  nav(matchingNav,startScreen);
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -1422,19 +1428,24 @@ async function _getSessions(schoolId){
 }
 
 async function _ensureSessions(schoolId){
-  const existing=await _getSessions(schoolId);
-  if(existing.length>0) return existing;
-  // Seed 20 sessions for this school
-  const rows=[];
-  let sn=1;
-  for(const mod of MODULOS){
-    for(let i=0;i<mod.sessions;i++){
-      rows.push({school_id:schoolId,session_number:sn,module_number:mod.n,module_name:mod.name,status:'pendiente'});
-      sn++;
+  try{
+    const existing=await _getSessions(schoolId);
+    if(existing.length>0) return existing;
+    // Seed 20 sessions for this school
+    const rows=[];let sn=1;
+    for(const mod of MODULOS){
+      for(let i=0;i<mod.sessions;i++){
+        rows.push({school_id:schoolId,session_number:sn,module_number:mod.n,module_name:mod.name,status:'pendiente'});
+        sn++;
+      }
     }
+    const{error}=await db.from('sessions').insert(rows);
+    if(error){console.error('Sessions insert error:',error);return [];}
+    return await _getSessions(schoolId);
+  }catch(err){
+    console.error('_ensureSessions error:',err);
+    return [];
   }
-  await db.from('sessions').insert(rows);
-  return await _getSessions(schoolId);
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -1454,6 +1465,7 @@ function nav(el,screenId){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById(screenId)?.classList.add('active');
   SCREEN=screenId;
+  try{sessionStorage.setItem('houp_screen',screenId);}catch(e){}
   const TITLES={'s-dash':'Panel general','s-escuelas':'Escuelas','s-sesiones':'Seguimiento de sesiones',
     's-modulos':'Avance por escuela','s-evidencia':'Evidencia','s-found-dash':'Panel Fundacion',
     's-found-rubrics':'Rubricas y calificaciones','s-found-reports':'Descargar reportes',
@@ -1521,8 +1533,9 @@ const AVG=arr=>arr.length?(arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(2):'--';
 // ─────────────────────────────────────────────────────────────────
 async function renderDash(){
   const c=document.getElementById('s-dash');if(!c)return;
-  const alerts=SCHOOLS.filter(s=>s.dias_atraso>14);
-  const total=SCHOOLS.reduce((a,b)=>a+(b.total_students||0),0);
+  const activeSchools=SCHOOLS.filter(s=>s.active!==false);
+  const alerts=activeSchools.filter(s=>s.dias_atraso>14);
+  const total=activeSchools.reduce((a,b)=>a+(b.total_students||0),0);
   const[{data:rubs},{data:incs},{data:actions}]=await Promise.all([
     db.from('rubrics').select('average_score'),
     db.from('incidents').select('type'),
@@ -1547,7 +1560,7 @@ async function renderDash(){
     <div class="two-col">
       <div class="card">
         <div class="card-hd"><div><div class="card-title">Estado por escuela</div></div></div>
-        ${SCHOOLS.map(s=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        ${activeSchools.map(s=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
           <div class="ind ${s.dias_atraso>14?'ind-r':s.dias_atraso>7?'ind-a':'ind-g'}"></div>
           <div style="flex:1;font-family:var(--font-title);font-size:12px;font-weight:600;${s.dias_atraso>14?'color:var(--red-dark)':''}">${s.name}</div>
           ${bdg(alT(s.dias_atraso),alC(s.dias_atraso))}
@@ -1619,8 +1632,20 @@ async function renderModulosEscuela(schoolId){
   const school=SCHOOLS.find(s=>s.id===schoolId);
   if(!school){c.innerHTML='<div style="color:var(--gray);padding:20px">Selecciona una escuela</div>';return;}
 
-  const[sessions,{data:incs},{data:actions},{data:rubs}]=await Promise.all([
-    _ensureSessions(schoolId),
+  let sessions=[];
+  try{ sessions=await _ensureSessions(schoolId); }catch(e){ console.error(e); }
+  if(!sessions||!sessions.length){
+    c.innerHTML=`<div style="background:#fff;border-radius:10px;padding:30px;text-align:center;color:var(--gray)">
+      <div style="font-size:13px;font-weight:600;font-family:Montserrat,sans-serif;margin-bottom:8px">No se pudieron cargar las sesiones</div>
+      <div style="font-size:12px;margin-bottom:14px">Verifica que la tabla <strong>sessions</strong> existe en Supabase</div>
+      <button onclick="renderModulosEscuela('${schoolId}')" class="btn-p" style="font-size:12px">Reintentar</button>
+    </div>`;return;
+  }
+  const[{data:incs},{data:actions},{data:rubs}]=await Promise.all([
+    db.from('incidents').select('*').eq('school_id',schoolId).order('incident_date',{ascending:false}),
+    db.from('actions').select('*').eq('school_id',schoolId).order('created_at',{ascending:false}).catch(()=>({data:[]})),
+    db.from('rubrics').select('*').eq('school_id',schoolId),
+  ]);
     db.from('incidents').select('*').eq('school_id',schoolId).order('incident_date',{ascending:false}),
     db.from('actions').select('*').eq('school_id',schoolId).order('created_at',{ascending:false}).catch(()=>({data:[]})),
     db.from('rubrics').select('*').eq('school_id',schoolId),
@@ -1961,7 +1986,7 @@ async function renderRespHome(){
     <div class="two-col">
       <div class="card">
         <div class="card-hd"><div class="card-title">Mis escuelas</div></div>
-        ${SCHOOLS.map(s=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        ${activeSchools.map(s=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
           <div class="ind ${s.dias_atraso>14?'ind-r':s.dias_atraso>7?'ind-a':'ind-g'}"></div>
           <div style="flex:1">
             <div style="font-family:var(--font-title);font-size:12px;font-weight:700;${s.dias_atraso>14?'color:var(--red-dark)':''}">${s.name}</div>
@@ -2006,55 +2031,235 @@ async function renderRespSesiones(){
   }).join('');
 }
 
+
+// ─────────────────────────────────────────────────────────────────
+//  TEACHERS CRUD (for responsable panel)
+// ─────────────────────────────────────────────────────────────────
 async function renderRespEscuelas(){
   const c=document.getElementById('s-resp-equipo');if(!c)return;
-  const[{data:incs},{data:rubs},{data:actions}]=await Promise.all([
+  const[{data:incs},{data:rubs},{data:actions},{data:teachers}]=await Promise.all([
     db.from('incidents').select('*'),
     db.from('rubrics').select('*'),
     db.from('actions').select('*').catch(()=>({data:[]})),
+    db.from('profiles').select('*').eq('role','docente').order('full_name'),
   ]);
-  c.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px">
-    ${SCHOOLS.map(s=>{
-      const si=(incs||[]).filter(i=>i.school_id===s.id);
-      const sr=(rubs||[]).filter(r=>r.school_id===s.id);
-      const sa=AVG(sr.map(r=>parseFloat(r.average_score)||0));
-      const pendAcc=(actions||[]).filter(a=>a.school_id===s.id&&a.status==='pendiente').length;
-      const ha=s.dias_atraso>14;
-      return `<div class="card" style="${ha?'border:1.5px solid rgba(224,53,53,.3)':''}">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
-          <div>
-            <div style="font-family:Montserrat,sans-serif;font-size:14px;font-weight:800;${ha?'color:var(--red-dark)':''}">${s.name}</div>
-            <div style="font-size:11px;color:var(--gray);margin-top:2px">${s.city}, ${s.state||'NL'} · ${s.year_model}</div>
+
+  c.innerHTML=`
+    <!-- School cards -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;margin-bottom:20px">
+      ${SCHOOLS.map(s=>{
+        const si=(incs||[]).filter(i=>i.school_id===s.id);
+        const sr=(rubs||[]).filter(r=>r.school_id===s.id);
+        const sa=AVG(sr.map(r=>parseFloat(r.average_score)||0));
+        const pendAcc=(actions||[]).filter(a=>a.school_id===s.id&&a.status==='pendiente').length;
+        const ha=s.dias_atraso>14;
+        return `<div class="card" style="${ha?'border:1.5px solid rgba(224,53,53,.3)':''}">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+            <div>
+              <div style="font-family:Montserrat,sans-serif;font-size:14px;font-weight:800;${ha?'color:var(--red-dark)':''}">${s.name}</div>
+              <div style="font-size:11px;color:var(--gray);margin-top:2px">${s.city}, ${s.state||'NL'} · ${s.year_model}</div>
+            </div>
+            ${bdg(alT(s.dias_atraso),alC(s.dias_atraso))}
           </div>
-          ${bdg(alT(s.dias_atraso),alC(s.dias_atraso))}
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">
+            <div style="background:rgba(2,193,244,.07);border-radius:7px;padding:10px;text-align:center">
+              <div style="font-family:var(--font-title);font-size:18px;font-weight:800;color:var(--blue)">${s.total_students||0}</div>
+              <div style="font-size:9px;color:var(--gray)">Alumnos</div>
+            </div>
+            <div style="background:${parseFloat(sa)>=2?'var(--green-light)':'var(--amber-light)'};border-radius:7px;padding:10px;text-align:center">
+              <div style="font-family:var(--font-title);font-size:18px;font-weight:800;color:${parseFloat(sa)>=2?'var(--green)':'var(--amber)'}">${sa}</div>
+              <div style="font-size:9px;color:var(--gray)">Rubrica</div>
+            </div>
+            <div style="background:${ha?'var(--red-light)':'var(--green-light)'};border-radius:7px;padding:10px;text-align:center">
+              <div style="font-family:var(--font-title);font-size:18px;font-weight:800;color:${ha?'var(--red-dark)':'var(--green)'}">${s.dias_atraso<999?s.dias_atraso:0}d</div>
+              <div style="font-size:9px;color:var(--gray)">Sin sesion</div>
+            </div>
+          </div>
+          ${pendAcc?`<div style="background:#fffbf0;border:1px solid rgba(245,124,0,.25);border-radius:6px;padding:8px 10px;margin-bottom:10px;font-size:11px;color:#e65100"><strong>${pendAcc} accion${pendAcc>1?'es':''} pendiente${pendAcc>1?'s':''}</strong>.</div>`:''}
+          <div style="display:flex;gap:6px">
+            <button onclick="abrirVisita('${s.id}')" class="btn-p" style="flex:1;font-size:11px;padding:7px">+ Visita</button>
+            <button onclick="abrirIncidencia('${s.id}')" class="btn-g" style="flex:1;font-size:11px;padding:7px">+ Incidencia</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+
+    <!-- Teachers section -->
+    <div class="card">
+      <div class="card-hd">
+        <div><div class="card-title">Docentes del programa</div>
+          <div class="card-sub">${(teachers||[]).length} docentes registrados</div>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">
-          <div style="background:rgba(2,193,244,.07);border-radius:7px;padding:10px;text-align:center">
-            <div style="font-family:var(--font-title);font-size:18px;font-weight:800;color:var(--blue)">${s.total_students||0}</div>
-            <div style="font-size:9px;color:var(--gray)">Alumnos</div>
-          </div>
-          <div style="background:${parseFloat(sa)>=2?'var(--green-light)':'var(--amber-light)'};border-radius:7px;padding:10px;text-align:center">
-            <div style="font-family:var(--font-title);font-size:18px;font-weight:800;color:${parseFloat(sa)>=2?'var(--green)':'var(--amber)'}">${sa}</div>
-            <div style="font-size:9px;color:var(--gray)">Rubrica</div>
-          </div>
-          <div style="background:${ha?'var(--red-light)':'var(--green-light)'};border-radius:7px;padding:10px;text-align:center">
-            <div style="font-family:var(--font-title);font-size:18px;font-weight:800;color:${ha?'var(--red-dark)':'var(--green)'}">${s.dias_atraso<999?s.dias_atraso:0}d</div>
-            <div style="font-size:9px;color:var(--gray)">Sin sesion</div>
-          </div>
-        </div>
-        ${pendAcc?`<div style="background:#fffbf0;border:1px solid rgba(245,124,0,.25);border-radius:6px;padding:8px 10px;margin-bottom:10px;font-size:11px;color:#e65100"><strong>${pendAcc} accion${pendAcc>1?'es':''} pendiente${pendAcc>1?'s':''}</strong> asignada${pendAcc>1?'s':''}.</div>`:''}
-        <div style="display:flex;gap:6px">
-          <button onclick="abrirVisita('${s.id}')" class="btn-p" style="flex:1;font-size:11px;padding:7px">+ Visita</button>
-          <button onclick="abrirIncidencia('${s.id}')" class="btn-g" style="flex:1;font-size:11px;padding:7px">+ Incidencia</button>
-        </div>
-      </div>`;
-    }).join('')}
-  </div>`;
+        <button onclick="abrirNuevoDocente()" class="btn-p" style="font-size:11px">+ Agregar docente</button>
+      </div>
+      ${!(teachers||[]).length
+        ? '<div style="font-size:12px;color:var(--gray);font-style:italic;padding:10px 0">Sin docentes registrados. Agrega el primero con el boton de arriba.</div>'
+        : `<div style="overflow-x:auto"><table class="t">
+            <thead><tr>
+              <th style="padding:10px 16px">Docente</th>
+              <th>Correo</th>
+              <th>Escuela</th>
+              <th>Horario registrado</th>
+              <th></th>
+            </tr></thead>
+            <tbody>${(teachers||[]).map(t=>{
+              const school=SCHOOLS.find(s=>s.id===t.school_id);
+              return `<tr>
+                <td style="padding:9px 16px">
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <div style="width:32px;height:32px;border-radius:50%;background:rgba(2,193,244,.1);display:flex;align-items:center;justify-content:center;color:var(--blue);font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;flex-shrink:0">
+                      ${(t.full_name||t.email).split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase()}
+                    </div>
+                    <div style="font-family:Montserrat,sans-serif;font-size:12.5px;font-weight:700">${t.full_name||'--'}</div>
+                  </div>
+                </td>
+                <td style="font-size:11px;color:var(--gray)">${t.email}</td>
+                <td style="font-size:12px">${school?school.name:'Sin asignar'}</td>
+                <td>
+                  <button onclick="verHorarioDocente('${t.id}','${t.full_name||t.email}')" 
+                    style="background:var(--blue-light);border:1px solid rgba(2,193,244,.25);color:var(--blue);padding:4px 10px;border-radius:6px;font-size:10px;font-family:Montserrat,sans-serif;font-weight:600;cursor:pointer">
+                    Ver horario
+                  </button>
+                </td>
+                <td style="padding:8px 12px">
+                  <div style="display:flex;gap:5px">
+                    <button onclick="editarDocente('${t.id}')" class="btn-g" style="font-size:10px;padding:4px 10px">Editar</button>
+                    <button onclick="confirmarEliminarDocente('${t.id}','${(t.full_name||t.email).replace(/'/g,''')}')" 
+                      style="background:#fff5f5;border:1px solid rgba(224,53,53,.2);color:var(--red-dark);padding:4px 10px;border-radius:6px;font-size:10px;cursor:pointer">
+                      Eliminar
+                    </button>
+                  </div>
+                </td>
+              </tr>`;
+            }).join('')}</tbody>
+          </table></div>`
+      }
+    </div>`;
 }
 
-// ─────────────────────────────────────────────────────────────────
-//  DOCENTE SCREENS
-// ─────────────────────────────────────────────────────────────────
+function abrirNuevoDocente(){
+  // Reuse existing user modal but pre-select docente role
+  document.getElementById('usr-nombre').value='';
+  document.getElementById('usr-email').value='';
+  document.getElementById('usr-rol').value='docente';
+  document.getElementById('usr-pass').value='';
+  document.getElementById('usr-escuela').value='';
+  oM('m-usuario');
+}
+
+async function editarDocente(id){
+  const{data:p}=await db.from('profiles').select('*').eq('id',id).single();
+  if(!p){toast('No se encontro el docente',true);return;}
+  // Show edit modal
+  const modal=document.createElement('div');
+  modal.id='m-edit-docente';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:8500;display:flex;align-items:center;justify-content:center';
+  modal.innerHTML=`<div style="background:#fff;border-radius:14px;padding:28px;width:500px;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+    <div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:20px">Editar docente</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label class="_lbl">Nombre completo</label><input id="ed-nombre" type="text" value="${p.full_name||''}" class="_inp"></div>
+      <div><label class="_lbl">Escuela</label><select id="ed-escuela" class="_inp">
+        <option value="">-- Sin escuela --</option>
+        ${SCHOOLS.map(s=>`<option value="${s.id}" ${s.id===p.school_id?'selected':''}>${s.name}</option>`).join('')}
+      </select></div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">
+      <button onclick="document.getElementById('m-edit-docente').remove()" class="_bg">Cancelar</button>
+      <button onclick="guardarEdicionDocente('${id}')" class="_bp">Guardar cambios</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+}
+
+async function guardarEdicionDocente(id){
+  const nombre=document.getElementById('ed-nombre').value.trim();
+  const escuela=document.getElementById('ed-escuela').value;
+  if(!nombre){toast('El nombre es requerido',true);return;}
+  const{error}=await db.from('profiles').update({full_name:nombre,school_id:escuela||null}).eq('id',id);
+  if(error){toast('Error: '+error.message,true);return;}
+  document.getElementById('m-edit-docente')?.remove();
+  toast('Docente actualizado');
+  renderRespEscuelas();
+}
+
+function confirmarEliminarDocente(id,nombre){
+  confirm2(
+    `Eliminar a "${nombre}"`,
+    `Se eliminara el perfil de este docente de la plataforma. Esta accion no se puede deshacer.`,
+    async()=>{
+      const{error}=await db.from('profiles').delete().eq('id',id);
+      if(error){toast('Error: '+error.message,true);return;}
+      toast('Docente eliminado');
+      renderRespEscuelas();
+    }
+  );
+}
+
+async function verHorarioDocente(teacherId,nombre){
+  const{data:schedules}=await db.from('schedules').select('*').eq('teacher_id',teacherId).eq('active',true).order('day_of_week');
+  const modal=document.createElement('div');
+  modal.id='m-horario-docente';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:8500;display:flex;align-items:center;justify-content:center';
+  const rows=(schedules||[]).map(h=>`<tr>
+    <td style="padding:8px 12px;font-family:Montserrat,sans-serif;font-weight:600">${DIAS[h.day_of_week]||h.day_of_week}</td>
+    <td style="font-size:12px">${h.start_time?.substring(0,5)||'--'} - ${h.end_time?.substring(0,5)||'--'}</td>
+    <td style="font-size:12px">${h.grade||'--'}</td>
+    <td style="font-size:11px;color:var(--gray)">${h.classroom||'--'}</td>
+    <td><button onclick="eliminarHorario('${h.id}')" style="background:#fff5f5;border:1px solid rgba(224,53,53,.2);color:var(--red-dark);padding:3px 8px;border-radius:5px;font-size:10px;cursor:pointer">X</button></td>
+  </tr>`).join('');
+  modal.innerHTML=`<div style="background:#fff;border-radius:14px;padding:28px;width:560px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+    <div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:6px">Horario de ${nombre}</div>
+    <div style="font-size:12px;color:var(--gray);margin-bottom:20px">Clases registradas en la plataforma</div>
+    ${!(schedules||[]).length
+      ? '<div style="font-size:12px;color:var(--gray);font-style:italic;margin-bottom:16px">Sin horario registrado todavia.</div>'
+      : `<table class="t" style="margin-bottom:16px"><thead><tr><th style="padding:8px 12px">Dia</th><th>Hora</th><th>Grupo</th><th>Salon</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
+    }
+    <div style="background:#f0fbff;border-radius:8px;padding:14px;margin-bottom:16px">
+      <div style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;margin-bottom:10px;color:var(--blue)">Agregar clase al horario</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div><label class="_lbl">Dia</label><select id="nh-dia" class="_inp"><option value="1">Lunes</option><option value="2">Martes</option><option value="3">Miercoles</option><option value="4">Jueves</option><option value="5">Viernes</option></select></div>
+        <div><label class="_lbl">Escuela</label><select id="nh-escuela" class="_inp">${SCHOOLS.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px">
+        <div><label class="_lbl">Inicio</label><input id="nh-ini" type="time" value="08:00" class="_inp"></div>
+        <div><label class="_lbl">Fin</label><input id="nh-fin" type="time" value="09:00" class="_inp"></div>
+        <div><label class="_lbl">Grupo</label><input id="nh-grado" type="text" placeholder="2° A" class="_inp"></div>
+        <div><label class="_lbl">Salon</label><input id="nh-salon" type="text" placeholder="Aula 5" class="_inp"></div>
+      </div>
+      <button onclick="agregarHorarioDocente('${teacherId}')" class="_bp" style="margin-top:10px;width:100%;padding:9px">+ Agregar clase</button>
+    </div>
+    <div style="display:flex;justify-content:flex-end">
+      <button onclick="document.getElementById('m-horario-docente').remove()" class="_bg">Cerrar</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+}
+
+async function agregarHorarioDocente(teacherId){
+  const dia=parseInt(document.getElementById('nh-dia').value);
+  const sc=document.getElementById('nh-escuela').value;
+  const ini=document.getElementById('nh-ini').value;
+  const fin=document.getElementById('nh-fin').value;
+  const gr=document.getElementById('nh-grado').value;
+  const sal=document.getElementById('nh-salon').value;
+  if(!ini||!fin){toast('Completa hora inicio y fin',true);return;}
+  const{error}=await db.from('schedules').insert({school_id:sc,teacher_id:teacherId,day_of_week:dia,start_time:ini,end_time:fin,grade:gr,classroom:sal,active:true});
+  if(error){toast('Error: '+error.message,true);return;}
+  toast('Horario agregado');
+  document.getElementById('m-horario-docente')?.remove();
+  // Reopen to show updated schedule
+  const{data:p}=await db.from('profiles').select('full_name,email').eq('id',teacherId).single();
+  verHorarioDocente(teacherId,p?.full_name||p?.email||'Docente');
+}
+
+async function eliminarHorario(id){
+  await db.from('schedules').update({active:false}).eq('id',id);
+  toast('Clase eliminada del horario');
+  // Refresh the modal if open - just close it
+  document.getElementById('m-horario-docente')?.remove();
+  renderRespEscuelas();
+}
+
 async function renderDocHome(){
   const c=document.getElementById('s-doc-home');if(!c)return;
   // Get school for this docente
@@ -2429,10 +2634,10 @@ async function guardarEvidencia(){
   _evFile=null;
   document.getElementById('ev-url').value='';
   document.getElementById('ev-desc').value='';
-
-  // Show big success feedback
   toast('✅ Evidencia cargada correctamente');
-  if(SCREEN==='s-evidencia')renderEvidencia();
+  renderEvidencia();
+  // Also refresh if in another screen that shows evidence count
+  if(SCREEN==='s-dash')renderDash();
 }
 
 async function guardarPlaneacion(){
