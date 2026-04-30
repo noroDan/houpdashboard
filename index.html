@@ -1201,7 +1201,15 @@ function ensureSessions(schoolId, cb) {
       }
     });
     SB.from('sessions').insert(rows).then(function(res) {
-      if(res.error) { console.error('Sessions error:', res.error); cb([]); return; }
+      if(res.error) { 
+        console.error('Sessions insert error:', res.error.message, res.error.details);
+        // Try to get existing even if insert failed (might be duplicate)
+        getSessions(schoolId, function(fallback) {
+          if(fallback.length > 0) cb(fallback);
+          else cb([]);
+        });
+        return; 
+      }
       getSessions(schoolId, cb);
     });
   });
@@ -1249,7 +1257,7 @@ function renderDash() {
   Promise.all([
     SB.from('rubrics').select('average_score'),
     SB.from('incidents').select('type'),
-    SB.from('actions').select('status').eq('status','pendiente').catch(function(){ return {data:[]}; })
+    SB.from('actions').select('status').eq('status','pendiente')
   ]).then(function(results) {
     var rubs = results[0].data || [];
     var incs = results[1].data || [];
@@ -1353,7 +1361,7 @@ function renderModEscuela(schoolId) {
   Promise.all([
     new Promise(function(res){ ensureSessions(schoolId, res); }),
     SB.from('incidents').select('*').eq('school_id', schoolId).order('incident_date',{ascending:false}),
-    SB.from('actions').select('*').eq('school_id', schoolId).order('created_at',{ascending:false}).catch(function(){ return {data:[]}; }),
+    SB.from('actions').select('*').eq('school_id', schoolId).order('created_at',{ascending:false}),
     SB.from('rubrics').select('*').eq('school_id', schoolId)
   ]).then(function(results) {
     var sessions = results[0];
@@ -1649,7 +1657,7 @@ function renderRespHome() {
   loading(c);
   Promise.all([
     SB.from('incidents').select('*,schools(name)').order('created_at',{ascending:false}).limit(10),
-    SB.from('actions').select('*,schools(name)').eq('status','pendiente').order('created_at',{ascending:false}).catch(function(){ return {data:[]}; })
+    SB.from('actions').select('*,schools(name)').eq('status','pendiente').order('created_at',{ascending:false})
   ]).then(function(results) {
     var incs = results[0].data || [];
     var acts = results[1].data || [];
@@ -1717,7 +1725,7 @@ function renderRespSesiones() {
   loading(c);
   Promise.all([
     SB.from('incidents').select('*,schools(name)').order('incident_date',{ascending:false}),
-    SB.from('plannings').select('school_id,session_number,module_number,submitted_at').catch(function(){ return {data:[]}; })
+    SB.from('plannings').select('school_id,session_number,module_number,submitted_at')
   ]).then(function(results) {
     var incs = results[0].data || [];
     var plans = results[1].data || [];
@@ -1767,7 +1775,7 @@ function renderRespEscuelas() {
   Promise.all([
     SB.from('incidents').select('*'),
     SB.from('rubrics').select('*'),
-    SB.from('actions').select('*').catch(function(){ return {data:[]}; }),
+    SB.from('actions').select('*'),
     SB.from('profiles').select('*').eq('role','docente').order('full_name')
   ]).then(function(results) {
     var incs = results[0].data || [];
@@ -1837,8 +1845,8 @@ function renderDocHome() {
   if(!mySchool) { c.innerHTML='<div style="text-align:center;padding:40px;color:var(--gray)">Sin escuela asignada</div>'; return; }
   ensureSessions(mySchool.id, function(sessions) {
     Promise.all([
-      SB.from('plannings').select('*').eq('school_id',mySchool.id).order('submitted_at',{ascending:false}).catch(function(){ return {data:[]}; }),
-      SB.from('schedules').select('*').eq('school_id',mySchool.id).eq('active',true).order('day_of_week').catch(function(){ return {data:[]}; })
+      SB.from('plannings').select('*').eq('school_id',mySchool.id).order('submitted_at',{ascending:false}),
+      SB.from('schedules').select('*').eq('school_id',mySchool.id).eq('active',true).order('day_of_week')
     ]).then(function(results) {
       var plans = results[0].data || [];
       var scheds = results[1].data || [];
@@ -1915,7 +1923,7 @@ function renderDocMaterial() {
     var current = null;
     for(var i=0;i<sessions.length;i++){if(sessions[i].status!=='completada'){current=sessions[i];break;}}
     if(!current) current = sessions[sessions.length-1];
-    SB.from('plannings').select('*').eq('school_id',mySchool.id).eq('visible_to_team',true).order('submitted_at',{ascending:false}).catch(function(){return {data:[]};}).then(function(res){
+    SB.from('plannings').select('*').eq('school_id',mySchool.id).eq('visible_to_team',true).order('submitted_at',{ascending:false}).then(function(res){
       var plans = res.data||[];
       var html = '<div class="card" style="margin-bottom:14px;background:linear-gradient(135deg,#012B38,#014a63);border:none">';
       html += '<div style="color:#fff"><div style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:600;color:rgba(255,255,255,.6);margin-bottom:6px">SESION ACTUAL</div>';
@@ -1955,7 +1963,7 @@ function renderDocPlan() {
     var current = null;
     for(var i=0;i<sessions.length;i++){if(sessions[i].status!=='completada'){current=sessions[i];break;}}
     if(!current) current = sessions[sessions.length-1];
-    SB.from('plannings').select('*').eq('school_id',mySchool.id).order('submitted_at',{ascending:false}).limit(5).catch(function(){return {data:[]};}).then(function(res){
+    SB.from('plannings').select('*').eq('school_id',mySchool.id).order('submitted_at',{ascending:false}).limit(5).then(function(res){
       var plans = res.data||[];
       var planHtml = '';
       if(!plans.length) {
