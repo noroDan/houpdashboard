@@ -979,6 +979,12 @@
 const _SU='https://kcdckzcsnqjqfsdxwemd.supabase.co';
 const _SK='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtjZGNremNzbnFqcWZzZHh3ZW1kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MzI2NTMsImV4cCI6MjA5MzAwODY1M30.4PueblwJJUe5aTsmXhkS2KifKRjgaFkesfyiZjS0580';
 const db=supabase.createClient(_SU,_SK);
+// ── STUBS: defined immediately so HTML onclick handlers work ──────
+// These get fully replaced when the real functions are defined below
+var nav = function(el,s){ /* loaded */ };
+var switchRole = function(r){ /* loaded */ };  
+var doLogout = function(){ /* loaded */ };
+
 
 let ME=null,PROFILE=null,SCHOOLS=[],SCREEN='s-dash';
 const RL={admin_houp:'Admin Houp',responsable:'Responsable',docente:'Docente',fundacion:'Fundacion'};
@@ -1897,7 +1903,7 @@ async function renderEvidencia(){
       html+='<td>'+bdg(e.validated?'Validada':'Pendiente',e.validated?'b-green':'b-amber')+'</td>';
       html+='<td style="padding:8px 12px">';
       if(!e.validated){
-        html+='<button onclick="validarEvidencia(''+e.id+'')" class="btn-p" style="font-size:10px;padding:4px 10px">Validar</button>';
+        html+='<button data-eid="'+e.id+'" onclick="validarEvidencia(this.dataset.eid)" class="btn-p" style="font-size:10px;padding:4px 10px">Validar</button>';
       }
       html+='</td>';
       html+='</tr>';
