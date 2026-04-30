@@ -1452,6 +1452,7 @@ async function _initApp(user){
 // ─────────────────────────────────────────────────────────────────
 async function _loadSchools(){
   const{data}=await db.from('schools').select('*').eq('active',true).order('name');
+  if(!data||!data.length){SCHOOLS=[];return;}
   const today=new Date();
   SCHOOLS=(data||[]).map(s=>{
     s.dias_atraso=s.last_session_date?Math.floor((today-new Date(s.last_session_date))/864e5):999;
@@ -2079,6 +2080,7 @@ async function renderRespSesiones(){
 // ─────────────────────────────────────────────────────────────────
 async function renderRespEscuelas(){
   const c=document.getElementById('s-resp-equipo');if(!c)return;
+  c.innerHTML='<div style="text-align:center;padding:30px;color:var(--gray)">Cargando...</div>';
   const[{data:incs},{data:rubs},{data:actions},{data:teachers}]=await Promise.all([
     db.from('incidents').select('*'),
     db.from('rubrics').select('*'),
@@ -2314,12 +2316,16 @@ async function eliminarHorario(id){
 
 async function renderDocHome(){
   const c=document.getElementById('s-doc-home');if(!c)return;
-  // Get school for this docente
   const mySchool=SCHOOLS.find(s=>s.id===PROFILE.school_id)||SCHOOLS[0];
-  if(!mySchool){c.innerHTML='<div style="text-align:center;padding:40px;color:var(--gray)">Sin escuela asignada</div>';return;}
+  if(!mySchool){c.innerHTML='<div style="text-align:center;padding:40px;color:var(--gray)">Sin escuela asignada. Contacta al administrador.</div>';return;}
 
-  const[sessions,{data:plannings},{data:schedules}]=await Promise.all([
-    _ensureSessions(mySchool.id),
+  const sessions=await _ensureSessions(mySchool.id);
+  if(!sessions||!sessions.length){
+    c.innerHTML='<div style="text-align:center;padding:40px;color:var(--gray)"><div style="font-size:13px;font-weight:600;font-family:Montserrat,sans-serif;margin-bottom:8px">No se pudieron cargar las sesiones</div><button onclick="renderDocHome()" class="btn-p" style="font-size:12px">Reintentar</button></div>';
+    return;
+  }
+
+  const[{data:plannings},{data:schedules}]=await Promise.all([
     db.from('plannings').select('*').eq('school_id',mySchool.id).order('submitted_at',{ascending:false}).catch(()=>({data:[]})),
     db.from('schedules').select('*').eq('school_id',mySchool.id).eq('active',true).order('day_of_week').catch(()=>({data:[]})),
   ]);
@@ -2329,84 +2335,93 @@ async function renderDocHome(){
   const completedCount=sessions.filter(s=>s.status==='completada').length;
   const pct=Math.round(completedCount/sessions.length*100);
 
-  c.innerHTML=`
-    <!-- Alerta si hay sesion reagendada o doble -->
-    ${currentSess&&(currentSess.status==='doble'||currentSess.status==='reagendada')?`<div class="alert-blue"><div class="alert-dot ad-blue"></div>
-      <div class="alert-txt"><strong>Atencion:</strong> Tu proxima sesion (S${currentSess.session_number}) fue marcada como <strong>${SL[currentSess.status]}</strong>. El equipo Houp te notificara la fecha.</div></div>`:''}
-    ${currentSess&&currentSess.status==='cancelada'?`<div class="alert-red"><div class="alert-dot ad-red"></div>
-      <div class="alert-txt"><strong>Sesion S${currentSess.session_number} cancelada.</strong> Espera instrucciones del equipo Houp para reagendar.</div></div>`:''}
+  // Build session grid
+  let sessGrid='';
+  sessions.forEach(s=>{
+    const isCurr=currentSess&&s.id===currentSess.id;
+    const bg=s.status==='completada'?'var(--green)':s.status==='cancelada'?'var(--red-dark)':s.status==='doble'?'var(--blue)':s.status==='reagendada'?'var(--amber)':isCurr?'#012B38':'#e8e8e8';
+    const color=(s.status!=='pendiente'||isCurr)?'#fff':'#797979';
+    const shadow=isCurr?';box-shadow:0 0 0 3px rgba(2,193,244,.5)':'';
+    const dot=isCurr?'<div style="position:absolute;top:-4px;right:-4px;width:10px;height:10px;border-radius:50%;background:#02c1f4;border:2px solid #fff"></div>':'';
+    sessGrid+='<div title="S'+s.session_number+' · Mod.'+s.module_number+': '+s.module_name+'" style="width:36px;height:36px;border-radius:8px;background:'+bg+';display:flex;align-items:center;justify-content:center;color:'+color+';font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;cursor:default;position:relative'+shadow+'">'+s.session_number+dot+'</div>';
+  });
 
-    <div class="stats-row">
-      <div class="stat"><div class="stat-val c-blue">${currentSess?'S'+currentSess.session_number:'--'}</div><div class="stat-lbl">Sesion actual</div></div>
-      <div class="stat"><div class="stat-val">${currentSess?'Mod.'+currentSess.module_number:'--'}</div><div class="stat-lbl">Modulo actual</div></div>
-      <div class="stat"><div class="stat-val c-blue">${pct}%</div><div class="stat-lbl">Avance del programa</div></div>
-      <div class="stat"><div class="stat-val">${(plannings||[]).length}</div><div class="stat-lbl">Planeaciones subidas</div></div>
-    </div>
+  // Build schedule table
+  let schedHtml='';
+  if(!(schedules||[]).length){
+    schedHtml='<div style="font-size:12px;color:var(--gray);font-style:italic">Sin horario registrado. El administrador lo agregara pronto.</div>';
+  } else {
+    schedHtml='<table class="t"><thead><tr><th>Dia</th><th>Hora</th><th>Grupo</th><th>Salon</th></tr></thead><tbody>';
+    (schedules||[]).forEach(h=>{
+      schedHtml+='<tr>';
+      schedHtml+='<td style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:600">'+(DIAS[h.day_of_week]||h.day_of_week)+'</td>';
+      schedHtml+='<td style="font-size:11px;color:var(--gray)">'+(h.start_time||'--').substring(0,5)+' - '+(h.end_time||'--').substring(0,5)+'</td>';
+      schedHtml+='<td style="font-size:12px">'+(h.grade||'--')+'</td>';
+      schedHtml+='<td style="font-size:11px;color:var(--gray)">'+(h.classroom||'--')+'</td>';
+      schedHtml+='</tr>';
+    });
+    schedHtml+='</tbody></table>';
+  }
 
-    <div class="two-col">
-      <!-- CALENDARIO VISUAL DE SESIONES -->
-      <div class="card">
-        <div class="card-hd"><div><div class="card-title">Mis sesiones</div>
-          <div class="card-sub">${completedCount} de ${sessions.length} completadas · Toca para ver detalle</div>
-        </div></div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
-          ${sessions.map(s=>{
-            const isCurr=currentSess&&s.id===currentSess.id;
-            const bg=s.status==='completada'?'var(--green)':s.status==='cancelada'?'var(--red-dark)':s.status==='doble'?'var(--blue)':s.status==='reagendada'?'var(--amber)':isCurr?'#012B38':'#e8e8e8';
-            const color=s.status!=='pendiente'||isCurr?'#fff':'#797979';
-            return `<div title="S${s.session_number} · Mod.${s.module_number}: ${s.module_name}" 
-              style="width:36px;height:36px;border-radius:8px;background:${bg};display:flex;align-items:center;justify-content:center;color:${color};font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;cursor:default;position:relative${isCurr?';box-shadow:0 0 0 3px rgba(2,193,244,.5)':''}">
-              ${s.session_number}
-              ${isCurr?'<div style="position:absolute;top:-4px;right:-4px;width:10px;height:10px;border-radius:50%;background:#02c1f4;border:2px solid #fff"></div>':''}
-            </div>`;
-          }).join('')}
-        </div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:10px;margin-bottom:14px">
-          ${[['var(--green)','Completada'],['var(--red-dark)','Cancelada'],['var(--blue)','Doble'],['var(--amber)','Reagendada'],['#012B38','Actual'],['#e8e8e8','Pendiente']].map(([bg,lbl])=>`
-            <div style="display:flex;align-items:center;gap:4px;color:var(--gray)"><div style="width:10px;height:10px;border-radius:3px;background:${bg}"></div>${lbl}</div>`).join('')}
-        </div>
-        ${currentSess?`<div style="background:rgba(2,193,244,.06);border-radius:8px;padding:12px;border-left:3px solid var(--blue)">
-          <div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:var(--blue);margin-bottom:4px">PROXIMA SESION</div>
-          <div style="font-size:13px;font-weight:700">Sesion ${currentSess.session_number} · Modulo ${currentSess.module_number}</div>
-          <div style="font-size:12px;color:var(--gray);margin-top:2px">${currentSess.module_name}</div>
-          ${currentSess.status!=='pendiente' ? '<div style="margin-top:6px">'+bdg(SL[currentSess.status],SB[currentSess.status])+'</div>' : ''}
-        </div>`:''}
-      </div>
+  // Build plannings list
+  let planHtml='';
+  if(!(plannings||[]).length){
+    planHtml='<div style="font-size:12px;color:var(--gray);font-style:italic">Aun no has subido planeaciones. Presiona "+ Subir" para comenzar.</div>';
+  } else {
+    (plannings||[]).slice(0,4).forEach(p=>{
+      planHtml+='<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f5f5f5">';
+      planHtml+='<div style="width:32px;height:32px;border-radius:8px;background:var(--green-light);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">✓</div>';
+      planHtml+='<div style="flex:1"><div style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:600">Mod.'+p.module_number+' · Sesion '+p.session_number+'</div>';
+      planHtml+='<div style="font-size:10px;color:var(--gray)">'+(p.activation?p.activation.substring(0,50)+'...':'Sin activacion')+'</div></div>';
+      if(p.file_url) planHtml+='<a href="'+p.file_url+'" target="_blank" style="font-size:10px;color:var(--blue);font-family:Montserrat,sans-serif;font-weight:600;text-decoration:none">📄 Ver</a>';
+      planHtml+='<div style="font-size:10px;color:var(--gray)">'+fD(p.submitted_at)+'</div>';
+      planHtml+='</div>';
+    });
+  }
 
-      <div>
-        <!-- HORARIO -->
-        <div class="card" style="margin-bottom:12px">
-          <div class="card-hd"><div><div class="card-title">Mi horario</div></div>
-            <button onclick="oM('m-horario')" class="btn-g" style="font-size:11px">+ Agregar</button>
-          </div>
-          ${!(schedules||[]).length?'<div style="font-size:12px;color:var(--gray);font-style:italic">Sin horario registrado. Agrega tus clases.</div>':
-          `<table class="t"><thead><tr><th>Dia</th><th>Hora</th><th>Grupo</th><th>Salon</th></tr></thead>
-          <tbody>${(schedules||[]).map(h=>`<tr>
-            <td style="font-family:var(--font-title);font-size:12px;font-weight:600">${DIAS[h.day_of_week]||h.day_of_week}</td>
-            <td style="font-size:11px;color:var(--gray)">${h.start_time?.substring(0,5)||'--'} - ${h.end_time?.substring(0,5)||'--'}</td>
-            <td style="font-size:12px">${h.grade||'--'}</td>
-            <td style="font-size:11px;color:var(--gray)">${h.classroom||'--'}</td>
-          </tr>`).join('')}</tbody></table>`}
-        </div>
+  // Alert if current session has special status
+  let alertHtml='';
+  if(currentSess&&currentSess.status==='doble'){
+    alertHtml='<div class="alert-blue"><div class="alert-dot ad-blue"></div><div class="alert-txt"><strong>Atencion:</strong> Tu proxima sesion (S'+currentSess.session_number+') fue marcada como <strong>Sesion Doble (recuperacion)</strong>. El equipo Houp te confirmara la fecha.</div></div>';
+  } else if(currentSess&&currentSess.status==='reagendada'){
+    alertHtml='<div class="alert-blue"><div class="alert-dot ad-blue"></div><div class="alert-txt"><strong>Atencion:</strong> Tu proxima sesion (S'+currentSess.session_number+') fue <strong>reagendada</strong>. Espera confirmacion del equipo Houp.</div></div>';
+  } else if(currentSess&&currentSess.status==='cancelada'){
+    alertHtml='<div class="alert-red"><div class="alert-dot ad-red"></div><div class="alert-txt"><strong>Sesion S'+currentSess.session_number+' cancelada.</strong> Espera instrucciones del equipo Houp para reagendar.</div></div>';
+  }
 
-        <!-- PLANEACIONES SUBIDAS -->
-        <div class="card">
-          <div class="card-hd"><div><div class="card-title">Mis planeaciones</div></div>
-            <button onclick="abrirPlaneacion()" class="btn-p" style="font-size:11px">+ Subir</button>
-          </div>
-          ${!(plannings||[]).length?'<div style="font-size:12px;color:var(--gray);font-style:italic">Aun no has subido planeaciones. Presiona "+ Subir" para comenzar.</div>':
-          (plannings||[]).slice(0,4).map(p=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f5f5f5">
-            <div style="width:32px;height:32px;border-radius:8px;background:var(--green-light);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">✓</div>
-            <div style="flex:1">
-              <div style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:600">Mod.${p.module_number} · Sesion ${p.session_number}</div>
-              <div style="font-size:10px;color:var(--gray)">${p.activation?p.activation.substring(0,50)+'...':'Sin activacion'}</div>
-            </div>
-            ${p.file_url ? '<a href="'+p.file_url+'" target="_blank" style="font-size:10px;color:var(--blue);font-family:Montserrat,sans-serif;font-weight:600;text-decoration:none">📄 Ver</a>' : ''}
-            <div style="font-size:10px;color:var(--gray)">${fD(p.submitted_at)}</div>
-          </div>`).join('')}
-        </div>
-      </div>
-    </div>`;
+  c.innerHTML=alertHtml
+    +'<div class="stats-row">'
+    +'<div class="stat"><div class="stat-val c-blue">'+(currentSess?'S'+currentSess.session_number:'--')+'</div><div class="stat-lbl">Sesion actual</div></div>'
+    +'<div class="stat"><div class="stat-val">'+(currentSess?'Mod.'+currentSess.module_number:'--')+'</div><div class="stat-lbl">Modulo actual</div></div>'
+    +'<div class="stat"><div class="stat-val c-blue">'+pct+'%</div><div class="stat-lbl">Avance del programa</div></div>'
+    +'<div class="stat"><div class="stat-val">'+((plannings||[]).length)+'</div><div class="stat-lbl">Planeaciones subidas</div></div>'
+    +'</div>'
+    +'<div class="two-col">'
+    +'<div class="card">'
+    +'<div class="card-hd"><div><div class="card-title">Mis sesiones</div><div class="card-sub">'+completedCount+' de '+sessions.length+' completadas</div></div></div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">'+sessGrid+'</div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:6px;font-size:10px;margin-bottom:14px">'
+    +'<div style="display:flex;align-items:center;gap:4px;color:var(--gray)"><div style="width:10px;height:10px;border-radius:3px;background:var(--green)"></div>Completada</div>'
+    +'<div style="display:flex;align-items:center;gap:4px;color:var(--gray)"><div style="width:10px;height:10px;border-radius:3px;background:var(--red-dark)"></div>Cancelada</div>'
+    +'<div style="display:flex;align-items:center;gap:4px;color:var(--gray)"><div style="width:10px;height:10px;border-radius:3px;background:var(--blue)"></div>Doble</div>'
+    +'<div style="display:flex;align-items:center;gap:4px;color:var(--gray)"><div style="width:10px;height:10px;border-radius:3px;background:var(--amber)"></div>Reagendada</div>'
+    +'<div style="display:flex;align-items:center;gap:4px;color:var(--gray)"><div style="width:10px;height:10px;border-radius:3px;background:#012B38"></div>Actual</div>'
+    +'</div>'
+    +(currentSess?'<div style="background:rgba(2,193,244,.06);border-radius:8px;padding:12px;border-left:3px solid var(--blue)"><div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:var(--blue);margin-bottom:4px">PROXIMA SESION</div><div style="font-size:13px;font-weight:700">Sesion '+currentSess.session_number+' · Modulo '+currentSess.module_number+'</div><div style="font-size:12px;color:var(--gray);margin-top:2px">'+currentSess.module_name+'</div>'+(currentSess.status!=='pendiente'?'<div style="margin-top:6px">'+bdg(SL[currentSess.status],SB[currentSess.status])+'</div>':'')+'</div>':'')
+    +'</div>'
+    +'<div>'
+    +'<div class="card" style="margin-bottom:12px">'
+    +'<div class="card-hd"><div><div class="card-title">Mi horario</div></div></div>'
+    +schedHtml
+    +'</div>'
+    +'<div class="card">'
+    +'<div class="card-hd"><div><div class="card-title">Mis planeaciones</div></div>'
+    +'<button onclick="abrirPlaneacion()" class="btn-p" style="font-size:11px">+ Subir</button>'
+    +'</div>'
+    +planHtml
+    +'</div>'
+    +'</div>'
+    +'</div>';
 }
 
 async function renderDocMaterial(){
