@@ -1765,13 +1765,13 @@ async function renderModulosEscuela(schoolId){
               <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
                 <span style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:${aColors[a.type]||'var(--gray)'}">${aLabels[a.type]||a.type}</span>
                 <div style="display:flex;gap:5px;align-items:center">
-                  ${a.due_date?`<span style="font-size:10px;color:var(--gray)">Limite: ${fD(a.due_date)}</span>`:''}
+                  ${a.due_date ? '<span style="font-size:10px;color:var(--gray)">Limite: '+fD(a.due_date)+'</span>' : ''}
                   ${bdg(a.status==='completada'?'Completada':'Pendiente',a.status==='completada'?'b-green':'b-amber')}
-                  ${a.status!=='completada'?`<button onclick="resolverAccion('${a.id}')" style="background:#e8f5e9;border:1px solid rgba(67,160,71,.3);color:var(--green);padding:3px 8px;border-radius:4px;font-size:10px;cursor:pointer;font-family:Montserrat,sans-serif;font-weight:600">Resolver</button>`:''}
+                  ${a.status!=='completada' ? '<button data-aid="'+a.id+'" onclick="resolverAccion(this.dataset.aid)" style="background:#e8f5e9;border:1px solid rgba(67,160,71,.3);color:var(--green);padding:3px 8px;border-radius:4px;font-size:10px;cursor:pointer;font-family:Montserrat,sans-serif;font-weight:600">Resolver</button>' : ''}
                 </div>
               </div>
               <div style="font-size:12px;color:#555">${a.description}</div>
-              ${a.resolution_notes?`<div style="font-size:11px;color:var(--green);margin-top:4px;font-style:italic">Resolucion: ${a.resolution_notes}</div>`:''}
+              ${a.resolution_notes ? '<div style="font-size:11px;color:var(--green);margin-top:4px;font-style:italic">Resolucion: '+a.resolution_notes+'</div>' : ''}
             </div>`;
           }).join('')}
         </div>
@@ -1814,73 +1814,95 @@ async function updateSessionStatus(sessionId, schoolId){
 async function renderSesiones(){
   const c=document.getElementById('s-sesiones');if(!c)return;
   const{data:incs}=await db.from('incidents').select('*,schools(name)').order('incident_date',{ascending:false});
-  c.innerHTML=`
-    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;background:#fff;padding:12px 16px;border-radius:10px;border:1px solid rgba(0,0,0,.06)">
-      <span style="font-family:Montserrat,sans-serif;font-size:10px;font-weight:700;color:#797979;margin-right:4px;align-self:center">LEYENDA:</span>
-      ${bdg('Cancelada','b-red')} ${bdg('Doble','b-blue')} ${bdg('Saltada','b-amber')} ${bdg('Reagendada','b-gray')}
-    </div>
-    ${SCHOOLS.map(s=>{
-      const si=(incs||[]).filter(i=>i.school_id===s.id);
-      const ha=s.dias_atraso>14;
-      return `<div class="card" style="${ha?'border:1.5px solid rgba(224,53,53,.35);background:#fffafa':''}">
-        <div class="card-hd">
-          <div><div class="card-title" style="${ha?'color:var(--red-dark)':''}">${s.name}${ha?' ⚠':''}</div>
-            <div class="card-sub">${s.year_model} · ${si.length} incidencia${si.length!==1?'s':''}</div>
-          </div>
-          <div style="display:flex;gap:6px">
-            ${ha?`<button onclick="abrirAccion('${s.id}','')" style="background:#fdecea;border:1px solid rgba(224,53,53,.25);color:#c62828;padding:5px 10px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:10px;font-weight:600;cursor:pointer">Asignar accion</button>`:''}
-            <button onclick="abrirIncidencia('${s.id}')" class="${ha?'btn-p':'btn-g'}" style="font-size:11px">${ha?'Agendar recuperacion':'+ Incidencia'}</button>
-          </div>
-        </div>
-        ${ha?`<div style="background:var(--red-light);border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--red-dark)">
-          <strong>Ultima sesion:</strong> ${fD(s.last_session_date)} — ${s.dias_atraso} dias de atraso.</div>`:''}
-        ${!si.length?'<div style="font-size:12px;color:var(--gray);font-style:italic">Sin incidencias.</div>':
-        `<table class="t"><thead><tr><th>Tipo</th><th>Motivo</th><th>Fecha</th></tr></thead>
-        <tbody>${si.map(i=>`<tr>
-          <td>${bdg(IL[i.type]||i.type,IB[i.type]||'b-gray')}</td>
-          <td style="font-size:12px">${i.reason}</td>
-          <td style="font-size:11px;color:var(--gray)">${fD(i.incident_date)}</td>
-        </tr>`).join('')}</tbody></table>`}
-      </div>`;
-    }).join('')}`;
+
+  let html='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;background:#fff;padding:12px 16px;border-radius:10px;border:1px solid rgba(0,0,0,.06)">';
+  html+='<span style="font-family:Montserrat,sans-serif;font-size:10px;font-weight:700;color:#797979;margin-right:4px;align-self:center">LEYENDA:</span>';
+  html+=bdg('Cancelada','b-red')+' '+bdg('Doble','b-blue')+' '+bdg('Saltada','b-amber')+' '+bdg('Reagendada','b-gray');
+  html+='</div>';
+
+  SCHOOLS.forEach(s=>{
+    const si=(incs||[]).filter(i=>i.school_id===s.id);
+    const ha=s.dias_atraso>14;
+    const borderStyle=ha?'border:1.5px solid rgba(224,53,53,.35);background:#fffafa':'';
+    html+='<div class="card" style="'+borderStyle+'">';
+    html+='<div class="card-hd">';
+    html+='<div>';
+    html+='<div class="card-title" style="'+(ha?'color:var(--red-dark)':'')+'">'+s.name+(ha?' ⚠':'')+' </div>';
+    html+='<div class="card-sub">'+s.year_model+' · '+si.length+' incidencia'+(si.length!==1?'s':'')+'</div>';
+    html+='</div>';
+    html+='<button onclick="abrirIncidencia(''+s.id+'')" class="'+(ha?'btn-p':'btn-g')+'" style="font-size:11px">'+(ha?'Agendar recuperacion':'+ Incidencia')+'</button>';
+    html+='</div>';
+    if(ha){
+      html+='<div style="background:var(--red-light);border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--red-dark)">';
+      html+='<strong>Ultima sesion:</strong> '+fD(s.last_session_date)+' — '+s.dias_atraso+' dias de atraso.</div>';
+    }
+    if(!si.length){
+      html+='<div style="font-size:12px;color:var(--gray);font-style:italic">Sin incidencias registradas.</div>';
+    } else {
+      html+='<table class="t"><thead><tr><th>Tipo</th><th>Motivo</th><th>Fecha</th></tr></thead><tbody>';
+      si.forEach(i=>{
+        html+='<tr>';
+        html+='<td>'+bdg(IL[i.type]||i.type,IB[i.type]||'b-gray')+'</td>';
+        html+='<td style="font-size:12px">'+i.reason+'</td>';
+        html+='<td style="font-size:11px;color:var(--gray)">'+fD(i.incident_date)+'</td>';
+        html+='</tr>';
+      });
+      html+='</tbody></table>';
+    }
+    html+='</div>';
+  });
+  c.innerHTML=html;
 }
 
 async function renderEvidencia(){
   const c=document.getElementById('s-evidencia');if(!c)return;
   const{data:ev}=await db.from('evidence').select('*,schools(name),profiles(full_name)').order('created_at',{ascending:false});
   const pend=(ev||[]).filter(e=>!e.validated);
-
-  c.innerHTML=`
-    ${pend.length?`<div class="alert-blue"><div class="alert-dot ad-blue"></div>
-      <div class="alert-txt"><strong>${pend.length} evidencia${pend.length>1?'s':''} pendiente${pend.length>1?'s':''} de validacion.</strong></div></div>`:''}
-    ${!(ev||[]).length?'<div style="text-align:center;padding:60px;color:var(--gray)">
-        <div style="font-size:28px;margin-bottom:10px">📎</div>
-        <div style="font-family:Montserrat,sans-serif;font-size:14px;font-weight:600;margin-bottom:8px">Sin evidencia cargada</div>
-        <button onclick="abrirEvidencia()" class="btn-p">+ Cargar primera evidencia</button>
-      </div>':
-    `<div class="card" style="padding:0;overflow:hidden"><table class="t">
-      <thead><tr><th style="padding:11px 16px">Escuela</th><th>Tipo</th><th>Descripcion</th><th>Por</th><th>Fecha</th><th>Archivo / Link</th><th>Estado</th><th></th></tr></thead>
-      <tbody>${(ev||[]).map(e=>{
-        const hasFile=e.storage_path||e.url;
-        const fileIcon=e.type==='photo'?'🖼️':e.type==='video_link'?'🎥':e.type==='attendance'?'📋':'📄';
-        return `<tr>
-          <td style="padding:10px 16px;font-family:var(--font-title);font-weight:600">${e.schools?.name||'--'}</td>
-          <td style="font-size:11px;color:var(--gray)">${e.type}</td>
-          <td style="font-size:11px;color:var(--gray);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${e.description||''}">${e.description||'--'}</td>
-          <td style="font-size:11px;color:var(--gray)">${e.profiles?.full_name||'--'}</td>
-          <td style="font-size:11px;color:var(--gray)">${fD(e.created_at)}</td>
-          <td style="padding:8px 12px">
-            ${hasFile?`<a href="${e.url||'#'}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;background:var(--blue-light);border:1px solid rgba(2,193,244,.25);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;color:var(--blue);text-decoration:none;font-family:Montserrat,sans-serif">
-              ${fileIcon} ${e.file_name||'Ver archivo'}
-            </a>`:`<span style="font-size:11px;color:var(--gray)">Sin archivo</span>`}
-          </td>
-          <td>${bdg(e.validated?'Validada':'Pendiente',e.validated?'b-green':'b-amber')}</td>
-          <td style="padding:8px 12px">
-            ${!e.validated?`<button onclick="validarEvidencia('${e.id}')" class="btn-p" style="font-size:10px;padding:4px 10px">Validar</button>`:''}
-          </td>
-        </tr>`;
-      }).join('')}</tbody>
-    </table></div>`}`;
+  let html='';
+  if(pend.length){
+    html+='<div class="alert-blue"><div class="alert-dot ad-blue"></div><div class="alert-txt"><strong>'+pend.length+' evidencia'+(pend.length>1?'s':'')+' pendiente'+(pend.length>1?'s':'')+' de validacion.</strong></div></div>';
+  }
+  if(!(ev||[]).length){
+    html+='<div style="text-align:center;padding:60px;color:var(--gray)">';
+    html+='<div style="font-size:28px;margin-bottom:10px">📎</div>';
+    html+='<div style="font-family:Montserrat,sans-serif;font-size:14px;font-weight:600;margin-bottom:8px">Sin evidencia cargada</div>';
+    html+='<button onclick="abrirEvidencia()" class="btn-p">+ Cargar primera evidencia</button>';
+    html+='</div>';
+  } else {
+    html+='<div class="card" style="padding:0;overflow:hidden"><table class="t">';
+    html+='<thead><tr>';
+    html+='<th style="padding:11px 16px">Escuela</th><th>Tipo</th><th>Descripcion</th><th>Por</th><th>Fecha</th><th>Archivo / Link</th><th>Estado</th><th></th>';
+    html+='</tr></thead><tbody>';
+    (ev||[]).forEach(e=>{
+      const hasFile=e.storage_path||e.url;
+      const fileIcon=e.type==='photo'?'🖼️':e.type==='video_link'?'🎥':e.type==='attendance'?'📋':'📄';
+      const fileName=e.file_name||'Ver archivo';
+      const fileUrl=e.url||'#';
+      html+='<tr>';
+      html+='<td style="padding:10px 16px;font-family:var(--font-title);font-weight:600">'+(e.schools?.name||'--')+'</td>';
+      html+='<td style="font-size:11px;color:var(--gray)">'+e.type+'</td>';
+      html+='<td style="font-size:11px;color:var(--gray);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(e.description||'')+'">'+(e.description||e.url||'--')+'</td>';
+      html+='<td style="font-size:11px;color:var(--gray)">'+(e.profiles?.full_name||'--')+'</td>';
+      html+='<td style="font-size:11px;color:var(--gray)">'+fD(e.created_at)+'</td>';
+      html+='<td style="padding:8px 12px">';
+      if(hasFile){
+        html+='<a href="'+fileUrl+'" target="_blank" style="display:inline-flex;align-items:center;gap:5px;background:var(--blue-light);border:1px solid rgba(2,193,244,.25);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;color:var(--blue);text-decoration:none;font-family:Montserrat,sans-serif">';
+        html+=fileIcon+' '+fileName+'</a>';
+      } else {
+        html+='<span style="font-size:11px;color:var(--gray)">Sin archivo</span>';
+      }
+      html+='</td>';
+      html+='<td>'+bdg(e.validated?'Validada':'Pendiente',e.validated?'b-green':'b-amber')+'</td>';
+      html+='<td style="padding:8px 12px">';
+      if(!e.validated){
+        html+='<button onclick="validarEvidencia(''+e.id+'')" class="btn-p" style="font-size:10px;padding:4px 10px">Validar</button>';
+      }
+      html+='</td>';
+      html+='</tr>';
+    });
+    html+='</tbody></table></div>';
+  }
+  c.innerHTML=html;
 }
 
 async function renderFundDash(){
@@ -2337,7 +2359,7 @@ async function renderDocHome(){
           <div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:var(--blue);margin-bottom:4px">PROXIMA SESION</div>
           <div style="font-size:13px;font-weight:700">Sesion ${currentSess.session_number} · Modulo ${currentSess.module_number}</div>
           <div style="font-size:12px;color:var(--gray);margin-top:2px">${currentSess.module_name}</div>
-          ${currentSess.status!=='pendiente'?`<div style="margin-top:6px">${bdg(SL[currentSess.status],SB[currentSess.status])}</div>`:''}
+          ${currentSess.status!=='pendiente' ? '<div style="margin-top:6px">'+bdg(SL[currentSess.status],SB[currentSess.status])+'</div>' : ''}
         </div>`:''}
       </div>
 
@@ -2369,7 +2391,7 @@ async function renderDocHome(){
               <div style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:600">Mod.${p.module_number} · Sesion ${p.session_number}</div>
               <div style="font-size:10px;color:var(--gray)">${p.activation?p.activation.substring(0,50)+'...':'Sin activacion'}</div>
             </div>
-            ${p.file_url?`<a href="${p.file_url}" target="_blank" style="font-size:10px;color:var(--blue);font-family:Montserrat,sans-serif;font-weight:600;text-decoration:none">📄 Ver</a>`:''}
+            ${p.file_url ? '<a href="'+p.file_url+'" target="_blank" style="font-size:10px;color:var(--blue);font-family:Montserrat,sans-serif;font-weight:600;text-decoration:none">📄 Ver</a>' : ''}
             <div style="font-size:10px;color:var(--gray)">${fD(p.submitted_at)}</div>
           </div>`).join('')}
         </div>
@@ -2392,7 +2414,7 @@ async function renderDocMaterial(){
         <div style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:600;color:rgba(255,255,255,.6);margin-bottom:6px">SESION ACTUAL</div>
         <div style="font-size:20px;font-weight:800;margin-bottom:4px">Sesion ${currentSess?.session_number||'--'} · Modulo ${currentSess?.module_number||'--'}</div>
         <div style="font-size:13px;color:rgba(255,255,255,.8)">${currentSess?.module_name||'--'}</div>
-        ${currentSess?.status!=='pendiente'?`<div style="margin-top:8px">${bdg(SL[currentSess?.status]||'--',SB[currentSess?.status]||'b-gray')}</div>`:''}
+        ${currentSess?.status!=='pendiente' ? '<div style="margin-top:8px">'+bdg(SL[currentSess?.status]||'--',SB[currentSess?.status]||'b-gray')+'</div>' : ''}
       </div>
     </div>
     <div class="three-col" style="margin-bottom:16px">
