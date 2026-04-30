@@ -2010,74 +2010,141 @@ function renderFundReportes(){
 // ─────────────────────────────────────────────────────────────────
 async function renderRespHome(){
   const c=document.getElementById('s-resp-home');if(!c)return;
+  c.innerHTML='<div style="text-align:center;padding:30px;color:var(--gray)">Cargando...</div>';
   const alerts=SCHOOLS.filter(s=>s.dias_atraso>14);
   const[{data:incs},{data:actions}]=await Promise.all([
-    db.from('incidents').select('*,schools(name)').order('created_at',{ascending:false}).limit(8),
+    db.from('incidents').select('*,schools(name)').order('created_at',{ascending:false}).limit(10),
     db.from('actions').select('*,schools(name)').eq('status','pendiente').order('created_at',{ascending:false}).catch(()=>({data:[]})),
   ]);
-  c.innerHTML=`
-    ${alerts.length?`<div class="alert-red"><div class="alert-dot ad-red"></div>
-      <div class="alert-txt"><strong>${alerts.length} escuela${alerts.length>1?'s':''} requieren atencion urgente.</strong></div></div>`:''}
-    ${(actions||[]).length?`<div class="alert-blue"><div class="alert-dot ad-blue"></div>
-      <div class="alert-txt"><strong>${(actions||[]).length} accion${(actions||[]).length>1?'es':''} pendiente${(actions||[]).length>1?'s':''} asignada${(actions||[]).length>1?'s':''} a ti.</strong> Revisa la pestana "Mis escuelas".</div></div>`:''}
-    <div class="stats-row">
-      <div class="stat"><div class="stat-val c-blue">${SCHOOLS.length}</div><div class="stat-lbl">Escuelas a cargo</div></div>
-      <div class="stat"><div class="stat-val">${SCHOOLS.reduce((a,b)=>a+(b.total_students||0),0)}</div><div class="stat-lbl">Alumnos totales</div></div>
-      <div class="stat"><div class="stat-val ${alerts.length?'c-red':''}">${alerts.length}</div><div class="stat-lbl">En alerta</div></div>
-      <div class="stat"><div class="stat-val">${(actions||[]).length}</div><div class="stat-lbl">Acciones pendientes</div></div>
-    </div>
-    <div class="two-col">
-      <div class="card">
-        <div class="card-hd"><div class="card-title">Mis escuelas</div></div>
-        ${activeSchools.map(s=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-          <div class="ind ${s.dias_atraso>14?'ind-r':s.dias_atraso>7?'ind-a':'ind-g'}"></div>
-          <div style="flex:1">
-            <div style="font-family:var(--font-title);font-size:12px;font-weight:700;${s.dias_atraso>14?'color:var(--red-dark)':''}">${s.name}</div>
-            <div style="font-size:10px;color:var(--gray)">${s.city} · ${s.year_model}</div>
-          </div>
-          ${bdg(alT(s.dias_atraso),alC(s.dias_atraso))}
-        </div>`).join('')}
-      </div>
-      <div class="card">
-        <div class="card-hd"><div class="card-title">Incidencias recientes</div></div>
-        ${!(incs||[]).length?'<div style="font-size:12px;color:var(--gray);font-style:italic">Sin incidencias</div>':
-        (incs||[]).map(i=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f5f5f5">
-          ${bdg(IL[i.type]||i.type,IB[i.type]||'b-gray')}
-          <div style="flex:1"><div style="font-size:12px;font-weight:600">${i.schools?.name||'--'}</div><div style="font-size:11px;color:var(--gray)">${i.reason}</div></div>
-          <div style="font-size:11px;color:var(--gray)">${fD(i.incident_date)}</div>
-        </div>`).join('')}
-      </div>
-    </div>`;
+
+  // Stats
+  let html='';
+  if(alerts.length){
+    html+='<div class="alert-red"><div class="alert-dot ad-red"></div><div class="alert-txt"><strong>'+alerts.length+' escuela'+(alerts.length>1?'s':'')+' requieren atencion urgente — '+alerts.map(s=>s.name).join(', ')+'</strong></div></div>';
+  }
+  if((actions||[]).length){
+    const na=(actions||[]).length;
+    html+='<div class="alert-blue"><div class="alert-dot ad-blue"></div><div class="alert-txt"><strong>'+na+' accion'+(na>1?'es':'')+' pendiente'+(na>1?'s':'')+' asignada'+(na>1?'s':'')+' a ti.</strong> Revisa la pestana "Mis escuelas".</div></div>';
+  }
+
+  html+='<div class="stats-row">';
+  html+='<div class="stat"><div class="stat-val c-blue">'+SCHOOLS.length+'</div><div class="stat-lbl">Escuelas a cargo</div></div>';
+  html+='<div class="stat"><div class="stat-val">'+SCHOOLS.reduce((a,b)=>a+(b.total_students||0),0)+'</div><div class="stat-lbl">Alumnos totales</div></div>';
+  html+='<div class="stat"><div class="stat-val '+(alerts.length?'c-red':'')+'">'+alerts.length+'</div><div class="stat-lbl">En alerta</div></div>';
+  html+='<div class="stat"><div class="stat-val">'+((actions||[]).length)+'</div><div class="stat-lbl">Acciones pendientes</div></div>';
+  html+='</div>';
+
+  // School status cards
+  html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-bottom:16px">';
+  SCHOOLS.forEach(s=>{
+    const ha=s.dias_atraso>14;
+    html+='<div class="card" style="cursor:pointer;'+(ha?'border:1.5px solid rgba(224,53,53,.3)':'')+'" onclick="nav(null,\'s-resp-equipo\')">';
+    html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
+    html+='<div style="font-family:Montserrat,sans-serif;font-size:13px;font-weight:800;'+(ha?'color:var(--red-dark)':'')+'">'+s.name+'</div>';
+    html+=bdg(alT(s.dias_atraso),alC(s.dias_atraso));
+    html+='</div>';
+    html+='<div style="font-size:11px;color:var(--gray);margin-bottom:6px">'+s.city+' · '+s.year_model+' · '+s.total_students+' alumnos</div>';
+    html+='<div style="font-size:11px;color:'+(ha?'var(--red-dark)':'var(--gray)')+'">Ultima sesion: '+fD(s.last_session_date)+'</div>';
+    html+='</div>';
+  });
+  html+='</div>';
+
+  // Recent incidents
+  html+='<div class="two-col">';
+  html+='<div class="card"><div class="card-hd"><div><div class="card-title">Incidencias recientes</div></div></div>';
+  if(!(incs||[]).length){
+    html+='<div style="font-size:12px;color:var(--gray);font-style:italic">Sin incidencias</div>';
+  } else {
+    (incs||[]).forEach(i=>{
+      html+='<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f5f5f5">';
+      html+=bdg(IL[i.type]||i.type,IB[i.type]||'b-gray');
+      html+='<div style="flex:1"><div style="font-size:12px;font-weight:600">'+(i.schools?.name||'--')+'</div>';
+      html+='<div style="font-size:11px;color:var(--gray)">'+i.reason+'</div></div>';
+      html+='<div style="font-size:11px;color:var(--gray)">'+fD(i.incident_date)+'</div>';
+      html+='</div>';
+    });
+  }
+  html+='</div>';
+
+  // Pending actions
+  html+='<div class="card"><div class="card-hd"><div><div class="card-title">Acciones pendientes</div></div></div>';
+  if(!(actions||[]).length){
+    html+='<div style="font-size:12px;color:var(--gray);font-style:italic">Sin acciones pendientes. Todo al dia.</div>';
+  } else {
+    (actions||[]).forEach(a=>{
+      const aColors={visiteo:'#f57c00',agendar_doble:'var(--blue)',hablar_director:'#6a1b9a',seguimiento:'var(--green)',otro:'var(--gray)'};
+      const aLabels={visiteo:'Visiteo',agendar_doble:'Agendar doble',hablar_director:'Hablar director',seguimiento:'Seguimiento',otro:'Otro'};
+      html+='<div style="padding:10px;background:#fffbf0;border-radius:8px;margin-bottom:8px;border-left:3px solid '+(aColors[a.type]||'var(--gray)')+'">';
+      html+='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">';
+      html+='<span style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:'+(aColors[a.type]||'var(--gray)')+'">'+aLabels[a.type]+' — '+(a.schools?.name||'--')+'</span>';
+      html+='<div style="display:flex;gap:5px;align-items:center">';
+      if(a.due_date) html+='<span style="font-size:10px;color:var(--gray)">Limite: '+fD(a.due_date)+'</span>';
+      html+='<button data-aid="'+a.id+'" onclick="resolverAccion(this.dataset.aid)" style="background:#e8f5e9;border:1px solid rgba(67,160,71,.3);color:var(--green);padding:3px 8px;border-radius:4px;font-size:10px;cursor:pointer;font-family:Montserrat,sans-serif;font-weight:600">Resolver</button>';
+      html+='</div></div>';
+      html+='<div style="font-size:12px;color:#555">'+a.description+'</div>';
+      html+='</div>';
+    });
+  }
+  html+='</div></div>';
+  c.innerHTML=html;
 }
 
 async function renderRespSesiones(){
   const c=document.getElementById('s-resp-sesiones');if(!c)return;
+  c.innerHTML='<div style="text-align:center;padding:30px;color:var(--gray)">Cargando...</div>';
   const{data:incs}=await db.from('incidents').select('*,schools(name)').order('incident_date',{ascending:false});
-  c.innerHTML=SCHOOLS.map(s=>{
+  const{data:plans}=await db.from('plannings').select('school_id,session_number,module_number,submitted_at').catch(()=>({data:[]}));
+
+  let html='';
+  SCHOOLS.forEach(s=>{
     const si=(incs||[]).filter(i=>i.school_id===s.id);
+    const sp=(plans||[]).filter(p=>p.school_id===s.id);
     const ha=s.dias_atraso>14;
-    return `<div class="card" style="${ha?'border:1.5px solid rgba(224,53,53,.35);background:#fffafa':''}">
-      <div class="card-hd">
-        <div><div class="card-title" style="${ha?'color:var(--red-dark)':''}">${s.name}${ha?' ⚠':''}</div>
-          <div class="card-sub">${si.length} incidencias · Ultima sesion: ${fD(s.last_session_date)}</div>
-        </div>
-        <button onclick="abrirIncidencia('${s.id}')" class="${ha?'btn-p':'btn-g'}" style="font-size:11px">${ha?'Agendar recuperacion':'+ Incidencia'}</button>
-      </div>
-      ${!si.length?'<div style="font-size:12px;color:var(--gray);font-style:italic">Sin incidencias.</div>':
-      `<table class="t"><thead><tr><th>Tipo</th><th>Motivo</th><th>Fecha</th></tr></thead>
-      <tbody>${si.slice(0,5).map(i=>`<tr>
-        <td>${bdg(IL[i.type]||i.type,IB[i.type]||'b-gray')}</td>
-        <td style="font-size:12px">${i.reason}</td>
-        <td style="font-size:11px;color:var(--gray)">${fD(i.incident_date)}</td>
-      </tr>`).join('')}</tbody></table>`}
-    </div>`;
-  }).join('');
+
+    html+='<div class="card" style="'+(ha?'border:1.5px solid rgba(224,53,53,.35);background:#fffafa':'')+'">';
+    html+='<div class="card-hd">';
+    html+='<div><div class="card-title" style="'+(ha?'color:var(--red-dark)':'')+'">'+s.name+(ha?' ⚠':'')+'</div>';
+    html+='<div class="card-sub">'+s.year_model+' · '+s.total_students+' alumnos · Ultima sesion: '+fD(s.last_session_date)+'</div></div>';
+    html+='<button data-sid="'+s.id+'" onclick="abrirIncidencia(this.dataset.sid)" class="'+(ha?'btn-p':'btn-g')+'" style="font-size:11px">'+(ha?'Agendar recuperacion':'+ Incidencia')+'</button>';
+    html+='</div>';
+
+    if(ha){
+      html+='<div style="background:var(--red-light);border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:var(--red-dark)"><strong>ATRASO CRITICO:</strong> '+s.dias_atraso+' dias sin sesion registrada.</div>';
+    }
+
+    // Incidences section
+    if(si.length){
+      html+='<div style="margin-bottom:14px">';
+      html+='<div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">Incidencias ('+si.length+')</div>';
+      html+='<table class="t"><thead><tr><th>Tipo</th><th>Motivo</th><th>Fecha</th></tr></thead><tbody>';
+      si.forEach(i=>{
+        html+='<tr><td>'+bdg(IL[i.type]||i.type,IB[i.type]||'b-gray')+'</td>';
+        html+='<td style="font-size:12px">'+i.reason+'</td>';
+        html+='<td style="font-size:11px;color:var(--gray)">'+fD(i.incident_date)+'</td></tr>';
+      });
+      html+='</tbody></table></div>';
+    } else {
+      html+='<div style="font-size:12px;color:var(--gray);font-style:italic;margin-bottom:12px">Sin incidencias registradas.</div>';
+    }
+
+    // Plannings section
+    html+='<div style="border-top:1px solid #f5f5f5;padding-top:12px">';
+    html+='<div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">Planeaciones subidas ('+sp.length+')</div>';
+    if(sp.length){
+      html+='<div style="display:flex;flex-wrap:wrap;gap:6px">';
+      sp.forEach(p=>{
+        html+=bdg('S'+p.session_number+' M'+p.module_number,'b-green');
+      });
+      html+='</div>';
+    } else {
+      html+='<div style="font-size:12px;color:var(--gray);font-style:italic">Sin planeaciones subidas aun.</div>';
+    }
+    html+='</div></div>';
+  });
+
+  c.innerHTML=html;
 }
 
-
-// ─────────────────────────────────────────────────────────────────
-//  TEACHERS CRUD (for responsable panel)
-// ─────────────────────────────────────────────────────────────────
 async function renderRespEscuelas(){
   const c=document.getElementById('s-resp-equipo');if(!c)return;
   c.innerHTML='<div style="text-align:center;padding:30px;color:var(--gray)">Cargando...</div>';
@@ -2088,230 +2155,70 @@ async function renderRespEscuelas(){
     db.from('profiles').select('*').eq('role','docente').order('full_name'),
   ]);
 
-  c.innerHTML=`
-    <!-- School cards -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;margin-bottom:20px">
-      ${SCHOOLS.map(s=>{
-        const si=(incs||[]).filter(i=>i.school_id===s.id);
-        const sr=(rubs||[]).filter(r=>r.school_id===s.id);
-        const sa=AVG(sr.map(r=>parseFloat(r.average_score)||0));
-        const pendAcc=(actions||[]).filter(a=>a.school_id===s.id&&a.status==='pendiente').length;
-        const ha=s.dias_atraso>14;
-        return `<div class="card" style="${ha?'border:1.5px solid rgba(224,53,53,.3)':''}">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
-            <div>
-              <div style="font-family:Montserrat,sans-serif;font-size:14px;font-weight:800;${ha?'color:var(--red-dark)':''}">${s.name}</div>
-              <div style="font-size:11px;color:var(--gray);margin-top:2px">${s.city}, ${s.state||'NL'} · ${s.year_model}</div>
-            </div>
-            ${bdg(alT(s.dias_atraso),alC(s.dias_atraso))}
-          </div>
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">
-            <div style="background:rgba(2,193,244,.07);border-radius:7px;padding:10px;text-align:center">
-              <div style="font-family:var(--font-title);font-size:18px;font-weight:800;color:var(--blue)">${s.total_students||0}</div>
-              <div style="font-size:9px;color:var(--gray)">Alumnos</div>
-            </div>
-            <div style="background:${parseFloat(sa)>=2?'var(--green-light)':'var(--amber-light)'};border-radius:7px;padding:10px;text-align:center">
-              <div style="font-family:var(--font-title);font-size:18px;font-weight:800;color:${parseFloat(sa)>=2?'var(--green)':'var(--amber)'}">${sa}</div>
-              <div style="font-size:9px;color:var(--gray)">Rubrica</div>
-            </div>
-            <div style="background:${ha?'var(--red-light)':'var(--green-light)'};border-radius:7px;padding:10px;text-align:center">
-              <div style="font-family:var(--font-title);font-size:18px;font-weight:800;color:${ha?'var(--red-dark)':'var(--green)'}">${s.dias_atraso<999?s.dias_atraso:0}d</div>
-              <div style="font-size:9px;color:var(--gray)">Sin sesion</div>
-            </div>
-          </div>
-          ${pendAcc?`<div style="background:#fffbf0;border:1px solid rgba(245,124,0,.25);border-radius:6px;padding:8px 10px;margin-bottom:10px;font-size:11px;color:#e65100"><strong>${pendAcc} accion${pendAcc>1?'es':''} pendiente${pendAcc>1?'s':''}</strong>.</div>`:''}
-          <div style="display:flex;gap:6px">
-            <button onclick="abrirVisita('${s.id}')" class="btn-p" style="flex:1;font-size:11px;padding:7px">+ Visita</button>
-            <button onclick="abrirIncidencia('${s.id}')" class="btn-g" style="flex:1;font-size:11px;padding:7px">+ Incidencia</button>
-          </div>
-        </div>`;
-      }).join('')}
-    </div>
-
-    <!-- Teachers section -->
-    <div class="card">
-      <div class="card-hd">
-        <div><div class="card-title">Docentes del programa</div>
-          <div class="card-sub">${(teachers||[]).length} docentes registrados</div>
-        </div>
-        <button onclick="abrirNuevoDocente()" class="btn-p" style="font-size:11px">+ Agregar docente</button>
-      </div>
-      ${!(teachers||[]).length
-        ? '<div style="font-size:12px;color:var(--gray);font-style:italic;padding:10px 0">Sin docentes registrados. Agrega el primero con el boton de arriba.</div>'
-        : `<div style="overflow-x:auto"><table class="t">
-            <thead><tr>
-              <th style="padding:10px 16px">Docente</th>
-              <th>Correo</th>
-              <th>Escuela</th>
-              <th>Horario registrado</th>
-              <th></th>
-            </tr></thead>
-            <tbody>${(teachers||[]).map(t=>{
-              const school=SCHOOLS.find(s=>s.id===t.school_id);
-              const ini=(t.full_name||t.email).split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
-              return `<tr>
-                <td style="padding:9px 16px">
-                  <div style="display:flex;align-items:center;gap:10px">
-                    <div style="width:32px;height:32px;border-radius:50%;background:rgba(2,193,244,.1);display:flex;align-items:center;justify-content:center;color:var(--blue);font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;flex-shrink:0">${ini}</div>
-                    <div style="font-family:Montserrat,sans-serif;font-size:12.5px;font-weight:700">${t.full_name||'--'}</div>
-                  </div>
-                </td>
-                <td style="font-size:11px;color:var(--gray)">${t.email}</td>
-                <td style="font-size:12px">${school?school.name:'Sin asignar'}</td>
-                <td>
-                  <button data-tid="${t.id}" data-tname="${t.full_name||t.email}" onclick="verHorarioDocente(this.dataset.tid,this.dataset.tname)"
-                    style="background:var(--blue-light);border:1px solid rgba(2,193,244,.25);color:var(--blue);padding:4px 10px;border-radius:6px;font-size:10px;font-family:Montserrat,sans-serif;font-weight:600;cursor:pointer">
-                    Ver horario
-                  </button>
-                </td>
-                <td style="padding:8px 12px">
-                  <div style="display:flex;gap:5px">
-                    <button data-tid="${t.id}" onclick="editarDocente(this.dataset.tid)" class="btn-g" style="font-size:10px;padding:4px 10px">Editar</button>
-                    <button data-tid="${t.id}" data-tname="${t.full_name||t.email}" onclick="confirmarEliminarDocente(this.dataset.tid,this.dataset.tname)" style="background:#fff5f5;border:1px solid rgba(224,53,53,.2);color:var(--red-dark);padding:4px 10px;border-radius:6px;font-size:10px;cursor:pointer">Eliminar</button>
-                  </div>
-                </td>
-              </tr>`;
-            }).join('')}</tbody>
-          </table></div>`
-      }
-    </div>`;
-}
-
-function abrirNuevoDocente(){
-  // Reuse existing user modal but pre-select docente role
-  document.getElementById('usr-nombre').value='';
-  document.getElementById('usr-email').value='';
-  document.getElementById('usr-rol').value='docente';
-  document.getElementById('usr-pass').value='';
-  document.getElementById('usr-escuela').value='';
-  oM('m-usuario');
-}
-
-async function editarDocente(id){
-  const{data:p}=await db.from('profiles').select('*').eq('id',id).single();
-  if(!p){toast('No se encontro el docente',true);return;}
-  // Show edit modal
-  const modal=document.createElement('div');
-  modal.id='m-edit-docente';
-  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:8500;display:flex;align-items:center;justify-content:center';
-  modal.innerHTML=`<div style="background:#fff;border-radius:14px;padding:28px;width:500px;box-shadow:0 20px 60px rgba(0,0,0,.25)">
-    <div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:20px">Editar docente</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-      <div><label class="_lbl">Nombre completo</label><input id="ed-nombre" type="text" value="${p.full_name||''}" class="_inp"></div>
-      <div><label class="_lbl">Escuela</label><select id="ed-escuela" class="_inp">
-        <option value="">-- Sin escuela --</option>
-        ${SCHOOLS.map(s=>`<option value="${s.id}" ${s.id===p.school_id?'selected':''}>${s.name}</option>`).join('')}
-      </select></div>
-    </div>
-    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">
-      <button onclick="document.getElementById('m-edit-docente').remove()" class="_bg">Cancelar</button>
-      <button onclick="guardarEdicionDocente('${id}')" class="_bp">Guardar cambios</button>
-    </div>
-  </div>`;
-  document.body.appendChild(modal);
-}
-
-async function guardarEdicionDocente(id){
-  const nombre=document.getElementById('ed-nombre').value.trim();
-  const escuela=document.getElementById('ed-escuela').value;
-  if(!nombre){toast('El nombre es requerido',true);return;}
-  const{error}=await db.from('profiles').update({full_name:nombre,school_id:escuela||null}).eq('id',id);
-  if(error){toast('Error: '+error.message,true);return;}
-  document.getElementById('m-edit-docente')?.remove();
-  toast('Docente actualizado');
-  renderRespEscuelas();
-}
-
-function confirmarEliminarDocente(id,nombre){
-  confirm2(
-    `Eliminar a "${nombre}"`,
-    `Se eliminara el perfil de este docente de la plataforma. Esta accion no se puede deshacer.`,
-    async()=>{
-      const{error}=await db.from('profiles').delete().eq('id',id);
-      if(error){toast('Error: '+error.message,true);return;}
-      toast('Docente eliminado');
-      renderRespEscuelas();
+  // Build school cards
+  let schoolCards='';
+  SCHOOLS.forEach(s=>{
+    const si=(incs||[]).filter(i=>i.school_id===s.id);
+    const sr=(rubs||[]).filter(r=>r.school_id===s.id);
+    const sa=AVG(sr.map(r=>parseFloat(r.average_score)||0));
+    const pendAcc=(actions||[]).filter(a=>a.school_id===s.id&&a.status==='pendiente').length;
+    const ha=s.dias_atraso>14;
+    schoolCards+='<div class="card" style="'+(ha?'border:1.5px solid rgba(224,53,53,.3)':'')+'">';
+    schoolCards+='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">';
+    schoolCards+='<div><div style="font-family:Montserrat,sans-serif;font-size:14px;font-weight:800;'+(ha?'color:var(--red-dark)':'')+'">'+s.name+'</div>';
+    schoolCards+='<div style="font-size:11px;color:var(--gray);margin-top:2px">'+(s.city||'--')+', '+(s.state||'NL')+' · '+s.year_model+'</div></div>';
+    schoolCards+=bdg(alT(s.dias_atraso),alC(s.dias_atraso));
+    schoolCards+='</div>';
+    schoolCards+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">';
+    schoolCards+='<div style="background:rgba(2,193,244,.07);border-radius:7px;padding:10px;text-align:center"><div style="font-family:var(--font-title);font-size:18px;font-weight:800;color:var(--blue)">'+(s.total_students||0)+'</div><div style="font-size:9px;color:var(--gray)">Alumnos</div></div>';
+    const saColor=parseFloat(sa)>=2?'var(--green)':'var(--amber)';
+    const saBg=parseFloat(sa)>=2?'var(--green-light)':'var(--amber-light)';
+    schoolCards+='<div style="background:'+saBg+';border-radius:7px;padding:10px;text-align:center"><div style="font-family:var(--font-title);font-size:18px;font-weight:800;color:'+saColor+'">'+sa+'</div><div style="font-size:9px;color:var(--gray)">Rubrica</div></div>';
+    const dColor=ha?'var(--red-dark)':'var(--green)';
+    const dBg=ha?'var(--red-light)':'var(--green-light)';
+    schoolCards+='<div style="background:'+dBg+';border-radius:7px;padding:10px;text-align:center"><div style="font-family:var(--font-title);font-size:18px;font-weight:800;color:'+dColor+'">'+(s.dias_atraso<999?s.dias_atraso:0)+'d</div><div style="font-size:9px;color:var(--gray)">Sin sesion</div></div>';
+    schoolCards+='</div>';
+    if(pendAcc){
+      schoolCards+='<div style="background:#fffbf0;border:1px solid rgba(245,124,0,.25);border-radius:6px;padding:8px 10px;margin-bottom:10px;font-size:11px;color:#e65100"><strong>'+pendAcc+' accion'+(pendAcc>1?'es':'')+' pendiente'+(pendAcc>1?'s':'')+' asignada'+(pendAcc>1?'s':'')+'</strong></div>';
     }
-  );
-}
-
-async function verHorarioDocente(teacherId,nombre){
-  const{data:schedules}=await db.from('schedules').select('*').eq('teacher_id',teacherId).eq('active',true).order('day_of_week');
-  const existing=document.getElementById('m-horario-docente');
-  if(existing)existing.remove();
-  const modal=document.createElement('div');
-  modal.id='m-horario-docente';
-  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:8500;display:flex;align-items:center;justify-content:center';
-
-  // Build schedule rows without nested templates
-  let rowsHtml='';
-  (schedules||[]).forEach(h=>{
-    rowsHtml+='<tr>';
-    rowsHtml+='<td style="padding:8px 12px;font-family:Montserrat,sans-serif;font-weight:600">'+(DIAS[h.day_of_week]||h.day_of_week)+'</td>';
-    rowsHtml+='<td style="font-size:12px">'+(h.start_time||'--').substring(0,5)+' - '+(h.end_time||'--').substring(0,5)+'</td>';
-    rowsHtml+='<td style="font-size:12px">'+(h.grade||'--')+'</td>';
-    rowsHtml+='<td style="font-size:11px;color:var(--gray)">'+(h.classroom||'--')+'</td>';
-    rowsHtml+='<td><button data-hid="'+h.id+'" onclick="eliminarHorario(this.dataset.hid)" style="background:#fff5f5;border:1px solid rgba(224,53,53,.2);color:var(--red-dark);padding:3px 8px;border-radius:5px;font-size:10px;cursor:pointer">X</button></td>';
-    rowsHtml+='</tr>';
+    schoolCards+='<div style="display:flex;gap:6px">';
+    schoolCards+='<button data-sid="'+s.id+'" onclick="abrirVisita(this.dataset.sid)" class="btn-p" style="flex:1;font-size:11px;padding:7px">+ Visita</button>';
+    schoolCards+='<button data-sid="'+s.id+'" onclick="abrirIncidencia(this.dataset.sid)" class="btn-g" style="flex:1;font-size:11px;padding:7px">+ Incidencia</button>';
+    schoolCards+='</div></div>';
   });
 
-  // Build school options without nested templates
-  let schoolOpts='';
-  SCHOOLS.forEach(s=>{ schoolOpts+='<option value="'+s.id+'">'+s.name+'</option>'; });
+  // Build teachers table
+  let teachersHtml='';
+  if(!(teachers||[]).length){
+    teachersHtml='<div style="font-size:12px;color:var(--gray);font-style:italic;padding:10px 0">Sin docentes registrados. Usa "+ Agregar docente" para agregar el primero.</div>';
+  } else {
+    teachersHtml='<div style="overflow-x:auto"><table class="t"><thead><tr>';
+    teachersHtml+='<th style="padding:10px 16px">Docente</th><th>Correo</th><th>Escuela</th><th>Horario</th><th></th>';
+    teachersHtml+='</tr></thead><tbody>';
+    (teachers||[]).forEach(t=>{
+      const school=SCHOOLS.find(s=>s.id===t.school_id);
+      const ini=(t.full_name||t.email).split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
+      teachersHtml+='<tr>';
+      teachersHtml+='<td style="padding:9px 16px"><div style="display:flex;align-items:center;gap:10px">';
+      teachersHtml+='<div style="width:32px;height:32px;border-radius:50%;background:rgba(2,193,244,.1);display:flex;align-items:center;justify-content:center;color:var(--blue);font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;flex-shrink:0">'+ini+'</div>';
+      teachersHtml+='<div style="font-family:Montserrat,sans-serif;font-size:12.5px;font-weight:700">'+(t.full_name||'--')+'</div></div></td>';
+      teachersHtml+='<td style="font-size:11px;color:var(--gray)">'+t.email+'</td>';
+      teachersHtml+='<td style="font-size:12px">'+(school?school.name:'Sin asignar')+'</td>';
+      teachersHtml+='<td><button data-tid="'+t.id+'" data-tname="'+(t.full_name||t.email)+'" onclick="verHorarioDocente(this.dataset.tid,this.dataset.tname)" style="background:var(--blue-light);border:1px solid rgba(2,193,244,.25);color:var(--blue);padding:4px 10px;border-radius:6px;font-size:10px;font-family:Montserrat,sans-serif;font-weight:600;cursor:pointer">Ver horario</button></td>';
+      teachersHtml+='<td style="padding:8px 12px"><div style="display:flex;gap:5px">';
+      teachersHtml+='<button data-tid="'+t.id+'" onclick="editarDocente(this.dataset.tid)" class="btn-g" style="font-size:10px;padding:4px 10px">Editar</button>';
+      teachersHtml+='<button data-tid="'+t.id+'" data-tname="'+(t.full_name||t.email)+'" onclick="confirmarEliminarDocente(this.dataset.tid,this.dataset.tname)" style="background:#fff5f5;border:1px solid rgba(224,53,53,.2);color:var(--red-dark);padding:4px 10px;border-radius:6px;font-size:10px;cursor:pointer">Eliminar</button>';
+      teachersHtml+='</div></td></tr>';
+    });
+    teachersHtml+='</tbody></table></div>';
+  }
 
-  const tableHtml = schedules&&schedules.length
-    ? '<table class="t" style="margin-bottom:16px"><thead><tr><th style="padding:8px 12px">Dia</th><th>Hora</th><th>Grupo</th><th>Salon</th><th></th></tr></thead><tbody>'+rowsHtml+'</tbody></table>'
-    : '<div style="font-size:12px;color:var(--gray);font-style:italic;margin-bottom:16px">Sin horario registrado todavia.</div>';
-
-  modal.innerHTML = '<div style="background:#fff;border-radius:14px;padding:28px;width:560px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25)">'
-    + '<div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:6px">Horario de '+nombre+'</div>'
-    + '<div style="font-size:12px;color:var(--gray);margin-bottom:16px">Clases registradas en la plataforma</div>'
-    + tableHtml
-    + '<div style="background:#f0fbff;border-radius:8px;padding:14px;margin-bottom:16px">'
-    + '<div style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;margin-bottom:10px;color:var(--blue)">Agregar clase al horario</div>'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'
-    + '<div><label class="_lbl">Dia</label><select id="nh-dia" class="_inp"><option value="1">Lunes</option><option value="2">Martes</option><option value="3">Miercoles</option><option value="4">Jueves</option><option value="5">Viernes</option></select></div>'
-    + '<div><label class="_lbl">Escuela</label><select id="nh-escuela" class="_inp">'+schoolOpts+'</select></div>'
-    + '</div>'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px">'
-    + '<div><label class="_lbl">Inicio</label><input id="nh-ini" type="time" value="08:00" class="_inp"></div>'
-    + '<div><label class="_lbl">Fin</label><input id="nh-fin" type="time" value="09:00" class="_inp"></div>'
-    + '<div><label class="_lbl">Grupo</label><input id="nh-grado" type="text" placeholder="2 A" class="_inp"></div>'
-    + '<div><label class="_lbl">Salon</label><input id="nh-salon" type="text" placeholder="Aula 5" class="_inp"></div>'
-    + '</div>'
-    + '<button data-tid="'+teacherId+'" onclick="agregarHorarioDocente(this.dataset.tid)" class="_bp" style="margin-top:10px;width:100%;padding:9px">+ Agregar clase</button>'
-    + '</div>'
-    + '<div style="display:flex;justify-content:flex-end">'
-    + '<button onclick="document.getElementById(\'m-horario-docente\').remove()" class="_bg">Cerrar</button>'
-    + '</div>'
-    + '</div>';
-
-  document.body.appendChild(modal);
-}
-
-async function agregarHorarioDocente(teacherId){
-  const dia=parseInt(document.getElementById('nh-dia').value);
-  const sc=document.getElementById('nh-escuela').value;
-  const ini=document.getElementById('nh-ini').value;
-  const fin=document.getElementById('nh-fin').value;
-  const gr=document.getElementById('nh-grado').value;
-  const sal=document.getElementById('nh-salon').value;
-  if(!ini||!fin){toast('Completa hora inicio y fin',true);return;}
-  const{error}=await db.from('schedules').insert({school_id:sc,teacher_id:teacherId,day_of_week:dia,start_time:ini,end_time:fin,grade:gr,classroom:sal,active:true});
-  if(error){toast('Error: '+error.message,true);return;}
-  toast('Horario agregado');
-  document.getElementById('m-horario-docente')?.remove();
-  // Reopen to show updated schedule
-  const{data:p}=await db.from('profiles').select('full_name,email').eq('id',teacherId).single();
-  verHorarioDocente(teacherId,p?.full_name||p?.email||'Docente');
-}
-
-async function eliminarHorario(id){
-  await db.from('schedules').update({active:false}).eq('id',id);
-  toast('Clase eliminada del horario');
-  // Refresh the modal if open - just close it
-  document.getElementById('m-horario-docente')?.remove();
-  renderRespEscuelas();
+  c.innerHTML='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;margin-bottom:20px">'+schoolCards+'</div>'
+    +'<div class="card">'
+    +'<div class="card-hd"><div><div class="card-title">Docentes del programa</div><div class="card-sub">'+((teachers||[]).length)+' docentes registrados</div></div>'
+    +'<button onclick="abrirNuevoDocente()" class="btn-p" style="font-size:11px">+ Agregar docente</button></div>'
+    +teachersHtml
+    +'</div>';
 }
 
 async function renderDocHome(){
