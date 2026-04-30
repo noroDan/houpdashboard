@@ -1647,7 +1647,14 @@ async function renderModulos(){
 }
 
 
-function _accionBtn(sid){ return '<button onclick="abrirAccion(\"'+sid+'\",\"\")" style="background:#fdecea;border:1px solid rgba(224,53,53,.3);color:#c62828;padding:5px 12px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;cursor:pointer">Asignar accion al responsable</button>'; }
+function _accionBtn(sid){ 
+  const b=document.createElement('button');
+  b.setAttribute('data-sid',sid);
+  b.onclick=function(){abrirAccion(this.dataset.sid,'');};
+  b.style.cssText='background:#fdecea;border:1px solid rgba(224,53,53,.3);color:#c62828;padding:5px 12px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;cursor:pointer';
+  b.textContent='Asignar accion al responsable';
+  return b.outerHTML;
+}
 async function renderModulosEscuela(schoolId){
   const c=document.getElementById('mod-content');if(!c)return;
   c.innerHTML=`<div style="text-align:center;padding:30px;color:var(--gray)">Cargando...</div>`;
@@ -2200,7 +2207,7 @@ async function editarDocente(id){
       </select></div>
     </div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">
-      <button onclick="document.getElementById(\"m-edit-docente\").remove()" class="_bg">Cancelar</button>
+      <button onclick="document.getElementById('m-edit-docente').remove()" class="_bg">Cancelar</button>
       <button onclick="guardarEdicionDocente('${id}')" class="_bp">Guardar cambios</button>
     </div>
   </div>`;
@@ -2213,7 +2220,7 @@ async function guardarEdicionDocente(id){
   if(!nombre){toast('El nombre es requerido',true);return;}
   const{error}=await db.from('profiles').update({full_name:nombre,school_id:escuela||null}).eq('id',id);
   if(error){toast('Error: '+error.message,true);return;}
-  document.getElementById(\"m-edit-docente\")?.remove();
+  document.getElementById('m-edit-docente')?.remove();
   toast('Docente actualizado');
   renderRespEscuelas();
 }
@@ -2233,7 +2240,7 @@ function confirmarEliminarDocente(id,nombre){
 
 async function verHorarioDocente(teacherId,nombre){
   const{data:schedules}=await db.from('schedules').select('*').eq('teacher_id',teacherId).eq('active',true).order('day_of_week');
-  const existing=document.getElementById(\"m-horario-docente\");
+  const existing=document.getElementById('m-horario-docente');
   if(existing)existing.remove();
   const modal=document.createElement('div');
   modal.id='m-horario-docente';
@@ -2296,7 +2303,7 @@ async function agregarHorarioDocente(teacherId){
   const{error}=await db.from('schedules').insert({school_id:sc,teacher_id:teacherId,day_of_week:dia,start_time:ini,end_time:fin,grade:gr,classroom:sal,active:true});
   if(error){toast('Error: '+error.message,true);return;}
   toast('Horario agregado');
-  document.getElementById(\"m-horario-docente\")?.remove();
+  document.getElementById('m-horario-docente')?.remove();
   // Reopen to show updated schedule
   const{data:p}=await db.from('profiles').select('full_name,email').eq('id',teacherId).single();
   verHorarioDocente(teacherId,p?.full_name||p?.email||'Docente');
@@ -2306,7 +2313,7 @@ async function eliminarHorario(id){
   await db.from('schedules').update({active:false}).eq('id',id);
   toast('Clase eliminada del horario');
   // Refresh the modal if open - just close it
-  document.getElementById(\"m-horario-docente\")?.remove();
+  document.getElementById('m-horario-docente')?.remove();
   renderRespEscuelas();
 }
 
