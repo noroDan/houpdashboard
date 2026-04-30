@@ -995,6 +995,48 @@ const MODULOS=[
   {n:5,name:'Liderazgo y comunidad',sessions:4},
 ];
 
+// Define nav stub immediately so mockup HTML onclick handlers don't throw
+function nav(el,screenId){
+  if(el){el.closest('.nav')?.querySelectorAll('.nav-item').forEach(i=>i.classList.remove('active'));el.classList.add('active');}
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(screenId)?.classList.add('active');
+  SCREEN=screenId;
+  try{sessionStorage.setItem('houp_screen',screenId);}catch(e){}
+  const TITLES={'s-dash':'Panel general','s-escuelas':'Escuelas','s-sesiones':'Seguimiento de sesiones',
+    's-modulos':'Avance por escuela','s-evidencia':'Evidencia','s-found-dash':'Panel Fundacion',
+    's-found-rubrics':'Rubricas y calificaciones','s-found-reports':'Descargar reportes',
+    's-resp-home':'Mi panel','s-resp-sesiones':'Mis sesiones','s-resp-equipo':'Mis escuelas',
+    's-doc-home':'Mis clases','s-doc-material':'Material didactico','s-doc-plan':'Planeacion de sesion'};
+  const tb=document.getElementById('tb-title');if(tb)tb.textContent=TITLES[screenId]||screenId;
+  const cta=document.getElementById('tb-cta');
+  if(cta){
+    cta.style.display='none';cta.onclick=null;
+    const CM={'s-escuelas':['+ Nueva escuela',()=>abrirEscuela()],'s-sesiones':['+ Incidencia',()=>abrirIncidencia()],
+      's-evidencia':['+ Cargar evidencia',()=>abrirEvidencia()],'s-found-rubrics':['+ Nueva rubrica',()=>oM('m-rubrica')],
+      's-resp-home':['+ Visita',()=>abrirVisita()],'s-resp-sesiones':['+ Incidencia',()=>abrirIncidencia()],
+      's-resp-equipo':['+ Visita',()=>abrirVisita()],'s-doc-home':['+ Planeacion',()=>abrirPlaneacion()],
+      's-doc-plan':['+ Planeacion',()=>abrirPlaneacion()]};
+    if(CM[screenId]){cta.style.display='block';cta.textContent=CM[screenId][0];cta.onclick=CM[screenId][1];}
+  }
+  const LOADERS={'s-dash':renderDash,'s-escuelas':renderEscuelas,'s-sesiones':renderSesiones,
+    's-modulos':renderModulos,'s-evidencia':renderEvidencia,'s-found-dash':renderFundDash,
+    's-found-rubrics':renderFundRubricas,'s-found-reports':renderFundReportes,
+    's-resp-home':renderRespHome,'s-resp-sesiones':renderRespSesiones,'s-resp-equipo':renderRespEscuelas,
+    's-doc-home':renderDocHome,'s-doc-material':renderDocMaterial,'s-doc-plan':renderDocPlan};
+  if(LOADERS[screenId])LOADERS[screenId]();
+}
+
+function switchRole(r){
+  document.querySelectorAll('.role-btn').forEach(b=>b.classList.remove('active'));
+  if(event?.target)event.target.classList.add('active');
+  const RM={admin:'admin_houp',responsable:'responsable',docente:'docente',fundacion:'fundacion'};
+  _showNav(RM[r]||r);
+  const NI={admin:'nav-admin',responsable:'nav-responsable',docente:'nav-docente',fundacion:'nav-fundacion'};
+  const FS={admin:'s-dash',responsable:'s-resp-home',docente:'s-doc-home',fundacion:'s-found-dash'};
+  const navEl=document.getElementById(NI[r]);
+  nav(navEl?.querySelector('.nav-item'),FS[r]||'s-dash');
+}
+
 document.addEventListener('DOMContentLoaded',()=>{ _injectUI(); db.auth.getSession().then(({data:{session}})=>{ if(session?.user) _initApp(session.user); }); });
 
 // ─────────────────────────────────────────────────────────────────
@@ -1460,46 +1502,6 @@ function _showNav(role){
   if(el)el.style.display='block';
 }
 
-function nav(el,screenId){
-  if(el){el.closest('.nav')?.querySelectorAll('.nav-item').forEach(i=>i.classList.remove('active'));el.classList.add('active');}
-  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-  document.getElementById(screenId)?.classList.add('active');
-  SCREEN=screenId;
-  try{sessionStorage.setItem('houp_screen',screenId);}catch(e){}
-  const TITLES={'s-dash':'Panel general','s-escuelas':'Escuelas','s-sesiones':'Seguimiento de sesiones',
-    's-modulos':'Avance por escuela','s-evidencia':'Evidencia','s-found-dash':'Panel Fundacion',
-    's-found-rubrics':'Rubricas y calificaciones','s-found-reports':'Descargar reportes',
-    's-resp-home':'Mi panel','s-resp-sesiones':'Mis sesiones','s-resp-equipo':'Mis escuelas',
-    's-doc-home':'Mis clases','s-doc-material':'Material didactico','s-doc-plan':'Planeacion de sesion'};
-  const tb=document.getElementById('tb-title');if(tb)tb.textContent=TITLES[screenId]||screenId;
-  const cta=document.getElementById('tb-cta');
-  if(cta){
-    cta.style.display='none';cta.onclick=null;
-    const CM={'s-escuelas':['+ Nueva escuela',()=>abrirEscuela()],'s-sesiones':['+ Incidencia',()=>abrirIncidencia()],
-      's-evidencia':['+ Cargar evidencia',()=>abrirEvidencia()],'s-found-rubrics':['+ Nueva rubrica',()=>oM('m-rubrica')],
-      's-resp-home':['+ Visita',()=>abrirVisita()],'s-resp-sesiones':['+ Incidencia',()=>abrirIncidencia()],
-      's-resp-equipo':['+ Visita',()=>abrirVisita()],'s-doc-home':['+ Planeacion',()=>abrirPlaneacion()],
-      's-doc-plan':['+ Planeacion',()=>abrirPlaneacion()]};
-    if(CM[screenId]){cta.style.display='block';cta.textContent=CM[screenId][0];cta.onclick=CM[screenId][1];}
-  }
-  const LOADERS={'s-dash':renderDash,'s-escuelas':renderEscuelas,'s-sesiones':renderSesiones,
-    's-modulos':renderModulos,'s-evidencia':renderEvidencia,'s-found-dash':renderFundDash,
-    's-found-rubrics':renderFundRubricas,'s-found-reports':renderFundReportes,
-    's-resp-home':renderRespHome,'s-resp-sesiones':renderRespSesiones,'s-resp-equipo':renderRespEscuelas,
-    's-doc-home':renderDocHome,'s-doc-material':renderDocMaterial,'s-doc-plan':renderDocPlan};
-  if(LOADERS[screenId])LOADERS[screenId]();
-}
-
-function switchRole(r){
-  document.querySelectorAll('.role-btn').forEach(b=>b.classList.remove('active'));
-  if(event?.target)event.target.classList.add('active');
-  const RM={admin:'admin_houp',responsable:'responsable',docente:'docente',fundacion:'fundacion'};
-  _showNav(RM[r]||r);
-  const NI={admin:'nav-admin',responsable:'nav-responsable',docente:'nav-docente',fundacion:'nav-fundacion'};
-  const FS={admin:'s-dash',responsable:'s-resp-home',docente:'s-doc-home',fundacion:'s-found-dash'};
-  const navEl=document.getElementById(NI[r]);
-  nav(navEl?.querySelector('.nav-item'),FS[r]||'s-dash');
-}
 
 // ─────────────────────────────────────────────────────────────────
 //  HELPERS
@@ -1830,7 +1832,7 @@ async function renderSesiones(){
     html+='<div class="card-title" style="'+(ha?'color:var(--red-dark)':'')+'">'+s.name+(ha?' ⚠':'')+' </div>';
     html+='<div class="card-sub">'+s.year_model+' · '+si.length+' incidencia'+(si.length!==1?'s':'')+'</div>';
     html+='</div>';
-    html+='<button onclick="abrirIncidencia(''+s.id+'')" class="'+(ha?'btn-p':'btn-g')+'" style="font-size:11px">'+(ha?'Agendar recuperacion':'+ Incidencia')+'</button>';
+    html+='<button data-sid="'+s.id+'" onclick="abrirIncidencia(this.dataset.sid)" class="'+(ha?'btn-p':'btn-g')+'" style="font-size:11px">'+(ha?'Agendar recuperacion':'+ Incidencia')+'</button>';
     html+='</div>';
     if(ha){
       html+='<div style="background:var(--red-light);border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--red-dark)">';
