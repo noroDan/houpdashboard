@@ -2467,45 +2467,53 @@ async function renderDocPlan(){
   const currentSess=sessions.find(s=>s.status!=='completada')||sessions[sessions.length-1];
   const{data:plannings}=await db.from('plannings').select('*').eq('school_id',mySchool.id).order('submitted_at',{ascending:false}).limit(5).catch(()=>({data:[]}));
 
-  c.innerHTML=`
-    <div class="two-col">
-      <div class="card">
-        <div class="card-hd"><div><div class="card-title">Planeacion de sesion</div>
-          <div class="card-sub">Mod.${currentSess?.module_number||'--'} · Sesion ${currentSess?.session_number||'--'}</div>
-        </div></div>
-        <div style="background:rgba(2,193,244,.06);border-radius:8px;padding:12px;margin-bottom:16px">
-          <div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:var(--blue);margin-bottom:4px">SESION PENDIENTE</div>
-          <div style="font-size:13px;font-weight:700">S${currentSess?.session_number||'--'} · ${currentSess?.module_name||'--'}</div>
-          ${currentSess?.status!=='pendiente'?`<div style="margin-top:6px;font-size:12px;color:var(--gray)">${bdg(SL[currentSess?.status||'pendiente'],SB[currentSess?.status||'pendiente'])} Esta sesion fue modificada por el equipo Houp.</div>`:''}
-        </div>
-        <button onclick="abrirPlaneacion('${mySchool.id}','${currentSess?.id||''}')" 
-          style="width:100%;padding:14px;background:#02c1f4;color:#fff;border:none;border-radius:8px;font-family:Montserrat,sans-serif;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:10px">
-          📄 Subir mi planeacion
-        </button>
-        <button onclick="abrirEvidencia()" style="width:100%;padding:12px;background:var(--green-light);color:var(--green);border:1px solid rgba(67,160,71,.2);border-radius:8px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;cursor:pointer">
-          📎 Cargar evidencia post-clase
-        </button>
-      </div>
+  let planHtml='';
+  if(!(plannings||[]).length){
+    planHtml='<div style="text-align:center;padding:20px;color:var(--gray)">';
+    planHtml+='<div style="font-size:32px;margin-bottom:10px">📝</div>';
+    planHtml+='<div style="font-family:Montserrat,sans-serif;font-size:13px;font-weight:600;margin-bottom:6px">Aun no has subido planeaciones</div>';
+    planHtml+='<div style="font-size:12px">Presiona el boton de arriba para subir tu primera planeacion</div>';
+    planHtml+='</div>';
+  } else {
+    (plannings||[]).forEach(p=>{
+      planHtml+='<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f5f5f5">';
+      planHtml+='<div style="width:36px;height:36px;border-radius:8px;background:var(--green-light);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">✅</div>';
+      planHtml+='<div style="flex:1">';
+      planHtml+='<div style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:700">Mod.'+p.module_number+' · Sesion '+p.session_number+'</div>';
+      planHtml+='<div style="font-size:11px;color:var(--gray);margin-top:2px">'+(p.activation?p.activation.substring(0,60)+'...':'Sin descripcion')+'</div>';
+      if(p.file_name) planHtml+='<div style="font-size:10px;color:var(--blue);margin-top:2px">📄 '+p.file_name+'</div>';
+      planHtml+='</div>';
+      if(p.file_url) planHtml+='<a href="'+p.file_url+'" target="_blank" style="font-size:10px;color:var(--blue);font-weight:600;text-decoration:none;font-family:Montserrat,sans-serif">Ver</a>';
+      planHtml+='<div style="font-size:10px;color:var(--gray);white-space:nowrap">'+fD(p.submitted_at)+'</div>';
+      planHtml+='</div>';
+    });
+  }
 
-      <div class="card">
-        <div class="card-hd"><div class="card-title">Mis planeaciones subidas</div></div>
-        ${!(plannings||[]).length?'<div style="text-align:center;padding:20px;color:var(--gray)">
-          <div style="font-size:32px;margin-bottom:10px">📝</div>
-          <div style="font-family:Montserrat,sans-serif;font-size:13px;font-weight:600;margin-bottom:6px">Aun no has subido planeaciones</div>
-          <div style="font-size:12px">Presiona el boton de arriba para subir tu primera planeacion</div>
-        </div>':
-        (plannings||[]).map(p=>`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f5f5f5">
-          <div style="width:36px;height:36px;border-radius:8px;background:var(--green-light);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">✅</div>
-          <div style="flex:1">
-            <div style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:700">Mod.${p.module_number} · Sesion ${p.session_number}</div>
-            <div style="font-size:11px;color:var(--gray);margin-top:2px">${p.activation?p.activation.substring(0,60)+'...':'Sin descripcion'}</div>
-            ${p.file_name?`<div style="font-size:10px;color:var(--blue);margin-top:2px">📄 ${p.file_name}</div>`:''}
-          </div>
-          ${p.file_url?`<a href="${p.file_url}" target="_blank" style="font-size:10px;color:var(--blue);font-weight:600;text-decoration:none;font-family:Montserrat,sans-serif">Ver</a>`:''}
-          <div style="font-size:10px;color:var(--gray);white-space:nowrap">${fD(p.submitted_at)}</div>
-        </div>`).join('')}
-      </div>
-    </div>`;
+  const sessStatus = currentSess && currentSess.status!=='pendiente'
+    ? '<div style="margin-top:6px;font-size:12px;color:var(--gray)">'+bdg(SL[currentSess.status]||currentSess.status, SB[currentSess.status]||'b-gray')+' Esta sesion fue modificada por el equipo Houp.</div>'
+    : '';
+
+  c.innerHTML='<div class="two-col">'
+    +'<div class="card">'
+    +'<div class="card-hd"><div><div class="card-title">Planeacion de sesion</div>'
+    +'<div class="card-sub">Mod.'+(currentSess?currentSess.module_number:'--')+' · Sesion '+(currentSess?currentSess.session_number:'--')+'</div>'
+    +'</div></div>'
+    +'<div style="background:rgba(2,193,244,.06);border-radius:8px;padding:12px;margin-bottom:16px">'
+    +'<div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:var(--blue);margin-bottom:4px">SESION PENDIENTE</div>'
+    +'<div style="font-size:13px;font-weight:700">S'+(currentSess?currentSess.session_number:'--')+' · '+(currentSess?currentSess.module_name:'--')+'</div>'
+    +sessStatus
+    +'</div>'
+    +'<button data-sid="'+mySchool.id+'" data-sessid="'+(currentSess?currentSess.id:'')+'" onclick="abrirPlaneacion(this.dataset.sid,this.dataset.sessid)"'
+    +' style="width:100%;padding:14px;background:#02c1f4;color:#fff;border:none;border-radius:8px;font-family:Montserrat,sans-serif;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:10px">'
+    +'📄 Subir mi planeacion</button>'
+    +'<button onclick="abrirEvidencia()" style="width:100%;padding:12px;background:var(--green-light);color:var(--green);border:1px solid rgba(67,160,71,.2);border-radius:8px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;cursor:pointer">'
+    +'📎 Cargar evidencia post-clase</button>'
+    +'</div>'
+    +'<div class="card">'
+    +'<div class="card-hd"><div class="card-title">Mis planeaciones subidas</div></div>'
+    +planHtml
+    +'</div>'
+    +'</div>';
 }
 
 // ─────────────────────────────────────────────────────────────────
