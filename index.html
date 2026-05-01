@@ -3981,13 +3981,455 @@ function loadDetalleEscuela(schoolId) {
   });
 }
 
-// Wire new screens into nav LOADERS
-var _origNav = nav;
+
+
+// ═══════════════════════════════════════════════════════
+// DOCENTE v2 — Pantallas rediseñadas
+// ═══════════════════════════════════════════════════════
+
+// ── MIS CLASES: Vista semanal con navegación ──────────
+function renderDocHome() {
+  var c = document.getElementById('s-doc-home'); if(!c) return;
+  loading(c);
+
+  DB.from('teacher_assignments')
+    .select('*,groups(id,grade,group_name,shift,school_id),courses(name,short_name,grade)')
+    .eq('teacher_id', ME.id).eq('active', true)
+    .then(function(r) {
+      var assignments = r.data || [];
+      if(!assignments.length) {
+        c.innerHTML = '<div style="text-align:center;padding:60px;color:var(--gray)">'
+          + '<div style="font-size:48px;margin-bottom:12px">📋</div>'
+          + '<div style="font-family:Montserrat,sans-serif;font-size:15px;font-weight:700;margin-bottom:6px">Sin grupos asignados</div>'
+          + '<div style="font-size:13px;color:var(--gray)">El responsable de escuela debe asignarte tus grupos</div></div>';
+        return;
+      }
+      var groupIds = assignments.map(function(a){ return a.groups && a.groups.id; }).filter(Boolean);
+      DB.from('session_logs')
+        .select('*,sessions(id,title,session_number,has_evaluation,modules(name,number))')
+        .in('group_id', groupIds)
+        .order('scheduled_date')
+        .then(function(lr) {
+          var allLogs = lr.data || [];
+          // Default to current week
+          var today = new Date();
+          var weekStart = new Date(today);
+          weekStart.setDate(today.getDate() - today.getDay() + 1); // Monday
+          weekStart.setHours(0,0,0,0);
+          renderDocWeek(c, assignments, allLogs, weekStart);
+        });
+    });
+}
+
+function renderDocWeek(c, assignments, allLogs, weekStart) {
+  var weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  weekEnd.setHours(23,59,59,999);
+
+  var today = new Date();
+  var isCurrentWeek = today >= weekStart && today <= weekEnd;
+
+  // Sessions this week
+  var weekLogs = allLogs.filter(function(l){
+    if(!l.scheduled_date) return false;
+    var d = new Date(l.scheduled_date);
+    return d >= weekStart && d <= weekEnd;
+  });
+
+  // Stats for full cycle
+  var totalAll = allLogs.length;
+  var doneAll  = allLogs.filter(function(l){return l.status==='completed';}).length;
+  var postAll  = allLogs.filter(function(l){return l.status==='postponed';}).length;
+
+  // Format week label
+  var monthNames = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  var weekLabel = weekStart.getDate()+' '+monthNames[weekStart.getMonth()]+' — '+weekEnd.getDate()+' '+monthNames[weekEnd.getMonth()];
+
+  var html = '';
+
+  // Alerts for postponed
+  if(postAll) {
+    html += '<div class="alert-red"><div class="alert-dot ad-red"></div>'
+      +'<div class="alert-txt"><strong>'+postAll+' sesion'+(postAll>1?'es':'')+' pospuesta'+(postAll>1?'s':'')+'</strong> en este ciclo. Coordina con tu responsable para reagendar.</div></div>';
+  }
+
+  // Cycle stats
+  html += '<div class="stats-row">';
+  html += statCard(assignments.length, 'Grupos', 'c-blue');
+  html += statCard(doneAll+'/'+totalAll, 'Sesiones completadas', '');
+  html += statCard(pct(doneAll,totalAll)+'%', 'Avance del ciclo', 'c-blue');
+  html += statCard(postAll, 'Pospuestas', postAll?'c-amber':'');
+  html += '</div>';
+
+  // Week navigation
+  var prevWeek = new Date(weekStart); prevWeek.setDate(prevWeek.getDate()-7);
+  var nextWeek = new Date(weekStart); nextWeek.setDate(nextWeek.getDate()+7);
+
+  html += '<div class="card">';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">';
+  html += '<button onclick="navDocWeek('+prevWeek.getTime()+')" style="background:#fff;border:1px solid rgba(0,0,0,.14);color:#444;padding:7px 14px;border-radius:6px;font-size:12px;cursor:pointer">‹ Semana anterior</button>';
+  html += '<div style="text-align:center">';
+  html += '<div style="font-family:Montserrat,sans-serif;font-size:14px;font-weight:700">'+weekLabel+'</div>';
+  if(isCurrentWeek) html += '<div style="font-size:11px;color:var(--blue);font-family:Montserrat,sans-serif;font-weight:600">Esta semana</div>';
+  html += '</div>';
+  html += '<button onclick="navDocWeek('+nextWeek.getTime()+')" style="background:#fff;border:1px solid rgba(0,0,0,.14);color:#444;padding:7px 14px;border-radius:6px;font-size:12px;cursor:pointer">Siguiente semana ›</button>';
+  html += '</div>';
+
+  if(!weekLogs.length) {
+    html += '<div style="text-align:center;padding:40px;color:var(--gray)">';
+    html += '<div style="font-size:32px;margin-bottom:10px">📅</div>';
+    html += '<div style="font-family:Montserrat,sans-serif;font-size:13px;font-weight:600;margin-bottom:6px">Sin clases programadas esta semana</div>';
+    html += '<div style="font-size:12px">Navega a otra semana o contacta al equipo Houp para cargar el calendario</div>';
+    html += '</div>';
+  } else {
+    // Group by day
+    var byDay = {};
+    weekLogs.forEach(function(l){
+      var d = new Date(l.scheduled_date);
+      var key = l.scheduled_date;
+      if(!byDay[key]) byDay[key] = [];
+      byDay[key].push(l);
+    });
+    var days = Object.keys(byDay).sort();
+    var dayNames = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+
+    days.forEach(function(dateKey){
+      var dayLogs = byDay[dateKey];
+      var d = new Date(dateKey);
+      var isToday = d.toDateString() === today.toDateString();
+      var dayName = dayNames[d.getDay()];
+      var dayFmt  = d.getDate()+' '+monthNames[d.getMonth()];
+
+      html += '<div style="margin-bottom:16px">';
+      html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">';
+      html += '<div style="font-family:Montserrat,sans-serif;font-size:13px;font-weight:700;color:'+(isToday?'var(--blue)':'#444')+'">'+dayName+' '+dayFmt+(isToday?' — HOY':'')+'</div>';
+      if(isToday) html += '<div style="width:8px;height:8px;border-radius:50%;background:var(--blue)"></div>';
+      html += '</div>';
+
+      dayLogs.forEach(function(l){
+        var ses   = l.sessions;
+        var mod   = ses && ses.modules;
+        var asgmt = assignments.find(function(a){ return a.groups && a.groups.id === l.group_id; });
+        var g     = asgmt && asgmt.groups;
+        var gradeColors = {1:'var(--blue)',2:'var(--green)',3:'#9c27b0'};
+        var gradeBg     = {1:'rgba(2,193,244,.06)',2:'rgba(67,160,71,.06)',3:'rgba(156,39,176,.06)'};
+        var statusBorder = {completed:'#43a047',postponed:'#ffa000',cancelled:'#c62828',double:'#02c1f4',pending:isToday?gradeColors[g&&g.grade]||'var(--blue)':'#e0e0e0'};
+        var borderCol = statusBorder[l.status]||'#e0e0e0';
+
+        html += '<div style="display:flex;align-items:stretch;gap:0;border-radius:10px;overflow:hidden;border:1px solid rgba(0,0,0,.08);margin-bottom:8px">';
+        // Color stripe
+        html += '<div style="width:5px;background:'+borderCol+';flex-shrink:0"></div>';
+        // Content
+        html += '<div style="flex:1;padding:12px 14px;background:'+(l.status==='completed'?'#f9fff9':l.status==='postponed'?'#fffbf0':'#fff')+'">';
+        html += '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">';
+        html += '<div style="flex:1">';
+        // Grade + group badge
+        html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">';
+        html += '<span style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:'+(gradeColors[g&&g.grade]||'var(--blue)')+'">'+(g?g.grade+'° '+COURSE_SHORT[g.grade]+' — Grupo '+g.group_name+' ('+(g.shift==='matutino'?'Mat':'Vesp')+')':'—')+'</span>';
+        if(l.status !== 'pending') html += bdg(STATUS_LBL[l.status]||l.status, l.status==='completed'?'b-green':l.status==='postponed'?'b-amber':l.status==='cancelled'?'b-red':'b-blue');
+        html += '</div>';
+        // Session title
+        html += '<div style="font-family:Montserrat,sans-serif;font-size:14px;font-weight:700;margin-bottom:3px">'+(ses?'S'+ses.session_number+': '+ses.title:'Sin sesion asignada')+'</div>';
+        if(mod) html += '<div style="font-size:11px;color:var(--gray)">Bloque '+mod.number+' — '+mod.name+'</div>';
+        if(l.status==='postponed'&&l.postpone_reason) html += '<div style="font-size:11px;color:var(--amber);margin-top:4px">Motivo: '+l.postpone_reason+'</div>';
+        if(l.status==='completed'&&l.teacher_notes) html += '<div style="font-size:11px;color:var(--green);margin-top:4px">✓ '+l.teacher_notes+'</div>';
+        html += '</div>';
+        // Action button
+        html += '<div style="flex-shrink:0">';
+        if(l.status === 'pending') {
+          html += '<button onclick="abrirReporteSesion(\''+l.id+'\')" style="background:var(--blue);color:#fff;border:none;padding:8px 14px;border-radius:8px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">Reportar sesion</button>';
+        } else if(l.status === 'completed') {
+          html += '<div style="text-align:center"><div style="font-size:20px">✅</div><div style="font-size:10px;color:var(--green);font-family:Montserrat,sans-serif;font-weight:600">Completada</div></div>';
+        } else if(l.status === 'postponed') {
+          html += '<button onclick="abrirReporteSesion(\''+l.id+'\')" style="background:var(--amber);color:#fff;border:none;padding:8px 14px;border-radius:8px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">Reagendar</button>';
+        }
+        html += '</div></div></div></div>';
+      });
+      html += '</div>';
+    });
+  }
+  html += '</div>';
+
+  // Cycle progress grid below
+  html += '<div class="card" style="margin-top:14px"><div class="card-hd"><div>';
+  html += '<div class="card-title">Avance del ciclo</div>';
+  html += '<div class="card-sub">'+doneAll+' de '+totalAll+' sesiones completadas — '+pct(doneAll,totalAll)+'%</div>';
+  html += '</div></div>';
+  html += progressBar(pct(doneAll,totalAll), '#02c1f4', 8);
+
+  // Mini grid per assignment
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-top:14px">';
+  assignments.forEach(function(a){
+    var g = a.groups; if(!g) return;
+    var gLogs = allLogs.filter(function(l){return l.group_id===g.id;});
+    var gDone = gLogs.filter(function(l){return l.status==='completed';}).length;
+    var gP    = pct(gDone, gLogs.length);
+    var gradeColors={1:'var(--blue)',2:'var(--green)',3:'#9c27b0'};
+    html += '<div style="padding:10px;background:#f9f9f9;border-radius:8px">';
+    html += '<div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:'+(gradeColors[g.grade]||'var(--blue)')+';margin-bottom:4px">'+g.grade+'° '+g.group_name+' '+g.shift.substring(0,3)+'</div>';
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-size:10px;color:var(--gray)">'+gDone+'/'+gLogs.length+'</span><span style="font-size:11px;font-weight:700;color:'+(gradeColors[g.grade]||'var(--blue)')+'">'+gP+'%</span></div>';
+    html += progressBar(gP, gradeColors[g.grade]||'var(--blue)', 4);
+    html += '</div>';
+  });
+  html += '</div></div>';
+
+  c.innerHTML = html;
+
+  // Store data for week navigation
+  window._docAssignments = assignments;
+  window._docAllLogs = allLogs;
+}
+
+function navDocWeek(timestamp) {
+  var weekStart = new Date(timestamp);
+  weekStart.setHours(0,0,0,0);
+  var c = document.getElementById('s-doc-home');
+  if(window._docAssignments && window._docAllLogs) {
+    renderDocWeek(c, window._docAssignments, window._docAllLogs, weekStart);
+  } else {
+    renderDocHome();
+  }
+}
+
+// ── MATERIAL DIDÁCTICO ────────────────────────────────
+function renderDocMaterial() {
+  var c = document.getElementById('s-doc-material'); if(!c) return;
+  loading(c);
+
+  DB.from('teacher_assignments')
+    .select('*,groups(id,grade,group_name,school_id),courses(name,short_name,grade)')
+    .eq('teacher_id', ME.id).eq('active', true)
+    .then(function(r) {
+      var assignments = r.data || [];
+      if(!assignments.length) { c.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray)">Sin grupos asignados</div>'; return; }
+
+      var groupIds = assignments.map(function(a){return a.groups&&a.groups.id;}).filter(Boolean);
+
+      DB.from('session_logs')
+        .select('*,sessions(id,title,session_number,modules(name,number))')
+        .in('group_id', groupIds)
+        .eq('status','pending')
+        .order('scheduled_date')
+        .then(function(lr){
+          var nextLogs = lr.data||[];
+
+          // Get next session per grade
+          var nextByGrade = {};
+          [1,2,3].forEach(function(grade){
+            var asgmts = assignments.filter(function(a){return a.courses&&a.courses.grade===grade;});
+            var gIds   = asgmts.map(function(a){return a.groups&&a.groups.id;}).filter(Boolean);
+            var gLogs  = nextLogs.filter(function(l){return gIds.indexOf(l.group_id)>-1;});
+            nextByGrade[grade] = gLogs[0]||null;
+          });
+
+          // Try to get real materials from DB
+          var sesIds = Object.values(nextByGrade).filter(Boolean).map(function(l){return l.sessions&&l.sessions.id;}).filter(Boolean);
+          var matQuery = sesIds.length
+            ? DB.from('materials').select('*').in('session_id', sesIds)
+            : Promise.resolve({data:[]});
+
+          matQuery.then(function(mr){
+            var materials = mr.data||[];
+
+            // Placeholder materials per program
+            var PLACEHOLDER = {
+              1: [
+                {type:'presentation', title:'Presentacion S{n} — Emociones Positivas', desc:'Slides oficiales de la sesion'},
+                {type:'activity',     title:'Actividad ludica S{n}',                   desc:'Dinamica de inicio (15 min)'},
+                {type:'manual_pages', title:'Manual del alumno — Pags. {p}',           desc:'Paginas correspondientes a esta sesion'},
+                {type:'planning',     title:'Guia de planeacion docente',              desc:'Instrucciones y tiempos sugeridos'}
+              ],
+              2: [
+                {type:'presentation', title:'Presentacion S{n} — Relaciones Positivas', desc:'Slides oficiales de la sesion'},
+                {type:'activity',     title:'Actividad ludica S{n}',                    desc:'Dinamica de inicio (15 min)'},
+                {type:'manual_pages', title:'Manual del alumno — Pags. {p}',            desc:'Paginas correspondientes a esta sesion'},
+                {type:'planning',     title:'Guia de planeacion docente',               desc:'Instrucciones y tiempos sugeridos'}
+              ],
+              3: [
+                {type:'presentation', title:'Presentacion S{n} — Camino a Metas', desc:'Slides oficiales de la sesion'},
+                {type:'activity',     title:'Actividad ludica S{n}',               desc:'Dinamica de inicio (15 min)'},
+                {type:'manual_pages', title:'Manual del alumno — Pags. {p}',       desc:'Paginas correspondientes a esta sesion'},
+                {type:'planning',     title:'Guia de planeacion docente',          desc:'Instrucciones y tiempos sugeridos'}
+              ]
+            };
+
+            var TYPE_ICONS = {presentation:'📊', planning:'📝', activity:'🎯', resource:'📄', manual_pages:'📖', video:'🎥'};
+            var TYPE_LBL   = {presentation:'Presentacion', planning:'Planeacion', activity:'Actividad', resource:'Recurso', manual_pages:'Manual alumno', video:'Video'};
+            var gradeColors= {1:'var(--blue)',2:'var(--green)',3:'#9c27b0'};
+            var gradeBg    = {1:'rgba(2,193,244,.06)',2:'rgba(67,160,71,.06)',3:'rgba(156,39,176,.06)'};
+
+            var html = '<div style="margin-bottom:16px">';
+            html += '<div style="font-family:Montserrat,sans-serif;font-size:14px;font-weight:700;margin-bottom:4px">Material de esta semana</div>';
+            html += '<div style="font-size:12px;color:var(--gray)">El material es el mismo para todos los grupos del mismo grado</div></div>';
+
+            html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px">';
+            [1,2,3].forEach(function(grade){
+              var nl  = nextByGrade[grade];
+              var ses = nl&&nl.sessions;
+              var mod = ses&&ses.modules;
+              var sesNum  = ses?ses.session_number:0;
+              var mats = ses ? materials.filter(function(m){return m.session_id===ses.id;}) : [];
+              var placeholders = PLACEHOLDER[grade]||[];
+
+              html += '<div class="card">';
+              html += '<div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:'+(gradeColors[grade])+';text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">'+grade+'° — '+COURSE_NAME[grade]+'</div>';
+
+              if(ses){
+                html += '<div style="font-family:Montserrat,sans-serif;font-size:14px;font-weight:800;margin-bottom:2px">S'+sesNum+': '+ses.title+'</div>';
+                html += '<div style="font-size:11px;color:var(--gray);margin-bottom:12px">'+(mod?'Bloque '+mod.number+' — '+mod.name:'')+'</div>';
+
+                // Real materials if exist
+                if(mats.length){
+                  mats.forEach(function(m){
+                    html += '<div style="display:flex;align-items:center;gap:8px;padding:8px;background:'+gradeBg[grade]+';border-radius:7px;margin-bottom:6px">';
+                    html += '<span style="font-size:18px">'+(TYPE_ICONS[m.type]||'📄')+'</span>';
+                    html += '<div style="flex:1"><div style="font-size:12px;font-weight:600">'+m.title+'</div>';
+                    if(m.description) html += '<div style="font-size:10px;color:var(--gray)">'+m.description+'</div>';
+                    html += '</div>';
+                    if(m.file_url||m.external_url) html += '<a href="'+(m.file_url||m.external_url)+'" target="_blank" style="background:var(--blue-light);border:1px solid rgba(2,193,244,.25);border-radius:6px;padding:4px 8px;font-size:10px;font-weight:600;color:var(--blue);text-decoration:none;font-family:Montserrat,sans-serif;flex-shrink:0">Ver</a>';
+                    html += '</div>';
+                  });
+                } else {
+                  // Placeholders
+                  html += '<div style="background:#fff8e1;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:11px;color:#e65100;display:flex;align-items:center;gap:6px">';
+                  html += '⚠ El equipo Houp aun no ha subido los materiales de esta sesion';
+                  html += '</div>';
+                  placeholders.forEach(function(p){
+                    var title = p.title.replace('{n}',sesNum).replace('{p}', sesNum*2+'-'+(sesNum*2+2));
+                    html += '<div style="display:flex;align-items:center;gap:8px;padding:8px;background:'+gradeBg[grade]+';border-radius:7px;margin-bottom:6px;opacity:.6">';
+                    html += '<span style="font-size:18px">'+(TYPE_ICONS[p.type]||'📄')+'</span>';
+                    html += '<div style="flex:1"><div style="font-size:12px;font-weight:600">'+title+'</div>';
+                    html += '<div style="font-size:10px;color:var(--gray)">'+p.desc+'</div></div>';
+                    html += '<span style="font-size:10px;color:var(--gray);font-style:italic">Proximo</span>';
+                    html += '</div>';
+                  });
+                }
+              } else {
+                html += '<div style="font-size:12px;color:var(--gray);font-style:italic">Sin sesion activa para este programa</div>';
+              }
+
+              html += '<button onclick="abrirSolicitudManual()" style="margin-top:10px;width:100%;padding:8px;background:#fff8e1;border:1px solid rgba(255,152,0,.3);color:#e65100;border-radius:6px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;cursor:pointer">📚 Solicitar reposicion de manual</button>';
+              html += '</div>';
+            });
+            html += '</div>';
+            c.innerHTML = html;
+          });
+        });
+    });
+}
+
+// ── INCIDENCIAS: Sesiones + incidencias juntas ────────
+function renderDocIncidencias() {
+  var c = document.getElementById('s-doc-incidencias'); if(!c) return;
+  loading(c);
+
+  Promise.all([
+    DB.from('teacher_assignments')
+      .select('*,groups(id,grade,group_name,shift)')
+      .eq('teacher_id', ME.id).eq('active', true),
+    DB.from('incidents')
+      .select('*,schools(name)')
+      .eq('teacher_id', ME.id)
+      .order('incident_date', {ascending:false})
+  ]).then(function(results){
+    var assignments = results[0].data||[];
+    var incs        = results[1].data||[];
+    var groupIds    = assignments.map(function(a){return a.groups&&a.groups.id;}).filter(Boolean);
+
+    DB.from('session_logs')
+      .select('*,sessions(title,session_number,modules(name,number))')
+      .in('group_id', groupIds)
+      .in('status', ['postponed','cancelled'])
+      .order('scheduled_date', {ascending:false})
+      .then(function(lr){
+        var specialLogs = lr.data||[];
+        var open   = incs.filter(function(i){return i.status==='open';});
+        var gradeColors = {1:'var(--blue)',2:'var(--green)',3:'#9c27b0'};
+
+        var html = '';
+        html += '<div class="stats-row">';
+        html += statCard(open.length,   'Incidencias abiertas',  open.length?'c-red':'');
+        html += statCard(incs.filter(function(i){return i.status==='resolved';}).length, 'Resueltas', '');
+        html += statCard(specialLogs.filter(function(l){return l.status==='postponed';}).length, 'Sesiones pospuestas', '');
+        html += statCard(specialLogs.filter(function(l){return l.status==='cancelled';}).length, 'Sesiones canceladas', '');
+        html += '</div>';
+
+        html += '<div class="two-col">';
+
+        // Left: sessions with issues
+        html += '<div class="card"><div class="card-hd"><div>';
+        html += '<div class="card-title">Sesiones con incidencias</div>';
+        html += '<div class="card-sub">Pospuestas y canceladas</div></div></div>';
+
+        if(!specialLogs.length){
+          html += '<div style="text-align:center;padding:30px;color:var(--gray)">';
+          html += '<div style="font-size:32px;margin-bottom:8px">✓</div>';
+          html += '<div style="font-family:Montserrat,sans-serif;font-size:13px;font-weight:600">Sin sesiones con problemas</div></div>';
+        } else {
+          specialLogs.forEach(function(l){
+            var ses   = l.sessions;
+            var mod   = ses&&ses.modules;
+            var asgmt = assignments.find(function(a){return a.groups&&a.groups.id===l.group_id;});
+            var g     = asgmt&&asgmt.groups;
+            var isPost= l.status==='postponed';
+            html += '<div style="padding:12px;background:'+(isPost?'#fffbf0':'#fff5f5')+';border-radius:8px;margin-bottom:8px;border-left:3px solid '+(isPost?'#ffa000':'#c62828')+'">';
+            html += '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">';
+            html += '<div>';
+            if(g) html += '<div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:'+(gradeColors[g.grade]||'var(--blue)')+';margin-bottom:4px">'+g.grade+'° Grupo '+g.group_name+' ('+(g.shift==='matutino'?'Mat':'Vesp')+')</div>';
+            html += '<div style="font-size:13px;font-weight:700;margin-bottom:2px">'+(ses?'S'+ses.session_number+': '+ses.title:'—')+'</div>';
+            html += '<div style="font-size:11px;color:var(--gray);margin-bottom:4px">'+(mod?'Bloque '+mod.number+' — '+mod.name:'')+(l.scheduled_date?' · '+fmt(l.scheduled_date):'')+'</div>';
+            if(l.postpone_reason) html += '<div style="font-size:11px;color:'+(isPost?'#e65100':'var(--red-dark)')+'">Motivo: '+l.postpone_reason+'</div>';
+            html += '</div>';
+            html += bdg(isPost?'Pospuesta':'Cancelada', isPost?'b-amber':'b-red');
+            html += '</div></div>';
+          });
+        }
+        html += '</div>';
+
+        // Right: incident reports
+        html += '<div class="card"><div class="card-hd"><div>';
+        html += '<div class="card-title">Mis incidencias</div>';
+        html += '<div class="card-sub">'+incs.length+' en total</div></div>';
+        html += '<button onclick="abrirIncidenciaDoc()" class="btn-p" style="font-size:11px">+ Nueva</button></div>';
+
+        if(!incs.length){
+          html += '<div style="text-align:center;padding:30px;color:var(--gray)">';
+          html += '<div style="font-size:32px;margin-bottom:8px">✓</div>';
+          html += '<div style="font-family:Montserrat,sans-serif;font-size:13px;font-weight:600">Sin incidencias registradas</div></div>';
+        } else {
+          incs.forEach(function(i){
+            html += '<div style="padding:10px;border-radius:8px;margin-bottom:8px;border:1px solid rgba(0,0,0,.06)">';
+            html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">';
+            html += bdg(INC_LBL[i.type]||i.type,'b-amber');
+            html += '<span style="font-size:11px;color:var(--gray)">'+fmt(i.incident_date)+'</span>';
+            html += '<div style="margin-left:auto">'+bdg(i.status==='resolved'?'Resuelta':i.status==='in_progress'?'En proceso':'Abierta',i.status==='resolved'?'b-green':i.status==='in_progress'?'b-blue':'b-red')+'</div>';
+            html += '</div>';
+            html += '<div style="font-size:12px">'+i.description+'</div>';
+            if(i.status==='resolved'&&i.resolution) html += '<div style="font-size:11px;color:var(--green);margin-top:4px">✓ '+i.resolution+'</div>';
+            html += '</div>';
+          });
+        }
+        html += '</div></div>';
+        c.innerHTML = html;
+      });
+  });
+}
+
+function abrirIncidenciaDoc() {
+  var mySchool = SCHOOLS.find(function(s){return s.id===(PROFILE&&PROFILE.school_id);})||SCHOOLS[0];
+  document.getElementById('inc-fecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('inc-desc').value  = '';
+  if(mySchool) document.getElementById('inc-escuela').value = mySchool.id;
+  oM('m-incidencia');
+}
+
+// Wire into nav
+var _origNav2 = nav;
 nav = function(el, screenId) {
-  _origNav(el, screenId);
+  _origNav2(el, screenId);
   var extra = {
-    's-doc-rubrica':       renderDocRubrica,
-    's-doc-incidencias':   renderDocIncidencias
+    's-doc-rubrica':     renderDocRubrica,
+    's-doc-incidencias': renderDocIncidencias
   };
   if(extra[screenId]) extra[screenId]();
 };
