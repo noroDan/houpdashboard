@@ -232,7 +232,7 @@
   .screen { display: none; }
   .screen.active { display: block; animation: fadein 0.2s ease; }
 
-  #s-doc-rubrica.active { display: flex !important; flex-direction: column; overflow: hidden; }  #s-doc-rubrica.active { display: flex !important; flex-direction: column; overflow: hidden; padding: 0; }
+  #s-doc-rubrica.active { display: flex !important; flex-direction: column; overflow: hidden; padding: 0; }
   @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
   /* ── COMPONENTS ── */
@@ -992,12 +992,11 @@
       </div>
     </div>
 
-  </div>
-</div>
-
-
     <div class="screen" id="s-doc-rubrica"></div>
     <div class="screen" id="s-doc-incidencias"></div>
+
+  </div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 // ═══════════════════════════════════════════════════════
