@@ -225,22 +225,14 @@
     padding: 22px 24px;
     background: var(--bg);
   }
-  #s-doc-rubrica {
-    padding: 0 !important;
-    background: var(--bg);
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    overflow: hidden;
-  }
-  #s-doc-rubrica.active {
-    display: flex !important;
-  }
+
   .content::-webkit-scrollbar { width: 4px; }
   .content::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 4px; }
 
   .screen { display: none; }
   .screen.active { display: block; animation: fadein 0.2s ease; }
+
+  #s-doc-rubrica.active { display: flex !important; flex-direction: column; overflow: hidden; }  #s-doc-rubrica.active { display: flex !important; flex-direction: column; overflow: hidden; padding: 0; }
   @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
   /* ── COMPONENTS ── */
@@ -5360,7 +5352,8 @@ function renderRubricaTable(block, grade, shift, manual, evaluated) {
     var ev    = evals.find(function(e){ return e.student_id===s.id && e.block===block; });
     var noMan = ev && !ev.has_manual;
     var rowBg = noMan ? '#fff8e1' : '';
-    html += '<tr data-sid="'+s.id+'" style="background:'+rowBg+';border-bottom:1px solid #f0f0f0" onmouseover="this.style.background=\''+(noMan?'#fff0b0':'#f5fbff')+'\'" onmouseout="this.style.background=\''+rowBg+'\'">';
+    var hoverBg2 = noMan ? '#fff0b0' : '#f0f8ff';
+    html += '<tr data-sid="'+s.id+'" style="background:'+rowBg+';border-bottom:1px solid #f0f0f0" onmouseover="this.style.background=\''+hoverBg2+'\'" onmouseout="this.style.background=\''+rowBg+'\'">';
     // Editable name
     html += '<td style="padding:5px 12px">';
     html += '<input type="text" data-sid="'+s.id+'" value="'+s.name+'" ';
@@ -5386,7 +5379,7 @@ function renderRubricaTable(block, grade, shift, manual, evaluated) {
     if(ts){ var col=ts>=2.5?'var(--green)':ts>=1.5?'var(--blue)':'var(--amber)'; html+='<strong style="font-family:Montserrat,sans-serif;font-size:12px;color:'+col+'">'+ts+'</strong>'; }
     else html+='<span style="font-size:10px;color:#ccc">—</span>';
     html += '</td>';
-    html += '<td style="text-align:center"><button data-sid="'+s.id+'" onclick="confirmarEliminarAlumno(this.dataset.sid)" style="background:none;border:none;color:#ddd;font-size:14px;cursor:pointer;padding:2px 4px" onmouseover="this.style.color=\'var(--red-dark)\'" onmouseout="this.style.color=\'#ddd\'" title="Eliminar">×</button></td>';
+    html += '<td style="text-align:center"><button data-sid="'+s.id+'" onclick="confirmarEliminarAlumno(this.dataset.sid)" style="background:none;border:none;color:#ddd;font-size:14px;cursor:pointer;padding:2px 4px">x</button></td>';
     html += '</tr>';
   });
 
@@ -5787,250 +5780,186 @@ function respEscalar(pipeId) {
 }
 
 
-// ═══════════════════════════════════════════════════════
-// HOUP — Fixes batch 3
-// Role isolation + rubrica full screen
-// ═══════════════════════════════════════════════════════
+// HOUP - Fixes batch 3: Role isolation + Rubrica full screen
 
-// ── FIX 1: Role isolation — each user sees ONLY their role ──
-// Override showNav completely
+function rubFocus(el) {
+  el.style.borderColor = 'rgba(2,193,244,.5)';
+  el.style.background = '#f0fbff';
+}
+function rubBlur(el) {
+  actualizarNombreAlumno(el);
+  el.style.borderColor = 'transparent';
+  el.style.background = 'transparent';
+}
+
+// FIX 1: Role isolation - each user sees ONLY their role nav
 showNav = function(role) {
-  // Hide all navs
   ['nav-admin','nav-responsable','nav-docente','nav-fundacion'].forEach(function(id){
     var el = document.getElementById(id); if(el) el.style.display='none';
   });
-  // Show correct nav
   var map = {admin_houp:'nav-admin', responsable:'nav-responsable', docente:'nav-docente', fundacion:'nav-fundacion'};
   var el = document.getElementById(map[role]||'nav-admin');
   if(el) el.style.display='block';
-
-  // Role switcher: ONLY show for admin_houp (dev/testing only)
   var switcher = document.getElementById('role-switcher-bar');
   if(switcher) switcher.style.display = (role==='admin_houp') ? 'block' : 'none';
 };
 
-// Override switchRole to only work for admin_houp
 switchRole = function(r) {
-  if(PROFILE && PROFILE.role !== 'admin_houp') return; // block non-admins
+  if(!PROFILE || PROFILE.role !== 'admin_houp') return;
   document.querySelectorAll('.role-btn').forEach(function(b){ b.classList.remove('active'); });
   if(event && event.target) event.target.classList.add('active');
   var RM = {admin:'admin_houp', responsable:'responsable', docente:'docente', fundacion:'fundacion'};
-  var role = RM[r]||r;
-
-  // Show/hide navs
+  var FS = {admin:'s-dash', responsable:'s-resp-home', docente:'s-doc-home', fundacion:'s-found-dash'};
+  var NI = {admin:'nav-admin', responsable:'nav-responsable', docente:'nav-docente', fundacion:'nav-fundacion'};
   ['nav-admin','nav-responsable','nav-docente','nav-fundacion'].forEach(function(id){
     var el=document.getElementById(id); if(el) el.style.display='none';
   });
-  var NI = {admin:'nav-admin', responsable:'nav-responsable', docente:'nav-docente', fundacion:'nav-fundacion'};
-  var navEl = document.getElementById(NI[r]);
-  if(navEl) navEl.style.display='block';
-
-  var FS = {admin:'s-dash', responsable:'s-resp-home', docente:'s-doc-home', fundacion:'s-found-dash'};
+  var navEl = document.getElementById(NI[r]); if(navEl) navEl.style.display='block';
   var start = FS[r]||'s-dash';
   var items = navEl ? Array.from(navEl.querySelectorAll('.nav-item')) : [];
   var match = items.find(function(el){ return (el.getAttribute('onclick')||'').indexOf(start)>-1; });
   nav(match||(navEl?navEl.querySelector('.nav-item'):null), start);
 };
 
-// ── FIX 3: Rubrica — full screen, no gray area ────────
-function renderDocRubrica() {
+// FIX 3: Rubrica full-screen
+renderDocRubrica = function() {
   var c = document.getElementById('s-doc-rubrica'); if(!c) return;
-
-  // Make content area full-bleed for rubrica
-  var contentEl = document.querySelector('.content');
-  if(contentEl) {
-    window._origPadding = contentEl.style.padding;
-    contentEl.style.padding = '0';
-    contentEl.style.overflow = 'hidden';
-  }
-
-  c.innerHTML = '<div style="padding:12px 16px;color:#797979;font-size:13px;font-family:Montserrat,sans-serif">Cargando rubricas...</div>';
-
+  c.innerHTML='<div style="padding:20px;color:#797979;font-family:Montserrat,sans-serif">Cargando...</div>';
   DB.from('teacher_assignments')
     .select('groups(id,grade,group_name,shift,school_id)')
     .eq('teacher_id', ME.id).eq('active', true)
     .then(function(r) {
-      var assignments = r.data || [];
-      if(!assignments.length) {
-        c.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray)">Sin grupos asignados</div>';
-        return;
-      }
-      var schoolId = assignments[0].groups && assignments[0].groups.school_id;
+      var assignments = r.data||[];
+      if(!assignments.length){ c.innerHTML='<div style="text-align:center;padding:40px;color:var(--gray)">Sin grupos asignados</div>'; return; }
+      var schoolId = assignments[0].groups&&assignments[0].groups.school_id;
       Promise.all([
-        DB.from('students').select('*').eq('school_id', schoolId).eq('active', true).order('grade').order('name'),
-        DB.from('rubric_evaluations').select('*').eq('school_id', schoolId)
-      ]).then(function(results) {
-        window._rubricaData = { students: results[0].data||[], evals: results[1].data||[], schoolId: schoolId };
+        DB.from('students').select('*').eq('school_id',schoolId).eq('active',true).order('grade').order('name'),
+        DB.from('rubric_evaluations').select('*').eq('school_id',schoolId)
+      ]).then(function(res){
+        window._rubricaData = {students:res[0].data||[], evals:res[1].data||[], schoolId:schoolId};
         buildRubricaFull(1);
       });
     });
-}
-
-// Also restore padding when leaving rubrica
-var _navWithRestore = nav;
-nav = function(el, screenId) {
-  // Restore content padding when leaving rubrica
-  if(SCREEN === 's-doc-rubrica' && screenId !== 's-doc-rubrica') {
-    var contentEl = document.querySelector('.content');
-    if(contentEl) {
-      contentEl.style.padding = window._origPadding || '22px 24px';
-      contentEl.style.overflow = 'auto';
-    }
-  }
-  _navWithRestore(el, screenId);
 };
 
 function buildRubricaFull(block) {
   var c = document.getElementById('s-doc-rubrica'); if(!c) return;
   var d = window._rubricaData; if(!d) return;
-  var students = d.students, evals = d.evals, schoolId = d.schoolId;
-  window._rubricaBlock = block;
-  window._rubricaSchoolId = schoolId;
+  var students=d.students, evals=d.evals, schoolId=d.schoolId;
+  window._rubricaBlock=block; window._rubricaSchoolId=schoolId;
 
-  var selStyle = 'width:100%;padding:2px 3px;border:1px solid rgba(0,0,0,.1);border-radius:3px;font-size:11px;outline:none;font-family:Montserrat,sans-serif;cursor:pointer';
-
-  var evaled  = students.filter(function(s){ return evals.find(function(e){return e.student_id===s.id&&e.block===block;}); }).length;
-  var noEval  = students.length - evaled;
+  var evaled=students.filter(function(s){return evals.find(function(e){return e.student_id===s.id&&e.block===block;});}).length;
+  var DIMS=['profundidad','conexion','coherencia','autenticidad','evidencia'];
+  var ss='width:100%;padding:2px 3px;border:1px solid rgba(0,0,0,.1);border-radius:3px;font-size:11px;outline:none;font-family:Montserrat,sans-serif';
 
   var html = '';
 
-  // Top bar — very compact
-  html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:#fff;border-bottom:1px solid #e8e8e8;flex-shrink:0">';
-  // Block tabs
+  // Top bar
+  html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:#fff;border-bottom:2px solid #e8e8e8">';
   [1,2,3].forEach(function(b){
-    html += '<button onclick="buildRubricaFull('+b+')" style="padding:4px 12px;border-radius:5px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid '+(b===block?'var(--blue)':'rgba(0,0,0,.12)')+';background:'+(b===block?'var(--blue)':'transparent')+';color:'+(b===block?'#fff':'#555')+'">B'+b+'</button>';
+    html += '<button onclick="buildRubricaFull('+b+')" style="padding:4px 12px;border-radius:5px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid '+(b===block?'var(--blue)':'rgba(0,0,0,.12)')+';background:'+(b===block?'var(--blue)':'transparent')+';color:'+(b===block?'#fff':'#555')+'">Bloque '+b+'</button>';
   });
-  html += '<div style="width:1px;height:20px;background:#e0e0e0;margin:0 4px"></div>';
-  html += '<span style="font-size:11px;color:var(--gray)">'+students.length+' alumnos</span>';
+  html += '<span style="margin-left:8px;font-size:11px;color:var(--gray)">'+students.length+' alumnos</span>';
   html += '<span style="font-size:11px;color:var(--green)">'+evaled+' evaluados</span>';
-  html += '<span style="font-size:11px;color:var(--amber)">'+noEval+' pendientes</span>';
+  html += '<span style="font-size:11px;color:var(--amber)">'+(students.length-evaled)+' pendientes</span>';
   html += '<div style="margin-left:auto;display:flex;gap:6px">';
   html += '<button onclick="abrirAgregarAlumno()" style="background:rgba(2,193,244,.1);border:1px solid rgba(2,193,244,.3);color:var(--blue);padding:4px 10px;border-radius:5px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;cursor:pointer">+ Alumno</button>';
-  html += '<button onclick="guardarRubricas()" style="background:#43a047;color:#fff;border:none;padding:4px 14px;border-radius:5px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;cursor:pointer">Guardar</button>';
+  html += '<button onclick="guardarRubricas()" style="background:#43a047;color:#fff;border:none;padding:4px 16px;border-radius:5px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;cursor:pointer">Guardar</button>';
   html += '</div></div>';
 
-  // Full-height table
-  html += '<div style="flex:1;overflow:auto;background:var(--bg)">';
-  html += '<table style="width:100%;border-collapse:collapse;background:#fff">';
-
-  // Header row 1: labels
-  html += '<thead style="position:sticky;top:0;z-index:20">';
-  html += '<tr style="background:#1a1a2e;color:#fff">';
-  html += '<th style="padding:8px 14px;text-align:left;font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;white-space:nowrap;min-width:220px;position:sticky;left:0;background:#1a1a2e;z-index:21">Alumno</th>';
-  html += '<th style="padding:8px 8px;font-family:Montserrat,sans-serif;font-size:10px;font-weight:700;text-align:center;min-width:45px">Grado</th>';
-  html += '<th style="padding:8px 8px;font-family:Montserrat,sans-serif;font-size:10px;font-weight:700;text-align:center;min-width:55px">Turno</th>';
-  html += '<th style="padding:8px 8px;font-family:Montserrat,sans-serif;font-size:10px;font-weight:700;text-align:center;min-width:50px">Sin<br>manual</th>';
-  var dimHeaders = ['Profundidad<br>reflexion','Conexion<br>tematica','Coherencia<br>estructura','Autenticidad<br>apertura','Evidencia<br>avance'];
-  dimHeaders.forEach(function(h){
-    html += '<th style="padding:8px 6px;font-family:Montserrat,sans-serif;font-size:10px;font-weight:700;text-align:center;min-width:115px">'+h+'</th>';
+  // Table
+  html += '<div style="overflow:auto;height:calc(100% - 45px)">';
+  html += '<table style="width:100%;border-collapse:collapse;min-width:900px">';
+  html += '<thead style="position:sticky;top:0;z-index:10">';
+  html += '<tr style="background:#012B38;color:#fff">';
+  html += '<th style="padding:8px 14px;text-align:left;font-size:11px;font-weight:700;min-width:220px;position:sticky;left:0;background:#012B38;z-index:11">Alumno</th>';
+  html += '<th style="padding:8px 6px;font-size:10px;font-weight:700;text-align:center;min-width:48px">Grado</th>';
+  html += '<th style="padding:8px 6px;font-size:10px;font-weight:700;text-align:center;min-width:55px">Turno</th>';
+  html += '<th style="padding:8px 6px;font-size:10px;font-weight:700;text-align:center;min-width:52px">Sin<br>manual</th>';
+  ['Profundidad','Conexion','Coherencia','Autenticidad','Evidencia'].forEach(function(h){
+    html += '<th style="padding:8px 6px;font-size:10px;font-weight:700;text-align:center;min-width:110px">'+h+'</th>';
   });
-  html += '<th style="padding:8px 8px;font-family:Montserrat,sans-serif;font-size:10px;font-weight:700;text-align:center;min-width:55px">Prom.</th>';
-  html += '<th style="min-width:32px"></th>';
-  html += '</tr>';
-
-  // Header row 2: filters
+  html += '<th style="padding:8px 6px;font-size:10px;font-weight:700;text-align:center;min-width:55px">Prom.</th>';
+  html += '<th style="min-width:30px"></th></tr>';
+  // Filter row
   html += '<tr style="background:#f0f2f5">';
-  html += '<td style="padding:4px 8px;position:sticky;left:0;background:#f0f2f5;z-index:21"><input id="f-search" oninput="filterRubricaRows()" placeholder="🔍 Buscar nombre..." style="width:100%;padding:4px 8px;border:1px solid rgba(0,0,0,.15);border-radius:4px;font-size:11px;outline:none;font-family:Montserrat,sans-serif"></td>';
-  html += '<td style="padding:4px 5px"><select id="f-grade" onchange="filterRubricaRows()" style="'+selStyle+'"><option value="">Todo</option><option value="1">1°</option><option value="2">2°</option><option value="3">3°</option></select></td>';
-  html += '<td style="padding:4px 5px"><select id="f-shift" onchange="filterRubricaRows()" style="'+selStyle+'"><option value="">Todo</option><option value="matutino">Mat</option><option value="vespertino">Vesp</option></select></td>';
-  html += '<td style="padding:4px 5px"><select id="f-manual" onchange="filterRubricaRows()" style="'+selStyle+'"><option value="">Todo</option><option value="con">Con</option><option value="sin">Sin</option></select></td>';
-  var DIMS = ['profundidad','conexion','coherencia','autenticidad','evidencia'];
-  DIMS.forEach(function(dim,i){
-    html += '<td style="padding:4px 5px"><select id="f-d'+i+'" onchange="filterRubricaRows()" style="'+selStyle+'"><option value="">—</option><option value="1">Inicial</option><option value="2">Adec.</option><option value="3">Excel.</option></select></td>';
+  html += '<td style="padding:3px 6px;position:sticky;left:0;background:#f0f2f5;z-index:11"><input id="f-search" oninput="filterRubricaRows()" placeholder="Buscar..." style="'+ss+'"></td>';
+  html += '<td style="padding:3px 4px"><select id="f-grade" onchange="filterRubricaRows()" style="'+ss+'"><option value="">Todo</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></td>';
+  html += '<td style="padding:3px 4px"><select id="f-shift" onchange="filterRubricaRows()" style="'+ss+'"><option value="">Todo</option><option value="matutino">Mat</option><option value="vespertino">Vesp</option></select></td>';
+  html += '<td style="padding:3px 4px"><select id="f-manual" onchange="filterRubricaRows()" style="'+ss+'"><option value="">Todo</option><option value="con">Con</option><option value="sin">Sin</option></select></td>';
+  [0,1,2,3,4].forEach(function(i){
+    html += '<td style="padding:3px 4px"><select id="f-d'+i+'" onchange="filterRubricaRows()" style="'+ss+'"><option value="">--</option><option value="1">Ini</option><option value="2">Ade</option><option value="3">Exc</option></select></td>';
   });
-  html += '<td style="padding:4px 5px"><select id="f-eval" onchange="filterRubricaRows()" style="'+selStyle+'"><option value="">Todo</option><option value="pend">Pend.</option><option value="eval">Eval.</option></select></td>';
-  html += '<td></td>';
-  html += '</tr></thead><tbody id="rub-tbody">';
+  html += '<td style="padding:3px 4px"><select id="f-eval" onchange="filterRubricaRows()" style="'+ss+'"><option value="">Todo</option><option value="pend">Pend</option><option value="eval">Eval</option></select></td>';
+  html += '<td></td></tr></thead><tbody id="rub-tbody">';
 
-  // Data rows
   students.forEach(function(s){
-    var ev    = evals.find(function(e){ return e.student_id===s.id && e.block===block; });
-    var noMan = ev && !ev.has_manual;
+    var ev    = evals.find(function(e){return e.student_id===s.id&&e.block===block;});
+    var noMan = ev&&!ev.has_manual;
     var rowBg = noMan ? '#fff8e1' : '#fff';
-    var gradeColor = {1:'#1565c0',2:'#2e7d32',3:'#6a1b9a'}[s.grade]||'#333';
-
-    html += '<tr data-sid="'+s.id+'" data-grade="'+s.grade+'" data-shift="'+s.shift+'" data-noman="'+(noMan?'1':'0')+'" data-evaled="'+(ev?'1':'0')+'" style="background:'+rowBg+';border-bottom:1px solid #f0f0f0" onmouseover="this.style.background=\''+(noMan?'#fff0b0':'#f0f8ff')+'\';" onmouseout="this.style.background=\''+rowBg+'\'">';
-
-    // Sticky name column
-    html += '<td style="padding:5px 14px;position:sticky;left:0;background:'+rowBg+';z-index:5">';
-    html += '<input type="text" data-sid="'+s.id+'" value="'+s.name+'" style="width:100%;padding:2px 5px;border:1px solid transparent;border-radius:3px;font-size:12px;font-family:Montserrat,sans-serif;font-weight:600;background:transparent;cursor:text" ';
-    html += 'onfocus="this.style.borderColor=\'rgba(2,193,244,.5)\';this.style.background=\'#f0fbff\'" ';
-    html += 'onblur="actualizarNombreAlumno(this);this.style.borderColor=\'transparent\';this.style.background=\'transparent\'">';
+    var gradeColor = s.grade===1?'#1565c0':s.grade===2?'#2e7d32':'#6a1b9a';
+    html += '<tr data-sid="'+s.id+'" data-grade="'+s.grade+'" data-shift="'+s.shift+'" data-noman="'+(noMan?'1':'0')+'" data-evaled="'+(ev?'1':'0')+'" style="background:'+rowBg+';border-bottom:1px solid #f0f0f0">';
+    html += '<td style="padding:4px 14px;position:sticky;left:0;background:'+rowBg+';z-index:5">';
+    html += '<input type="text" data-sid="'+s.id+'" value="'+s.name+'" ';
+    html += 'onfocus="rubFocus(this)" onblur="rubBlur(this)" ';
+    html += 'style="width:100%;padding:2px 4px;border:1px solid transparent;border-radius:3px;font-size:12px;font-family:Montserrat,sans-serif;font-weight:600;background:transparent">';
     html += '</td>';
-
-    html += '<td style="text-align:center;font-size:11px;font-weight:700;color:'+gradeColor+'">'+s.grade+'°</td>';
-    html += '<td style="text-align:center"><span style="font-size:10px;font-family:Montserrat,sans-serif;font-weight:600;padding:2px 5px;border-radius:3px;background:'+(s.shift==='matutino'?'rgba(2,193,244,.12)':'#f0f0f0')+';color:'+(s.shift==='matutino'?'var(--blue)':'#666')+'">'+(s.shift==='matutino'?'Mat':'Vesp')+'</span></td>';
+    html += '<td style="text-align:center;font-size:11px;font-weight:700;color:'+gradeColor+'">'+s.grade+'</td>';
+    html += '<td style="text-align:center"><span style="font-size:10px;padding:2px 5px;border-radius:3px;background:'+(s.shift==='matutino'?'rgba(2,193,244,.12)':'#f0f0f0')+';color:'+(s.shift==='matutino'?'var(--blue)':'#666')+';font-family:Montserrat,sans-serif;font-weight:600">'+(s.shift==='matutino'?'Mat':'Vesp')+'</span></td>';
     html += '<td style="text-align:center"><input type="checkbox" data-sid="'+s.id+'" class="rub-check" '+(noMan?'checked':'')+' style="width:14px;height:14px;cursor:pointer" onchange="toggleNoManual(this)"></td>';
-
     DIMS.forEach(function(dim){
-      var val = ev ? ev[dim] : null;
-      var dimBg = val===3?'rgba(67,160,71,.08)':val===2?'rgba(2,193,244,.08)':val===1?'rgba(255,160,0,.08)':'';
-      html += '<td style="padding:4px 5px;background:'+dimBg+'">';
-      html += '<select data-sid="'+s.id+'" data-dim="'+dim+'" data-block="'+block+'" class="rub-sel" '+(noMan?'disabled':'')+' style="'+selStyle+(noMan?';background:#f5f5f5;color:#ccc':'background:transparent')+'">';
-      html += '<option value="">—</option>';
-      html += '<option value="1"'+(val===1?' selected':'')+'>Inicial (1)</option>';
-      html += '<option value="2"'+(val===2?' selected':'')+'>Adecuado (2)</option>';
-      html += '<option value="3"'+(val===3?' selected':'')+'>Excelente (3)</option>';
+      var val=ev?ev[dim]:null;
+      var dbg=val===3?'rgba(67,160,71,.08)':val===2?'rgba(2,193,244,.08)':val===1?'rgba(255,160,0,.08)':'';
+      var dimDisabled=noMan?' disabled':'';
+      var dimStyle=noMan?';background:#f5f5f5;color:#ccc':'';
+      html += '<td style="padding:3px 5px;background:'+dbg+'">';
+      html += '<select data-sid="'+s.id+'" data-dim="'+dim+'" data-block="'+block+'" class="rub-sel"'+dimDisabled+' style="'+ss+dimStyle+'">';
+      html += '<option value="">--</option>';
+      html += '<option value="1"'+(val===1?' selected':'')+'>Inicial</option>';
+      html += '<option value="2"'+(val===2?' selected':'')+'>Adecuado</option>';
+      html += '<option value="3"'+(val===3?' selected':'')+'>Excelente</option>';
       html += '</select></td>';
     });
-
-    var ts = ev && ev.total_score;
-    var tsCol = ts>=2.5?'var(--green)':ts>=1.5?'var(--blue)':'var(--amber)';
-    html += '<td style="text-align:center">'+(ts?'<strong style="font-family:Montserrat,sans-serif;font-size:12px;color:'+tsCol+'">'+ts+'</strong>':'<span style="font-size:10px;color:#ccc">—</span>')+'</td>';
-    html += '<td style="text-align:center"><button data-sid="'+s.id+'" onclick="confirmarEliminarAlumno(this.dataset.sid)" style="background:none;border:none;color:#ddd;font-size:14px;cursor:pointer;padding:2px 4px" onmouseover="this.style.color=\'var(--red-dark)\'" onmouseout="this.style.color=\'#ddd\'">×</button></td>';
+    var ts=ev&&ev.total_score;
+    html += '<td style="text-align:center">'+(ts?'<strong style="font-family:Montserrat,sans-serif;font-size:12px;color:'+(ts>=2.5?'var(--green)':ts>=1.5?'var(--blue)':'var(--amber)')+'">'+ts+'</strong>':'<span style="font-size:10px;color:#ccc">--</span>')+'</td>';
+    html += '<td style="text-align:center"><button data-sid="'+s.id+'" onclick="confirmarEliminarAlumno(this.dataset.sid)" style="background:none;border:none;color:#ddd;font-size:14px;cursor:pointer;padding:2px 4px">x</button></td>';
     html += '</tr>';
   });
-
   html += '</tbody></table></div>';
   c.innerHTML = html;
-  c.style.cssText = 'display:flex;flex-direction:column;height:100%;overflow:hidden;padding:0';
 }
 
 function filterRubricaRows() {
-  var search  = (document.getElementById('f-search')  && document.getElementById('f-search').value.toUpperCase())  || '';
-  var grade   = (document.getElementById('f-grade')   && document.getElementById('f-grade').value)   || '';
-  var shift   = (document.getElementById('f-shift')   && document.getElementById('f-shift').value)   || '';
-  var manual  = (document.getElementById('f-manual')  && document.getElementById('f-manual').value)  || '';
-  var evalF   = (document.getElementById('f-eval')    && document.getElementById('f-eval').value)    || '';
-  var dimFilters = [0,1,2,3,4].map(function(i){
-    return (document.getElementById('f-d'+i) && document.getElementById('f-d'+i).value) || '';
-  });
-  var DIMS = ['profundidad','conexion','coherencia','autenticidad','evidencia'];
-  var d = window._rubricaData;
-  var evals = d ? d.evals : [];
-  var block = window._rubricaBlock || 1;
-
+  var search=(document.getElementById('f-search')&&document.getElementById('f-search').value.toUpperCase())||'';
+  var grade =(document.getElementById('f-grade') &&document.getElementById('f-grade').value)||'';
+  var shift =(document.getElementById('f-shift') &&document.getElementById('f-shift').value)||'';
+  var manual=(document.getElementById('f-manual')&&document.getElementById('f-manual').value)||'';
+  var evalF =(document.getElementById('f-eval')  &&document.getElementById('f-eval').value)||'';
+  var dimF  =[0,1,2,3,4].map(function(i){return(document.getElementById('f-d'+i)&&document.getElementById('f-d'+i).value)||'';});
+  var DIMS  =['profundidad','conexion','coherencia','autenticidad','evidencia'];
+  var d=window._rubricaData; var evals=d?d.evals:[]; var block=window._rubricaBlock||1;
   document.querySelectorAll('#rub-tbody tr[data-sid]').forEach(function(row){
-    var sid   = row.dataset.sid;
-    var rGrade= row.dataset.grade;
-    var rShift= row.dataset.shift;
-    var noMan = row.dataset.noman === '1';
-    var evaled= row.dataset.evaled === '1';
-    var name  = (row.querySelector('input[type=text]') && row.querySelector('input[type=text]').value.toUpperCase()) || '';
-    var ev    = evals.find(function(e){return e.student_id===sid&&e.block===block;});
-
-    var show = true;
-    if(search && name.indexOf(search) < 0)                show = false;
-    if(grade  && rGrade !== grade)                         show = false;
-    if(shift  && rShift !== shift)                         show = false;
-    if(manual === 'con' && noMan)                          show = false;
-    if(manual === 'sin' && !noMan)                         show = false;
-    if(evalF  === 'pend' && evaled)                        show = false;
-    if(evalF  === 'eval' && !evaled)                       show = false;
-    // Dimension filters
-    dimFilters.forEach(function(f, i){
+    var sid=row.dataset.sid;
+    var ev=evals.find(function(e){return e.student_id===sid&&e.block===block;});
+    var inp=row.querySelector('input[type=text]');
+    var name=(inp&&inp.value.toUpperCase())||'';
+    var show=true;
+    if(search&&name.indexOf(search)<0) show=false;
+    if(grade &&row.dataset.grade!==grade) show=false;
+    if(shift &&row.dataset.shift!==shift) show=false;
+    if(manual==='con'&&row.dataset.noman==='1') show=false;
+    if(manual==='sin'&&row.dataset.noman==='0') show=false;
+    if(evalF==='pend'&&row.dataset.evaled==='1') show=false;
+    if(evalF==='eval'&&row.dataset.evaled==='0') show=false;
+    dimF.forEach(function(f,i){
       if(!f) return;
-      var dimVal = ev ? ev[DIMS[i]] : null;
-      if(f === '0' && dimVal !== null && dimVal !== undefined) show = false;
-      if(f !== '0' && String(dimVal) !== f)                   show = false;
+      var v=ev?ev[DIMS[i]]:null;
+      if(String(v)!==f) show=false;
     });
-    row.style.display = show ? '' : 'none';
+    row.style.display=show?'':'none';
   });
 }
-
-// Override applyRubricaFilter to use new function
-applyRubricaFilter = filterRubricaRows;
-
+applyRubricaFilter=filterRubricaRows;
 
 </script>
 </body>
