@@ -536,11 +536,17 @@
     </div>
     <div class="nav-item" onclick="nav(this,'s-doc-plan')">
       <svg class="nav-ico" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18" stroke="white" stroke-width="1.5" fill="none"/></svg>
-      Planeación
+      Planeacion
     </div>
-  </div>
-
-  <!-- NAV FUNDACIÓN -->
+    <div class="nav-item" onclick="nav(this,'s-doc-rubrica')">
+      <svg class="nav-ico" viewBox="0 0 24 24" fill="currentColor"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+      Rubricas
+    </div>
+    <div class="nav-item" onclick="nav(this,'s-doc-incidencias')">
+      <svg class="nav-ico" viewBox="0 0 24 24" fill="currentColor"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+      Incidencias
+    </div>
+  </div>  <!-- NAV FUNDACIÓN -->
   <div class="nav" id="nav-fundacion" style="display:none">
     <div class="nav-item active" onclick="nav(this,'s-found-dash')">
       <svg class="nav-ico" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>
@@ -986,6 +992,8 @@
 </div>
 
 
+    <div class="screen" id="s-doc-rubrica"></div>
+    <div class="screen" id="s-doc-incidencias"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 // ═══════════════════════════════════════════════════════
@@ -3003,6 +3011,987 @@ function injectModals(){
   </div></div>`;
   document.body.appendChild(mc);
 }
+
+
+// ═══════════════════════════════════════════════════════
+// HOUP v3 — Pantallas rediseñadas
+// Reemplaza las funciones renderDoc*, renderResp*, renderDash
+// ═══════════════════════════════════════════════════════
+
+// ── Add new screens to LOADERS and TITLES ────────────
+// Patch the nav function to include new screens
+(function patchNav(){
+  var origNav = nav;
+  nav = function(el, screenId) {
+    origNav(el, screenId);
+  };
+  // Extend TITLES and LOADERS via the nav function internals
+  // Instead, we override renderDocHome etc. below
+})();
+
+// ══════════════════════════════════════════════════════
+// DOCENTE — Pantalla principal rediseñada
+// ══════════════════════════════════════════════════════
+
+function renderDocHome() {
+  var c = document.getElementById('s-doc-home'); if(!c) return;
+  loading(c);
+
+  DB.from('teacher_assignments')
+    .select('*,groups(id,grade,group_name,shift,school_id),courses(name,short_name,grade)')
+    .eq('teacher_id', ME.id).eq('active', true)
+    .then(function(r) {
+      var assignments = r.data || [];
+      if(!assignments.length) {
+        c.innerHTML = '<div style="text-align:center;padding:60px;color:var(--gray)">'
+          + '<div style="font-size:48px;margin-bottom:12px">📋</div>'
+          + '<div style="font-family:Montserrat,sans-serif;font-size:15px;font-weight:700;margin-bottom:6px">Sin grupos asignados</div>'
+          + '<div style="font-size:13px">El responsable de escuela debe asignarte tus grupos para comenzar</div></div>';
+        return;
+      }
+
+      var groupIds = assignments.map(function(a){ return a.groups && a.groups.id; }).filter(Boolean);
+
+      Promise.all([
+        DB.from('session_logs')
+          .select('*,sessions(id,title,session_number,has_evaluation,modules(name,number,course_id))')
+          .in('group_id', groupIds)
+          .order('scheduled_date'),
+        DB.from('schedules').select('*').eq('teacher_id', ME.id).eq('active', true).order('day_of_week'),
+        DB.from('incidents').select('*').eq('teacher_id', ME.id).order('created_at', {ascending:false}).limit(3)
+      ]).then(function(results) {
+        var logs     = results[0].data || [];
+        var scheds   = results[1].data || [];
+        var incs     = results[2].data || [];
+
+        var today    = new Date();
+        var todayDay = today.getDay();
+
+        // Stats
+        var total     = logs.length;
+        var done      = logs.filter(function(l){ return l.status==='completed'; }).length;
+        var postponed = logs.filter(function(l){ return l.status==='postponed'; }).length;
+        var pending   = logs.filter(function(l){ return l.status==='pending'; }).length;
+        var pctDone   = pct(done, total);
+
+        // Next upcoming session
+        var upcoming = logs.filter(function(l){ return l.status==='pending' && l.scheduled_date; })
+          .sort(function(a,b){ return new Date(a.scheduled_date)-new Date(b.scheduled_date); })[0];
+
+        var html = '';
+
+        // Postponed alerts
+        if(postponed) {
+          html += '<div class="alert-red"><div class="alert-dot ad-red"></div>'
+            + '<div class="alert-txt"><strong>' + postponed + ' sesion' + (postponed>1?'es':'') + ' pospuesta' + (postponed>1?'s':'') + '</strong> — Debes reagendar con el responsable de escuela.</div></div>';
+        }
+
+        // Stats row
+        html += '<div class="stats-row">';
+        html += statCard(assignments.length, 'Grupos a cargo', 'c-blue');
+        html += statCard(done + '/' + total, 'Sesiones completadas', '');
+        html += statCard(pctDone + '%', 'Avance del ciclo', 'c-blue');
+        html += statCard(postponed, 'Pospuestas', postponed ? 'c-red' : '');
+        html += '</div>';
+
+        // Next session card
+        if(upcoming) {
+          var upSes = upcoming.sessions;
+          var upMod = upSes && upSes.modules;
+          var daysUntil = Math.ceil((new Date(upcoming.scheduled_date) - today) / 864e5);
+          var urgency = daysUntil <= 1 ? '#e03535' : daysUntil <= 3 ? '#ffa000' : '#02c1f4';
+          html += '<div class="card" style="border-left:4px solid ' + urgency + ';margin-bottom:14px">';
+          html += '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">';
+          html += '<div>';
+          html += '<div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:' + urgency + ';text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">';
+          html += daysUntil <= 0 ? 'HOY' : daysUntil === 1 ? 'MAÑANA' : 'PROXIMA SESION — ' + fmt(upcoming.scheduled_date);
+          html += '</div>';
+          html += '<div style="font-family:Montserrat,sans-serif;font-size:18px;font-weight:800;margin-bottom:4px">';
+          html += (upSes ? 'S' + upSes.session_number + ': ' + upSes.title : '—') + '</div>';
+          html += '<div style="font-size:12px;color:var(--gray)">' + (upMod ? 'Bloque ' + upMod.number + ' — ' + upMod.name : '') + '</div>';
+          html += '</div>';
+          html += '<button onclick="abrirReporteSesion(\'' + upcoming.id + '\')" style="background:' + urgency + ';color:#fff;border:none;padding:10px 20px;border-radius:8px;font-family:Montserrat,sans-serif;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0">Reportar sesion</button>';
+          html += '</div></div>';
+        }
+
+        html += '<div class="two-col">';
+
+        // Session list
+        html += '<div class="card"><div class="card-hd"><div>';
+        html += '<div class="card-title">Mis sesiones</div>';
+        html += '<div class="card-sub">' + done + ' completadas · ' + postponed + ' pospuestas · ' + pending + ' pendientes</div>';
+        html += '</div></div>';
+        html += progressBar(pctDone, '#02c1f4', 6);
+        html += '<div style="margin-top:14px">';
+
+        // Sessions grouped by assignment/grade
+        assignments.forEach(function(a) {
+          var g = a.groups; if(!g) return;
+          var gLogs = logs.filter(function(l){ return l.group_id === g.id; })
+            .sort(function(a,b){ return (a.sessions&&a.sessions.session_number||0)-(b.sessions&&b.sessions.session_number||0); });
+          if(!gLogs.length) return;
+          var gradeColors = {1:'var(--blue)', 2:'var(--green)', 3:'#9c27b0'};
+          html += '<div style="margin-bottom:14px">';
+          html += '<div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:' + (gradeColors[g.grade]||'var(--blue)') + ';text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">';
+          html += g.grade + '° Grupo ' + g.group_name + ' (' + g.shift + ') — ' + COURSE_SHORT[g.grade] + '</div>';
+          html += '<div style="display:flex;flex-wrap:wrap;gap:5px">';
+          gLogs.forEach(function(l) {
+            var s = l.sessions;
+            var bg = STATUS_CLR[l.status] || '#e8e8e8';
+            var col = l.status === 'pending' ? '#797979' : '#fff';
+            var isCurrent = l.status === 'pending' && l === gLogs.find(function(x){ return x.status==='pending'; });
+            html += '<div onclick="abrirReporteSesion(\'' + l.id + '\')" title="S' + (s?s.session_number:'?') + ': ' + (s?s.title:'') + ' — ' + fmt(l.scheduled_date) + '" '
+              + 'style="width:34px;height:34px;border-radius:8px;background:' + bg + ';display:flex;align-items:center;justify-content:center;'
+              + 'color:' + col + ';font-family:Montserrat,sans-serif;font-size:10px;font-weight:700;cursor:pointer;'
+              + (isCurrent?'box-shadow:0 0 0 3px rgba(2,193,244,.5);':'') + '">'
+              + (s ? s.session_number : '?') + '</div>';
+          });
+          html += '</div></div>';
+        });
+
+        // Legend
+        html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;font-size:10px">';
+        [['#43a047','Completada'],['#c62828','Cancelada'],['#ffa000','Pospuesta'],['#02c1f4','Doble'],['#e8e8e8','Pendiente']].forEach(function(p){
+          html += '<div style="display:flex;align-items:center;gap:4px;color:var(--gray)"><div style="width:10px;height:10px;border-radius:3px;background:'+p[0]+'"></div>'+p[1]+'</div>';
+        });
+        html += '</div></div>';
+
+        // Right: schedule + progress per program
+        html += '<div>';
+
+        // Weekly schedule
+        html += '<div class="card" style="margin-bottom:12px"><div class="card-hd"><div>';
+        html += '<div class="card-title">Mi horario</div>';
+        html += '<div class="card-sub">Semana actual</div></div></div>';
+
+        if(!scheds.length) {
+          html += '<div style="font-size:12px;color:var(--gray);font-style:italic">Sin horario registrado. Contacta al responsable.</div>';
+        } else {
+          var byDay = {1:[],2:[],3:[],4:[],5:[]};
+          scheds.forEach(function(s){ if(byDay[s.day_of_week]) byDay[s.day_of_week].push(s); });
+          [1,2,3,4,5].forEach(function(d){
+            if(!byDay[d].length) return;
+            var isToday = (d === todayDay);
+            html += '<div style="margin-bottom:10px">';
+            html += '<div style="font-family:Montserrat,sans-serif;font-size:10px;font-weight:700;color:' + (isToday?'var(--blue)':'var(--gray)') + ';text-transform:uppercase;margin-bottom:5px">' + DIAS[d] + (isToday?' — HOY':'') + '</div>';
+            byDay[d].forEach(function(h){
+              var gradeColors={1:'var(--blue)',2:'var(--green)',3:'#9c27b0'};
+              var gradeBg={1:'rgba(2,193,244,.07)',2:'rgba(67,160,71,.07)',3:'rgba(156,39,176,.07)'};
+              // Find current session for this group
+              var asgmt = assignments.find(function(a){ return a.groups && a.groups.grade===h.grade && a.groups.group_name===h.group_name; });
+              var curLog = null;
+              if(asgmt) {
+                var gLogs2 = logs.filter(function(l){ return l.group_id===asgmt.groups.id && l.status==='pending'; })
+                  .sort(function(a,b){ return new Date(a.scheduled_date)-new Date(b.scheduled_date); });
+                curLog = gLogs2[0];
+              }
+              var ses = curLog && curLog.sessions;
+              html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:' + (isToday?gradeBg[h.grade]||'#f8f8f8':'#f8f8f8') + ';border-radius:8px;margin-bottom:5px;border-left:3px solid ' + (isToday?gradeColors[h.grade]||'var(--blue)':'#e0e0e0') + '">';
+              html += '<div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:' + (gradeColors[h.grade]||'var(--blue)') + ';width:40px;flex-shrink:0">' + (h.start_time||'').substring(0,5) + '</div>';
+              html += '<div style="flex:1"><div style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:700">' + h.grade + '° ' + COURSE_SHORT[h.grade] + ' — Grupo ' + h.group_name + ' ' + (h.shift==='matutino'?'Mat':'Vesp') + '</div>';
+              if(ses) html += '<div style="font-size:11px;color:var(--gray);margin-top:2px">S' + ses.session_number + ': ' + ses.title + '</div>';
+              else html += '<div style="font-size:11px;color:var(--gray)">Sin sesion programada</div>';
+              html += '</div>';
+              if(curLog) html += '<button onclick="abrirReporteSesion(\'' + curLog.id + '\')" style="background:#02c1f4;border:none;color:#fff;padding:5px 10px;border-radius:6px;font-size:10px;font-family:Montserrat,sans-serif;font-weight:600;cursor:pointer;flex-shrink:0">Reportar</button>';
+              html += '</div>';
+            });
+            html += '</div>';
+          });
+        }
+        html += '</div>';
+
+        // Progress by program
+        html += '<div class="card"><div class="card-hd"><div class="card-title">Avance por programa</div></div>';
+        [1,2,3].forEach(function(grade){
+          var asgmts = assignments.filter(function(a){ return a.courses && a.courses.grade===grade; });
+          if(!asgmts.length) return;
+          var gIds = asgmts.map(function(a){ return a.groups && a.groups.id; }).filter(Boolean);
+          var gLogs = logs.filter(function(l){ return gIds.indexOf(l.group_id)>-1; });
+          var gDone = gLogs.filter(function(l){ return l.status==='completed'; }).length;
+          var gTotal = gLogs.length;
+          var gP = pct(gDone, gTotal);
+          var gradeColors = {1:'var(--blue)',2:'var(--green)',3:'#9c27b0'};
+          html += '<div style="margin-bottom:10px">';
+          html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">';
+          html += '<div style="font-size:12px;font-weight:600">' + grade + '° ' + COURSE_NAME[grade] + '</div>';
+          html += '<div style="font-family:Montserrat,sans-serif;font-size:13px;font-weight:800;color:' + (gradeColors[grade]||'var(--blue)') + '">' + gDone + '/' + gTotal + '</div></div>';
+          html += progressBar(gP, gradeColors[grade]||'var(--blue)', 5);
+          html += '</div>';
+        });
+        html += '</div>';
+
+        html += '</div></div>';
+        c.innerHTML = html;
+      });
+    });
+}
+
+// ── DOCENTE: Rúbricas ─────────────────────────────────
+function renderDocRubrica() {
+  var c = document.getElementById('s-doc-rubrica'); if(!c) return;
+  loading(c);
+
+  DB.from('teacher_assignments')
+    .select('groups(id,grade,group_name,shift,school_id)')
+    .eq('teacher_id', ME.id).eq('active', true)
+    .then(function(r) {
+      var assignments = r.data || [];
+      if(!assignments.length) { c.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray)">Sin grupos asignados</div>'; return; }
+
+      // Get school_id from first assignment
+      var schoolId = assignments[0].groups && assignments[0].groups.school_id;
+
+      Promise.all([
+        DB.from('students').select('*').eq('school_id', schoolId).order('name'),
+        DB.from('rubric_evaluations').select('*').eq('school_id', schoolId)
+      ]).then(function(results) {
+        var students = results[0].data || [];
+        var evals    = results[1].data || [];
+
+        // Build filter state
+        var filterGrade = 0, filterShift = '', filterManual = '', filterBlock = 1, filterEvaluated = '';
+
+        function render(grade, shift, manual, block, evaluated) {
+          var filtered = students.filter(function(s){
+            if(grade && s.grade !== grade) return false;
+            if(shift && s.shift !== shift) return false;
+            var ev = evals.find(function(e){ return e.student_id===s.id && e.block===block; });
+            if(manual === 'no'  && !(ev && !ev.has_manual)) return false;
+            if(manual === 'yes' && !(ev &&  ev.has_manual)) return false;
+            if(evaluated === 'yes' && !ev) return false;
+            if(evaluated === 'no'  &&  ev) return false;
+            return true;
+          });
+
+          var noEval = filtered.filter(function(s){ return !evals.find(function(e){ return e.student_id===s.id && e.block===block; }); }).length;
+          var withEval = filtered.length - noEval;
+
+          var html = '';
+
+          // Filters
+          html += '<div style="background:#fff;border-radius:10px;padding:14px 18px;border:1px solid rgba(0,0,0,.06);margin-bottom:14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">';
+          html += '<div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:var(--gray);margin-right:4px">FILTROS:</div>';
+
+          // Block selector
+          html += '<select id="f-block" onchange="rubricaFilter()" style="padding:6px 10px;border:1.5px solid rgba(2,193,244,.35);border-radius:6px;font-size:12px;font-family:Montserrat,sans-serif;font-weight:600;outline:none">';
+          [1,2,3].forEach(function(b){ html += '<option value="'+b+'"'+(b===block?' selected':'')+'>Bloque '+b+'</option>'; });
+          html += '</select>';
+
+          // Grade
+          html += '<select id="f-grade" onchange="rubricaFilter()" style="padding:6px 10px;border:1.5px solid rgba(0,0,0,.13);border-radius:6px;font-size:12px;outline:none">';
+          html += '<option value="0">Todos los grados</option>';
+          [1,2,3].forEach(function(g){ html += '<option value="'+g+'"'+(g===grade?' selected':'')+'>'+g+'° '+COURSE_SHORT[g]+'</option>'; });
+          html += '</select>';
+
+          // Shift
+          html += '<select id="f-shift" onchange="rubricaFilter()" style="padding:6px 10px;border:1.5px solid rgba(0,0,0,.13);border-radius:6px;font-size:12px;outline:none">';
+          html += '<option value="">Ambos turnos</option>';
+          html += '<option value="matutino"'+(shift==='matutino'?' selected':'')+'>Matutino</option>';
+          html += '<option value="vespertino"'+(shift==='vespertino'?' selected':'')+'>Vespertino</option>';
+          html += '</select>';
+
+          // Manual
+          html += '<select id="f-manual" onchange="rubricaFilter()" style="padding:6px 10px;border:1.5px solid rgba(0,0,0,.13);border-radius:6px;font-size:12px;outline:none">';
+          html += '<option value="">Con y sin manual</option>';
+          html += '<option value="yes"'+(manual==='yes'?' selected':'')+'>Con manual</option>';
+          html += '<option value="no"'+(manual==='no'?' selected':'')+'>Sin manual</option>';
+          html += '</select>';
+
+          // Evaluated
+          html += '<select id="f-eval" onchange="rubricaFilter()" style="padding:6px 10px;border:1.5px solid rgba(0,0,0,.13);border-radius:6px;font-size:12px;outline:none">';
+          html += '<option value="">Todos</option>';
+          html += '<option value="no"'+(evaluated==='no'?' selected':'')+'>Sin evaluar</option>';
+          html += '<option value="yes"'+(evaluated==='yes'?' selected':'')+'>Ya evaluados</option>';
+          html += '</select>';
+
+          html += '<div style="margin-left:auto;font-size:12px;color:var(--gray)">' + filtered.length + ' alumnos · <span style="color:var(--green)">' + withEval + ' evaluados</span> · <span style="color:var(--amber)">' + noEval + ' pendientes</span></div>';
+          html += '<button onclick="guardarRubricas()" style="background:#43a047;color:#fff;border:none;padding:8px 16px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;cursor:pointer">Guardar evaluaciones</button>';
+          html += '</div>';
+
+          // Table
+          html += '<div class="card" style="padding:0;overflow:hidden"><div style="overflow-x:auto"><table class="t"><thead><tr>';
+          html += '<th style="padding:10px 16px;min-width:200px">Alumno</th>';
+          html += '<th>Grado</th><th>Turno</th>';
+          html += '<th style="text-align:center">Sin<br>manual</th>';
+          html += '<th style="min-width:110px;text-align:center">Profundidad<br>de reflexion</th>';
+          html += '<th style="min-width:110px;text-align:center">Conexion<br>tematica</th>';
+          html += '<th style="min-width:110px;text-align:center">Coherencia<br>estructura</th>';
+          html += '<th style="min-width:110px;text-align:center">Autenticidad<br>apertura</th>';
+          html += '<th style="min-width:110px;text-align:center">Evidencia<br>avance</th>';
+          html += '<th style="text-align:center">Promedio</th>';
+          html += '</tr></thead><tbody>';
+
+          var DIMS = ['profundidad','conexion','coherencia','autenticidad','evidencia'];
+          var DIM_OPTS = '<option value="">—</option><option value="1">Inicial (1)</option><option value="2">Adecuado (2)</option><option value="3">Excelente (3)</option>';
+          var selStyle = 'padding:4px 6px;border:1px solid rgba(0,0,0,.12);border-radius:5px;font-size:11px;outline:none;width:100%;font-family:Montserrat,sans-serif';
+
+          filtered.forEach(function(s) {
+            var ev = evals.find(function(e){ return e.student_id===s.id && e.block===block; });
+            var noMan = ev && !ev.has_manual;
+            var rowBg = noMan ? 'background:#fff8e1;' : '';
+            html += '<tr style="' + rowBg + '">';
+            html += '<td style="padding:8px 16px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:600">' + s.name + '</td>';
+            html += '<td style="font-size:11px;color:var(--gray)">' + s.grade + '°</td>';
+            html += '<td>' + bdg(s.shift==='matutino'?'Mat':'Vesp', s.shift==='matutino'?'b-blue':'b-gray') + '</td>';
+            html += '<td style="text-align:center"><input type="checkbox" data-sid="' + s.id + '" data-field="no_manual" class="rub-check" ' + (noMan?'checked':'') + ' style="width:16px;height:16px;cursor:pointer" onchange="toggleNoManual(this)"></td>';
+
+            DIMS.forEach(function(dim) {
+              var val = ev ? ev[dim] : null;
+              var noManDisabled = noMan ? 'disabled' : '';
+              html += '<td style="padding:6px 8px">';
+              html += '<select data-sid="' + s.id + '" data-dim="' + dim + '" data-block="' + block + '" class="rub-sel" ' + noManDisabled + ' style="' + selStyle + (noMan?';background:#f5f5f5;color:#bbb':'') + '">';
+              html += '<option value="">—</option>';
+              html += '<option value="1"'+(val===1?' selected':'')+'>Inicial (1)</option>';
+              html += '<option value="2"'+(val===2?' selected':'')+'>Adecuado (2)</option>';
+              html += '<option value="3"'+(val===3?' selected':'')+'>Excelente (3)</option>';
+              html += '</select></td>';
+            });
+
+            // Average
+            var total_score = ev && ev.total_score;
+            html += '<td style="text-align:center">';
+            if(total_score) {
+              var col = total_score>=2.5?'var(--green)':total_score>=1.5?'var(--blue)':'var(--amber)';
+              html += '<strong style="font-family:Montserrat,sans-serif;font-size:14px;color:'+col+'">' + total_score + '</strong>';
+            } else {
+              html += '<span style="font-size:11px;color:var(--gray)">—</span>';
+            }
+            html += '</td></tr>';
+          });
+
+          html += '</tbody></table></div></div>';
+
+          // Store students data for save function
+          window._rubricaStudents = filtered;
+          window._rubricaBlock = block;
+          window._rubricaEvals = evals;
+          window._rubricaSchoolId = schoolId;
+
+          c.innerHTML = html;
+        }
+
+        window.rubricaFilter = function() {
+          var g  = parseInt(document.getElementById('f-grade').value)||0;
+          var sh = document.getElementById('f-shift').value;
+          var m  = document.getElementById('f-manual').value;
+          var bl = parseInt(document.getElementById('f-block').value)||1;
+          var ev = document.getElementById('f-eval').value;
+          render(g, sh, m, bl, ev);
+        };
+
+        render(0, '', '', 1, '');
+      });
+    });
+}
+
+function toggleNoManual(checkbox) {
+  var sid = checkbox.dataset.sid;
+  var checked = checkbox.checked;
+  // Disable/enable all selects for this student
+  var selects = document.querySelectorAll('.rub-sel[data-sid="' + sid + '"]');
+  selects.forEach(function(sel) {
+    sel.disabled = checked;
+    sel.style.background = checked ? '#f5f5f5' : '';
+    sel.style.color = checked ? '#bbb' : '';
+    if(checked) sel.value = '';
+  });
+}
+
+function guardarRubricas() {
+  var selects = document.querySelectorAll('.rub-sel');
+  var checks  = document.querySelectorAll('.rub-check');
+  var block   = window._rubricaBlock || 1;
+  var schoolId = window._rubricaSchoolId;
+
+  // Build map of student evaluations
+  var evalMap = {};
+  selects.forEach(function(sel) {
+    var sid = sel.dataset.sid;
+    var dim = sel.dataset.dim;
+    if(!evalMap[sid]) evalMap[sid] = {student_id:sid, school_id:schoolId, block:block, has_manual:true};
+    if(sel.value) evalMap[sid][dim] = parseInt(sel.value);
+  });
+  checks.forEach(function(chk) {
+    var sid = chk.dataset.sid;
+    if(evalMap[sid]) evalMap[sid].has_manual = !chk.checked;
+    else if(chk.checked) evalMap[sid] = {student_id:sid, school_id:schoolId, block:block, has_manual:false};
+  });
+
+  var rows = Object.values(evalMap).filter(function(r){
+    return r.profundidad || r.conexion || r.coherencia || r.autenticidad || r.evidencia || !r.has_manual;
+  });
+
+  // Calculate total_score
+  rows.forEach(function(r) {
+    if(r.has_manual && (r.profundidad||r.conexion||r.coherencia||r.autenticidad||r.evidencia)) {
+      var sum = (r.profundidad||0)+(r.conexion||0)+(r.coherencia||0)+(r.autenticidad||0)+(r.evidencia||0);
+      var cnt = [r.profundidad,r.conexion,r.coherencia,r.autenticidad,r.evidencia].filter(Boolean).length;
+      r.total_score = cnt ? Math.round(sum/cnt*100)/100 : null;
+    }
+    r.evaluated_by = ME.id;
+    r.evaluated_at = new Date().toISOString();
+  });
+
+  if(!rows.length) { toast('Sin cambios para guardar', true); return; }
+
+  DB.from('rubric_evaluations').upsert(rows, {onConflict:'student_id,block'}).then(function(res) {
+    if(res.error) { toast('Error: ' + res.error.message, true); return; }
+    toast('Rubricas guardadas (' + rows.length + ' alumnos)');
+    renderDocRubrica();
+  });
+}
+
+// ── DOCENTE: Incidencias ──────────────────────────────
+function renderDocIncidencias() {
+  var c = document.getElementById('s-doc-incidencias'); if(!c) return;
+  loading(c);
+
+  DB.from('incidents').select('*,schools(name)')
+    .eq('teacher_id', ME.id)
+    .order('created_at', {ascending:false})
+    .then(function(r) {
+      var incs = r.data || [];
+      var open   = incs.filter(function(i){ return i.status==='open'; });
+      var solved = incs.filter(function(i){ return i.status==='resolved'; });
+
+      var html = '';
+      html += '<div class="stats-row">';
+      html += statCard(open.length,   'Incidencias abiertas',  open.length ? 'c-red' : '');
+      html += statCard(solved.length, 'Resueltas', '');
+      html += statCard(incs.length,   'Total', 'c-blue');
+      html += statCard(incs.filter(function(i){return i.type==='materials';}).length, 'De materiales', '');
+      html += '</div>';
+
+      html += '<div style="display:flex;justify-content:flex-end;margin-bottom:14px">';
+      html += '<button onclick="abrirIncidenciaDoc()" class="btn-p">+ Nueva incidencia</button>';
+      html += '</div>';
+
+      if(!incs.length) {
+        html += '<div style="text-align:center;padding:60px;color:var(--gray)">'
+          + '<div style="font-size:48px;margin-bottom:10px">✓</div>'
+          + '<div style="font-family:Montserrat,sans-serif;font-size:14px;font-weight:600">Sin incidencias registradas</div></div>';
+        c.innerHTML = html; return;
+      }
+
+      html += '<div class="card" style="padding:0;overflow:hidden"><table class="t"><thead><tr>';
+      html += '<th style="padding:10px 16px">Tipo</th><th>Descripcion</th><th>Escuela</th><th>Fecha</th><th>Estado</th>';
+      html += '</tr></thead><tbody>';
+      incs.forEach(function(i){
+        html += '<tr>';
+        html += '<td style="padding:10px 16px">' + bdg(INC_LBL[i.type]||i.type, 'b-amber') + '</td>';
+        html += '<td style="font-size:12px">' + i.description + '</td>';
+        html += '<td style="font-size:12px;color:var(--gray)">' + (i.schools?i.schools.name:'—') + '</td>';
+        html += '<td style="font-size:11px;color:var(--gray)">' + fmt(i.incident_date) + '</td>';
+        html += '<td>' + bdg(i.status==='resolved'?'Resuelta':i.status==='in_progress'?'En proceso':'Abierta', i.status==='resolved'?'b-green':i.status==='in_progress'?'b-blue':'b-red') + '</td>';
+        html += '</tr>';
+      });
+      html += '</tbody></table></div>';
+      c.innerHTML = html;
+    });
+}
+
+function abrirIncidenciaDoc() {
+  // Pre-fill teacher's school
+  var mySchool = SCHOOLS.find(function(s){ return s.id === (PROFILE&&PROFILE.school_id); }) || SCHOOLS[0];
+  document.getElementById('inc-fecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('inc-desc').value  = '';
+  if(mySchool) document.getElementById('inc-escuela').value = mySchool.id;
+  oM('m-incidencia');
+}
+
+// ══════════════════════════════════════════════════════
+// RESPONSABLE — Core: tabla de docentes
+// ══════════════════════════════════════════════════════
+
+function renderRespHome() {
+  var c = document.getElementById('s-resp-home'); if(!c) return;
+  loading(c);
+
+  Promise.all([
+    DB.from('profiles').select('*').eq('role','docente').eq('active',true).order('full_name'),
+    DB.from('teacher_assignments').select('*,groups(id,grade,group_name,shift)').eq('active',true),
+    DB.from('session_logs').select('group_id,status'),
+    DB.from('incidents').select('teacher_id,status'),
+    DB.from('alerts').select('*').eq('is_active',true).order('severity')
+  ]).then(function(results) {
+    var teachers     = results[0].data || [];
+    var assignments  = results[1].data || [];
+    var logs         = results[2].data || [];
+    var incidents    = results[3].data || [];
+    var alerts       = results[4].data || [];
+
+    var redAlerts = alerts.filter(function(a){ return a.severity==='red'; });
+    var html = '';
+
+    if(redAlerts.length) {
+      html += '<div class="alert-red"><div class="alert-dot ad-red"></div>'
+        + '<div class="alert-txt"><strong>' + redAlerts.length + ' alerta' + (redAlerts.length>1?'s':'') + ' critica' + (redAlerts.length>1?'s':'') + '</strong> — ' + redAlerts.map(function(a){return a.title;}).join(' · ') + '</div></div>';
+    }
+
+    // Summary stats
+    var totalGroups = assignments.length;
+    var totalLogs   = logs.length;
+    var doneLogs    = logs.filter(function(l){ return l.status==='completed'; }).length;
+    var openIncs    = incidents.filter(function(i){ return i.status==='open'; }).length;
+    var atRisk      = 0; // teachers with low progress
+
+    html += '<div class="stats-row">';
+    html += statCard(teachers.length, 'Docentes activos', 'c-blue');
+    html += statCard(totalGroups, 'Grupos en programa', '');
+    html += statCard(pct(doneLogs,totalLogs) + '%', 'Sesiones completadas', 'c-blue');
+    html += statCard(openIncs, 'Incidencias abiertas', openIncs ? 'c-red' : '');
+    html += '</div>';
+
+    // CORE: Teachers table
+    html += '<div class="card" style="padding:0;overflow:hidden">';
+    html += '<div style="padding:14px 20px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">';
+    html += '<div><div class="card-title">Estado del equipo docente</div>';
+    html += '<div class="card-sub">Haz click en un docente para ver el detalle completo</div></div>';
+    html += '<button onclick="abrirNuevoDocente()" class="btn-p" style="font-size:11px">+ Agregar docente</button>';
+    html += '</div>';
+
+    if(!teachers.length) {
+      html += '<div style="text-align:center;padding:40px;color:var(--gray)">Sin docentes registrados</div>';
+    } else {
+      html += '<table class="t"><thead><tr>';
+      html += '<th style="padding:10px 16px">Docente</th>';
+      html += '<th>Grupos</th>';
+      html += '<th>Sesiones</th>';
+      html += '<th style="min-width:120px">Avance</th>';
+      html += '<th>Pospuestas</th>';
+      html += '<th>Incidencias</th>';
+      html += '<th>Estado</th>';
+      html += '<th></th>';
+      html += '</tr></thead><tbody>';
+
+      teachers.forEach(function(t) {
+        var tAssign = assignments.filter(function(a){ return a.teacher_id===t.id; });
+        var groupIds = tAssign.map(function(a){ return a.groups && a.groups.id; }).filter(Boolean);
+        var tLogs    = logs.filter(function(l){ return groupIds.indexOf(l.group_id)>-1; });
+        var tDone    = tLogs.filter(function(l){ return l.status==='completed'; }).length;
+        var tPost    = tLogs.filter(function(l){ return l.status==='postponed'; }).length;
+        var tTotal   = tLogs.length;
+        var tPct     = pct(tDone, tTotal);
+        var tIncs    = incidents.filter(function(i){ return i.teacher_id===t.id && i.status==='open'; }).length;
+        var ini      = (t.full_name||t.email).split(' ').map(function(w){return w[0];}).join('').substring(0,2).toUpperCase();
+
+        // Traffic light
+        var tl = tPct >= 80 ? 'green' : tPct >= 50 ? 'yellow' : 'red';
+        if(tPost >= 3) tl = 'red';
+        if(tIncs >= 2) tl = tl === 'green' ? 'yellow' : 'red';
+
+        html += '<tr style="cursor:pointer" onclick="verDetalleDocente(\'' + t.id + '\',\'' + encodeURIComponent(t.full_name||t.email) + '\')">';
+        html += '<td style="padding:10px 16px"><div style="display:flex;align-items:center;gap:10px">';
+        html += '<div style="width:34px;height:34px;border-radius:50%;background:rgba(2,193,244,.1);display:flex;align-items:center;justify-content:center;color:var(--blue);font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;flex-shrink:0">' + ini + '</div>';
+        html += '<div><div style="font-family:Montserrat,sans-serif;font-size:12.5px;font-weight:700">' + (t.full_name||t.email) + '</div>';
+        html += '<div style="font-size:10px;color:var(--gray)">' + t.email + '</div></div></div></td>';
+        html += '<td style="font-size:12px">' + tAssign.length + '</td>';
+        html += '<td style="font-size:12px">' + tDone + '/' + tTotal + '</td>';
+        html += '<td style="min-width:120px"><div style="font-size:11px;margin-bottom:3px">' + tPct + '%</div>' + progressBar(tPct) + '</td>';
+        html += '<td>' + (tPost ? '<span style="font-family:Montserrat,sans-serif;font-size:13px;font-weight:700;color:var(--amber)">' + tPost + '</span>' : '<span style="color:var(--gray);font-size:12px">0</span>') + '</td>';
+        html += '<td>' + (tIncs ? '<span style="font-family:Montserrat,sans-serif;font-size:13px;font-weight:700;color:var(--red-dark)">' + tIncs + '</span>' : '<span style="color:var(--gray);font-size:12px">0</span>') + '</td>';
+        html += '<td>' + trafficBdg(tl) + '</td>';
+        html += '<td style="padding:8px 12px"><button onclick="event.stopPropagation();verDetalleDocente(\'' + t.id + '\',\'' + encodeURIComponent(t.full_name||t.email) + '\')" class="btn-g" style="font-size:10px;padding:4px 10px">Ver detalle</button></td>';
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+    }
+    html += '</div>';
+
+    // Alerts panel
+    if(alerts.length) {
+      html += '<div class="card" style="margin-top:14px"><div class="card-hd"><div>';
+      html += '<div class="card-title">Alertas operativas</div>';
+      html += '<div class="card-sub">' + alerts.length + ' alertas activas</div></div></div>';
+      alerts.slice(0,6).forEach(function(a){
+        var col = SEVERITY_CLR[a.severity]||'#797979';
+        html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:' + col + '12;border-radius:8px;margin-bottom:6px;border-left:3px solid ' + col + '">';
+        html += '<div style="width:8px;height:8px;border-radius:50%;background:' + col + ';flex-shrink:0"></div>';
+        html += '<div style="flex:1"><div style="font-size:12px;font-weight:600">' + a.title + '</div>';
+        html += '<div style="font-size:11px;color:var(--gray)">' + (a.description||'') + '</div></div>';
+        html += bdg(a.severity==='red'?'Critico':a.severity==='yellow'?'Riesgo':'OK', a.severity==='red'?'b-red':a.severity==='yellow'?'b-amber':'b-green');
+        html += '</div>';
+      });
+      html += '</div>';
+    }
+    c.innerHTML = html;
+  });
+}
+
+// Docente detail modal for responsable
+function verDetalleDocente(teacherId, nombre) {
+  var dn = decodeURIComponent(nombre);
+  var modal = document.createElement('div');
+  modal.id = 'm-detalle-doc';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:8500;display:flex;align-items:center;justify-content:center';
+  modal.innerHTML = '<div style="background:#fff;border-radius:14px;padding:28px;width:700px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25)">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">'
+    + '<div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700">' + dn + '</div>'
+    + '<button onclick="document.getElementById(\'m-detalle-doc\').remove()" style="background:#fff;border:1px solid rgba(0,0,0,.14);color:#444;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer">Cerrar</button>'
+    + '</div>'
+    + '<div id="detalle-doc-content" style="text-align:center;padding:20px;color:var(--gray)">Cargando...</div>'
+    + '</div>';
+  document.body.appendChild(modal);
+  loadDetalleDocente(teacherId);
+}
+
+function loadDetalleDocente(teacherId) {
+  var c = document.getElementById('detalle-doc-content'); if(!c) return;
+
+  Promise.all([
+    DB.from('teacher_assignments').select('*,groups(id,grade,group_name,shift)').eq('teacher_id',teacherId).eq('active',true),
+    DB.from('session_logs').select('*,sessions(title,session_number,modules(name,number))').eq('teacher_id',teacherId).order('scheduled_date'),
+    DB.from('incidents').select('*').eq('teacher_id',teacherId).order('incident_date',{ascending:false}),
+    DB.from('manual_requests').select('*,groups(grade,group_name)').eq('requested_by',teacherId).order('created_at',{ascending:false})
+  ]).then(function(results) {
+    var assignments = results[0].data || [];
+    var logs        = results[1].data || [];
+    var incs        = results[2].data || [];
+    var matReqs     = results[3].data || [];
+
+    var done     = logs.filter(function(l){ return l.status==='completed'; }).length;
+    var postponed= logs.filter(function(l){ return l.status==='postponed'; }).length;
+    var total    = logs.length;
+
+    var html = '';
+
+    // Stats
+    html += '<div class="stats-row" style="margin-bottom:14px">';
+    html += statCard(done+'/'+total, 'Sesiones', 'c-blue');
+    html += statCard(pct(done,total)+'%', 'Avance', '');
+    html += statCard(postponed, 'Pospuestas', postponed?'c-amber':'');
+    html += statCard(incs.filter(function(i){return i.status==='open';}).length, 'Incidencias abiertas', '');
+    html += '</div>';
+
+    // A. Session timeline
+    html += '<div style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">A. Progreso de sesiones</div>';
+    if(!logs.length) {
+      html += '<div style="font-size:12px;color:var(--gray);font-style:italic;margin-bottom:16px">Sin sesiones programadas</div>';
+    } else {
+      // Group by assignment
+      assignments.forEach(function(a) {
+        var g = a.groups; if(!g) return;
+        var gLogs = logs.filter(function(l){ return l.group_id===g.id; });
+        if(!gLogs.length) return;
+        var gDone = gLogs.filter(function(l){return l.status==='completed';}).length;
+        var gradeColors={1:'var(--blue)',2:'var(--green)',3:'#9c27b0'};
+        html += '<div style="margin-bottom:12px">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">';
+        html += '<span style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:600">' + g.grade + '° Grupo ' + g.group_name + ' (' + g.shift + ')</span>';
+        html += '<span style="font-size:11px;color:var(--gray)">' + gDone + '/' + gLogs.length + '</span></div>';
+        html += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
+        gLogs.forEach(function(l){
+          var s = l.sessions;
+          var bg = STATUS_CLR[l.status]||'#e8e8e8';
+          var col = l.status==='pending'?'#797979':'#fff';
+          html += '<div title="S'+(s?s.session_number:'?')+': '+(s?s.title:'')+' — '+l.status+'" style="width:28px;height:28px;border-radius:6px;background:'+bg+';display:flex;align-items:center;justify-content:center;color:'+col+';font-size:9px;font-weight:700">'+(s?s.session_number:'?')+'</div>';
+        });
+        html += '</div>';
+        // Postponed list
+        var pLogs = gLogs.filter(function(l){return l.status==='postponed';});
+        if(pLogs.length) {
+          html += '<div style="margin-top:6px">';
+          pLogs.forEach(function(l){
+            html += '<div style="font-size:11px;color:var(--amber);display:flex;align-items:center;gap:6px">';
+            html += '⚠ S'+(l.sessions?l.sessions.session_number:'?')+' pospuesta — '+fmt(l.scheduled_date);
+            if(l.postpone_reason) html += ' — "'+l.postpone_reason+'"';
+            html += '</div>';
+          });
+          html += '</div>';
+        }
+        html += '</div>';
+      });
+    }
+
+    // B. Incidents
+    html += '<div style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;margin-top:16px">B. Incidencias (' + incs.length + ')</div>';
+    if(!incs.length) {
+      html += '<div style="font-size:12px;color:var(--gray);font-style:italic;margin-bottom:16px">Sin incidencias</div>';
+    } else {
+      html += '<table class="t" style="margin-bottom:16px"><thead><tr><th>Tipo</th><th>Descripcion</th><th>Fecha</th><th>Estado</th></tr></thead><tbody>';
+      incs.forEach(function(i){
+        html += '<tr><td>'+bdg(INC_LBL[i.type]||i.type,'b-amber')+'</td>';
+        html += '<td style="font-size:12px">'+i.description+'</td>';
+        html += '<td style="font-size:11px;color:var(--gray)">'+fmt(i.incident_date)+'</td>';
+        html += '<td>'+bdg(i.status==='resolved'?'Resuelta':'Abierta',i.status==='resolved'?'b-green':'b-red')+'</td></tr>';
+      });
+      html += '</tbody></table>';
+    }
+
+    // C. Manual requests
+    html += '<div style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">C. Solicitudes de manual (' + matReqs.length + ')</div>';
+    if(!matReqs.length) {
+      html += '<div style="font-size:12px;color:var(--gray);font-style:italic">Sin solicitudes</div>';
+    } else {
+      matReqs.forEach(function(r){
+        var g = r.groups;
+        html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f5f5f5">';
+        html += bdg(r.status==='delivered'?'Enviada':r.status==='approved'?'Aprobada':'Pendiente',r.status==='delivered'?'b-green':r.status==='approved'?'b-blue':'b-amber');
+        html += '<div style="flex:1;font-size:12px">'+(g?g.grade+'° Grupo '+g.group_name:'—')+' — '+r.quantity+' manual'+(r.quantity>1?'es':'')+' — '+r.reason+'</div>';
+        html += '<div style="font-size:11px;color:var(--gray)">'+fmt(r.created_at)+'</div>';
+        if(r.status==='requested') {
+          html += '<button data-id="'+r.id+'" onclick="updateManualReq(this.dataset.id,\'approved\')" style="background:var(--blue-light);border:1px solid rgba(2,193,244,.25);color:var(--blue);padding:4px 10px;border-radius:6px;font-size:10px;font-family:Montserrat,sans-serif;font-weight:600;cursor:pointer">Aprobar</button>';
+        }
+        html += '</div>';
+      });
+    }
+    c.innerHTML = html;
+  });
+}
+
+// ══════════════════════════════════════════════════════
+// EQUIPO HOUP — Dashboard rediseñado
+// ══════════════════════════════════════════════════════
+
+function renderDash() {
+  var c = document.getElementById('s-dash'); if(!c) return;
+  loading(c);
+
+  Promise.all([
+    DB.from('session_logs').select('status,school_id,group_id'),
+    DB.from('incidents').select('type,school_id,status'),
+    DB.from('alerts').select('*').eq('is_active',true).order('severity'),
+    DB.from('manual_requests').select('status').eq('status','requested'),
+    DB.from('rubric_evaluations').select('total_score,block').not('total_score','is',null)
+  ]).then(function(results) {
+    var logs    = results[0].data || [];
+    var incs    = results[1].data || [];
+    var alerts  = results[2].data || [];
+    var matReqs = results[3].data || [];
+    var rubs    = results[4].data || [];
+
+    var totalLogs = logs.length;
+    var doneLogs  = logs.filter(function(l){ return l.status==='completed'; }).length;
+    var pctDone   = pct(doneLogs, totalLogs);
+    var openIncs  = incs.filter(function(i){ return i.status==='open'; }).length;
+    var redAlerts = alerts.filter(function(a){ return a.severity==='red'; });
+    var totalStu  = SCHOOLS.reduce(function(a,s){ return a+(s.total_students||0); }, 0);
+    var avgRub    = rubs.length ? (rubs.reduce(function(a,r){ return a+parseFloat(r.total_score); },0)/rubs.length).toFixed(2) : '—';
+
+    var html = '';
+
+    // Critical banner
+    if(redAlerts.length) {
+      html += '<div class="alert-red"><div class="alert-dot ad-red"></div>'
+        + '<div class="alert-txt"><strong>' + redAlerts.length + ' alerta' + (redAlerts.length>1?'s':'') + ' critica' + (redAlerts.length>1?'s':'') + ':</strong> '
+        + redAlerts.slice(0,3).map(function(a){return a.title;}).join(' · ') + '</div></div>';
+    }
+    if(matReqs.length) {
+      html += '<div class="alert-blue"><div class="alert-dot ad-blue"></div>'
+        + '<div class="alert-txt"><strong>' + matReqs.length + ' solicitud' + (matReqs.length>1?'es':'') + ' de manual pendiente' + (matReqs.length>1?'s':'') + '</strong></div></div>';
+    }
+
+    // KPIs
+    html += '<div class="stats-row">';
+    html += statCard(pctDone + '%', '% Ejecucion total', 'c-blue');
+    html += statCard(doneLogs + '/' + totalLogs, 'Sesiones completadas vs planeadas', '');
+    html += statCard(openIncs, 'Incidencias activas', openIncs ? 'c-red' : '');
+    html += statCard(redAlerts.length, 'Escuelas en riesgo', redAlerts.length ? 'c-red' : '');
+    html += '</div>';
+
+    // Progress bar
+    html += '<div class="card" style="margin-bottom:14px">';
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:8px">';
+    html += '<div class="card-title">Avance del programa — Ciclo 2024-2025</div>';
+    html += '<div style="font-family:Montserrat,sans-serif;font-size:24px;font-weight:800;color:var(--blue)">' + pctDone + '%</div></div>';
+    html += progressBar(pctDone, '#02c1f4', 12);
+    html += '<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--gray)">';
+    html += '<span>' + doneLogs + ' sesiones completadas</span>';
+    html += '<span>Meta: ' + totalLogs + ' sesiones · ' + totalStu + ' alumnos</span>';
+    html += '</div></div>';
+
+    html += '<div class="two-col">';
+
+    // School ranking
+    html += '<div class="card"><div class="card-hd"><div>';
+    html += '<div class="card-title">Ranking de escuelas</div>';
+    html += '<div class="card-sub">Por % de cumplimiento</div></div></div>';
+
+    var schoolStats = SCHOOLS.map(function(s) {
+      var sLogs  = logs.filter(function(l){ return l.school_id===s.id; });
+      var sDone  = sLogs.filter(function(l){ return l.status==='completed'; }).length;
+      var sTotal = sLogs.length;
+      var sPct   = pct(sDone, sTotal);
+      var sIncs  = incs.filter(function(i){ return i.school_id===s.id && i.status==='open'; }).length;
+      var tl     = sPct >= 80 ? 'green' : sPct >= 50 ? 'yellow' : 'red';
+      if(sIncs >= 3) tl = 'red';
+      return {school:s, done:sDone, total:sTotal, pct:sPct, incs:sIncs, tl:tl};
+    }).sort(function(a,b){ return b.pct - a.pct; });
+
+    schoolStats.forEach(function(ss, idx) {
+      var s = ss.school;
+      html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f5f5f5;cursor:pointer" onclick="verDetalleEscuela(\'' + s.id + '\')">';
+      html += '<div style="font-family:Montserrat,sans-serif;font-size:18px;font-weight:800;color:var(--gray);width:24px;flex-shrink:0">' + (idx+1) + '</div>';
+      html += '<div style="flex:1">';
+      html += '<div style="display:flex;justify-content:space-between;margin-bottom:4px">';
+      html += '<span style="font-family:Montserrat,sans-serif;font-size:12.5px;font-weight:700">' + s.name + '</span>';
+      html += '<span style="font-family:Montserrat,sans-serif;font-size:13px;font-weight:800;color:' + (ss.tl==='green'?'var(--green)':ss.tl==='yellow'?'var(--amber)':'var(--red-dark)') + '">' + ss.pct + '%</span>';
+      html += '</div>';
+      html += progressBar(ss.pct, ss.tl==='green'?'var(--green)':ss.tl==='yellow'?'var(--amber)':'var(--red-dark)', 5);
+      html += '<div style="font-size:10px;color:var(--gray);margin-top:3px">' + ss.done + '/' + ss.total + ' sesiones · ' + ss.incs + ' incidencias abiertas</div>';
+      html += '</div>' + trafficBdg(ss.tl) + '</div>';
+    });
+    html += '</div>';
+
+    // Alerts + incident analysis
+    html += '<div>';
+    html += '<div class="card" style="margin-bottom:12px"><div class="card-hd"><div>';
+    html += '<div class="card-title">Alertas priorizadas</div>';
+    html += '<div class="card-sub">' + alerts.length + ' activas</div></div></div>';
+
+    if(!alerts.length) {
+      html += '<div style="text-align:center;padding:20px;color:var(--gray)"><div style="font-size:28px;margin-bottom:6px">✓</div><div style="font-size:13px;font-weight:600">Todo en orden</div></div>';
+    } else {
+      alerts.slice(0,6).forEach(function(a){
+        var col = SEVERITY_CLR[a.severity]||'#797979';
+        html += '<div style="padding:10px 12px;background:' + col + '10;border-radius:8px;margin-bottom:6px;border-left:3px solid ' + col + '">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:flex-start">';
+        html += '<div style="flex:1"><div style="font-size:12px;font-weight:600;margin-bottom:2px">' + a.title + '</div>';
+        html += '<div style="font-size:11px;color:var(--gray)">' + (a.description||'') + '</div></div>';
+        html += bdg(a.severity==='red'?'Critico':'Riesgo', a.severity==='red'?'b-red':'b-amber');
+        html += '</div></div>';
+      });
+    }
+    html += '</div>';
+
+    // Incident analysis
+    html += '<div class="card"><div class="card-hd"><div class="card-title">Tipos de incidencias</div></div>';
+    var incByType = {};
+    incs.forEach(function(i){ incByType[i.type] = (incByType[i.type]||0)+1; });
+    var sortedTypes = Object.keys(incByType).sort(function(a,b){ return incByType[b]-incByType[a]; });
+    if(!sortedTypes.length) {
+      html += '<div style="font-size:12px;color:var(--gray);font-style:italic">Sin incidencias registradas</div>';
+    } else {
+      var maxVal = incByType[sortedTypes[0]];
+      sortedTypes.forEach(function(type){
+        var count = incByType[type];
+        var p2 = pct(count, maxVal);
+        html += '<div style="margin-bottom:8px">';
+        html += '<div style="display:flex;justify-content:space-between;margin-bottom:3px">';
+        html += '<span style="font-size:12px">' + (INC_LBL[type]||type) + '</span>';
+        html += '<span style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:700">' + count + '</span></div>';
+        html += progressBar(p2, '#ffa000', 4);
+        html += '</div>';
+      });
+    }
+    html += '</div>';
+
+    // Quick actions
+    html += '<div class="card" style="margin-top:12px"><div class="card-hd"><div class="card-title">Acciones rapidas</div></div>';
+    html += '<div style="display:flex;flex-direction:column;gap:6px">';
+    [
+      ['#02c1f4','+','Nueva escuela','Agregar al programa',"abrirEscuela()"],
+      ['#e03535','!','Registrar incidencia','Cancelacion, problema',"abrirIncidencia(null)"],
+      ['#43a047','✓','Rubrica del manual','Capturar por bloque',"oM('m-rubrica')"],
+      ['#9c27b0','◉','Bienestar PERMAH','Capturar por grado',"oM('m-bienestar')"],
+      ['#f57c00','⚑','Registrar visita','Seguimiento de campo',"abrirVisita(null)"],
+      ['#6a1b9a','✦','Nuevo usuario','Agregar al equipo',"oM('m-usuario')"]
+    ].forEach(function(a){
+      html += '<button onclick="'+a[4]+'" style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:'+a[0]+'15;border:1px solid '+a[0]+'25;border-radius:7px;cursor:pointer;width:100%;text-align:left">';
+      html += '<div style="width:24px;height:24px;border-radius:6px;background:'+a[0]+';display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;flex-shrink:0">'+a[1]+'</div>';
+      html += '<div><div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:600">'+a[2]+'</div><div style="font-size:10px;color:var(--gray)">'+a[3]+'</div></div></button>';
+    });
+    html += '</div></div>';
+    html += '</div></div>';
+
+    c.innerHTML = html;
+  });
+}
+
+function verDetalleEscuela(schoolId) {
+  var school = SCHOOLS.find(function(s){ return s.id===schoolId; });
+  if(!school) return;
+  var modal = document.createElement('div');
+  modal.id = 'm-detalle-esc';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:8500;display:flex;align-items:center;justify-content:center';
+  modal.innerHTML = '<div style="background:#fff;border-radius:14px;padding:28px;width:680px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25)">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">'
+    + '<div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700">' + school.name + '</div>'
+    + '<button onclick="document.getElementById(\'m-detalle-esc\').remove()" style="background:#fff;border:1px solid rgba(0,0,0,.14);color:#444;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer">Cerrar</button>'
+    + '</div>'
+    + '<div id="detalle-esc-content" style="text-align:center;padding:20px;color:var(--gray)">Cargando...</div>'
+    + '</div>';
+  document.body.appendChild(modal);
+  loadDetalleEscuela(schoolId);
+}
+
+function loadDetalleEscuela(schoolId) {
+  var c = document.getElementById('detalle-esc-content'); if(!c) return;
+  Promise.all([
+    DB.from('profiles').select('*').eq('role','docente').eq('school_id',schoolId).eq('active',true),
+    DB.from('session_logs').select('status,group_id,teacher_id').eq('school_id',schoolId),
+    DB.from('incidents').select('*').eq('school_id',schoolId).order('incident_date',{ascending:false}),
+    DB.from('teacher_assignments').select('*,groups(grade,group_name,shift)').eq('school_id',schoolId).eq('active',true)
+  ]).then(function(results) {
+    var teachers    = results[0].data || [];
+    var logs        = results[1].data || [];
+    var incs        = results[2].data || [];
+    var assignments = results[3].data || [];
+    var done  = logs.filter(function(l){return l.status==='completed';}).length;
+    var post  = logs.filter(function(l){return l.status==='postponed';}).length;
+    var total = logs.length;
+
+    var html = '';
+    html += '<div class="stats-row" style="margin-bottom:16px">';
+    html += statCard(done+'/'+total,'Sesiones','c-blue');
+    html += statCard(pct(done,total)+'%','Avance','');
+    html += statCard(post,'Pospuestas',post?'c-amber':'');
+    html += statCard(incs.filter(function(i){return i.status==='open';}).length,'Incidencias abiertas','');
+    html += '</div>';
+
+    // Teachers table
+    html += '<div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:var(--gray);text-transform:uppercase;margin-bottom:8px">Docentes activos</div>';
+    if(!teachers.length) {
+      html += '<div style="font-size:12px;color:var(--gray);font-style:italic;margin-bottom:16px">Sin docentes asignados</div>';
+    } else {
+      html += '<table class="t" style="margin-bottom:16px"><thead><tr><th>Docente</th><th>Grupos</th><th>Avance</th><th>Pospuestas</th><th>Estado</th></tr></thead><tbody>';
+      teachers.forEach(function(t){
+        var tAssign = assignments.filter(function(a){return a.teacher_id===t.id;});
+        var groupIds = tAssign.map(function(a){return a.groups&&a.groups.id;}).filter(Boolean);
+        var tLogs  = logs.filter(function(l){return groupIds.indexOf(l.group_id)>-1;});
+        var tDone  = tLogs.filter(function(l){return l.status==='completed';}).length;
+        var tPost  = tLogs.filter(function(l){return l.status==='postponed';}).length;
+        var tTotal = tLogs.length;
+        var tPct   = pct(tDone,tTotal);
+        var tl     = tPct>=80?'green':tPct>=50?'yellow':'red';
+        html += '<tr><td style="padding:8px 16px;font-family:Montserrat,sans-serif;font-weight:600">'+(t.full_name||t.email)+'</td>';
+        html += '<td style="font-size:12px">'+tAssign.length+'</td>';
+        html += '<td style="min-width:100px"><div style="font-size:11px;margin-bottom:2px">'+tDone+'/'+tTotal+' ('+tPct+'%)</div>'+progressBar(tPct)+'</td>';
+        html += '<td style="font-size:12px;color:'+(tPost?'var(--amber)':'var(--gray)')+'">'+tPost+'</td>';
+        html += '<td>'+trafficBdg(tl)+'</td></tr>';
+      });
+      html += '</tbody></table>';
+    }
+
+    // Recent incidents
+    html += '<div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:var(--gray);text-transform:uppercase;margin-bottom:8px">Incidencias recientes</div>';
+    if(!incs.length) {
+      html += '<div style="font-size:12px;color:var(--gray);font-style:italic">Sin incidencias</div>';
+    } else {
+      incs.slice(0,5).forEach(function(i){
+        html += '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f5f5f5">';
+        html += bdg(INC_LBL[i.type]||i.type,'b-amber');
+        html += '<div style="flex:1;font-size:12px">'+i.description+'</div>';
+        html += '<div style="font-size:11px;color:var(--gray)">'+fmt(i.incident_date)+'</div>';
+        html += bdg(i.status==='resolved'?'Resuelta':'Abierta',i.status==='resolved'?'b-green':'b-red');
+        html += '</div>';
+      });
+    }
+    c.innerHTML = html;
+  });
+}
+
+// Wire new screens into nav LOADERS
+var _origNav = nav;
+nav = function(el, screenId) {
+  _origNav(el, screenId);
+  var extra = {
+    's-doc-rubrica':       renderDocRubrica,
+    's-doc-incidencias':   renderDocIncidencias
+  };
+  if(extra[screenId]) extra[screenId]();
+};
+
 </script>
 </body>
 </html>
