@@ -2500,7 +2500,7 @@ function renderCalEscuela(schoolId){
     [1,2,3].forEach(function(g){
       var cnt=groups.filter(function(x){return x.grade===g;}).length;
       if(!cnt)return;
-      html+='<button onclick="renderCalGrade(''+schoolId+'','+g+')" id="cal-tab-'+g+'" style="padding:8px 18px;border-radius:8px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid rgba(2,193,244,.3);background:'+(g===1?'#02c1f4':'#fff')+';color:'+(g===1?'#fff':'var(--blue)')+'">'
+      html+='<button data-sid="'+schoolId+'" data-grade="'+g+'" onclick="renderCalGrade(this.dataset.sid,parseInt(this.dataset.grade))" id="cal-tab-'+g+'" style="padding:8px 18px;border-radius:8px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid rgba(2,193,244,.3);background:'+(g===1?'#02c1f4':'#fff')+';color:'+(g===1?'#fff':'var(--blue)')+'">'
         +g+'° — '+PROG_NAME[g]+'</button>';
     });
     html+='</div><div id="cal-grade-content"></div>';
@@ -2539,7 +2539,7 @@ function renderCalGrade(schoolId, grade){
           +'<div style="font-size:32px;margin-bottom:10px">📅</div>'
           +'<div style="font-family:Montserrat,sans-serif;font-size:14px;font-weight:700;margin-bottom:8px">Sin sesiones programadas</div>'
           +'<div style="font-size:12px;color:var(--gray);margin-bottom:16px">Genera las sesiones para los '+gradeGroups.length+' grupos de '+grade+'° con un clic</div>'
-          +'<button onclick="generarSesiones(''+schoolId+'','+grade+')" class="btn-p" style="font-size:13px;padding:10px 24px">📅 Generar sesiones de '+grade+'°</button>'
+          +'<button onclick="generarSesiones(this.dataset.sid,parseInt(this.dataset.grade))" data-sid="'+schoolId+'" data-grade="'+grade+'" class="btn-p" style="font-size:13px;padding:10px 24px">📅 Generar sesiones de '+grade+'°</button>'
           +'</div>';
         return;
       }
@@ -2548,7 +2548,7 @@ function renderCalGrade(schoolId, grade){
       html+='<div style="padding:14px 20px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">';
       html+='<div><div class="card-title">'+grade+'° — '+PROG_NAME[grade]+'</div>';
       html+='<div class="card-sub">'+temario.length+' sesiones · '+gradeGroups.length+' grupos · Click en una fecha para editarla</div></div>';
-      html+='<button onclick="guardarFechasLote(''+schoolId+'','+grade+')" class="btn-p" style="font-size:11px">💾 Guardar fechas</button>';
+      html+='<button onclick="guardarFechasLote(this.dataset.sid,parseInt(this.dataset.grade))" data-sid="'+schoolId+'" data-grade="'+grade+'" class="btn-p" style="font-size:11px">💾 Guardar fechas</button>';
       html+='</div>';
       html+='<div style="overflow-x:auto"><table class="t"><thead><tr>';
       html+='<th style="padding:9px 14px;min-width:50px">#</th>';
@@ -2570,7 +2570,7 @@ function renderCalGrade(schoolId, grade){
           html+='<td style="padding:6px 10px;text-align:center">';
           html+='<input type="date" data-sess-id="'+sessId+'" data-group-id="'+g.id+'" data-ps-id="'+ps.id+'" data-school-id="'+schoolId+'"';
           html+=' value="'+dateVal+'" style="padding:4px 6px;border:1px solid rgba(0,0,0,.12);border-radius:5px;font-size:11px;font-family:Montserrat,sans-serif;outline:none;width:100%;'+(dateVal?'background:#f0fbff;border-color:rgba(2,193,244,.4)':'')+';"';
-          html+=' onchange="this.style.background='#fff8e1';this.style.borderColor='rgba(255,152,0,.5)'"';
+          html+=' onchange="this.style.background=\'#fff8e1\';this.style.borderColor=\'rgba(255,152,0,.5)\'"';
           html+='>';
           if(gs&&gs.status==='completada')html+='<div style="font-size:9px;color:var(--green);margin-top:2px">✓ Completada</div>';
           html+='</td>';
@@ -2690,11 +2690,11 @@ function renderSolicitudes(){
         html+='<td>'+badge(r.status.charAt(0).toUpperCase()+r.status.slice(1),statusColor[r.status]||'b-gray')+'</td>';
         html+='<td style="padding:8px 12px"><div style="display:flex;gap:5px;flex-wrap:wrap">';
         if(r.status==='pendiente'){
-          html+='<button onclick="actualizarSolicitud(''+r.id+'','aprobada')" style="background:var(--blue-light);border:1px solid rgba(2,193,244,.25);color:var(--blue);padding:4px 10px;border-radius:6px;font-size:10px;font-family:Montserrat,sans-serif;font-weight:600;cursor:pointer">✓ Aprobar</button>';
-          html+='<button onclick="actualizarSolicitud(''+r.id+'','cancelada')" style="background:#fff5f5;border:1px solid rgba(224,53,53,.2);color:var(--red-dark);padding:4px 10px;border-radius:6px;font-size:10px;cursor:pointer">✗ Cancelar</button>';
+          html+='<button onclick="actualizarSolicitud(this.dataset.id,\"aprobada\")" data-id="'+r.id+'" style="background:var(--blue-light);border:1px solid rgba(2,193,244,.25);color:var(--blue);padding:4px 10px;border-radius:6px;font-size:10px;font-family:Montserrat,sans-serif;font-weight:600;cursor:pointer">✓ Aprobar</button>';
+          html+='<button onclick="actualizarSolicitud(this.dataset.id,\"cancelada\")" data-id="'+r.id+'" style="background:#fff5f5;border:1px solid rgba(224,53,53,.2);color:var(--red-dark);padding:4px 10px;border-radius:6px;font-size:10px;cursor:pointer">✗ Cancelar</button>';
         }
         if(r.status==='aprobada'){
-          html+='<button onclick="actualizarSolicitud(''+r.id+'','enviada')" style="background:var(--green-light);border:1px solid rgba(67,160,71,.25);color:var(--green);padding:4px 10px;border-radius:6px;font-size:10px;font-family:Montserrat,sans-serif;font-weight:600;cursor:pointer">📦 Marcar enviada</button>';
+          html+='<button onclick="actualizarSolicitud(this.dataset.id,\"enviada\")" data-id="'+r.id+'" style="background:var(--green-light);border:1px solid rgba(67,160,71,.25);color:var(--green);padding:4px 10px;border-radius:6px;font-size:10px;font-family:Montserrat,sans-serif;font-weight:600;cursor:pointer">📦 Marcar enviada</button>';
         }
         if(r.status==='enviada'){
           html+='<span style="font-size:11px;color:var(--green)">✓ Enviada el '+fmt(r.sent_at)+'</span>';
