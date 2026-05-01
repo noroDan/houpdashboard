@@ -1405,7 +1405,7 @@ function renderSesionesEscuela(schoolId) {
           si.forEach(function(i){
             html += '<div style="display:flex;align-items:center;gap:8px;padding:5px 0">';
             html += bdg(INC_LBL[i.type]||i.type,'b-amber');
-            html += '<span style="flex:1;font-size:12px">'+i.description+'</span>';
+            html += '<span style="flex:1;font-size:12px">'+i.reason+'</span>';
             html += '<span style="font-size:11px;color:var(--gray)">'+fmt(i.incident_date)+'</span></div>';
           });
           html += '</div>';
@@ -1549,7 +1549,7 @@ function renderModulosEscuela(schoolId) {
       else incs.slice(0,5).forEach(function(i){
         html+='<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f9f9f9">';
         html+=bdg(INC_LBL[i.type]||i.type,'b-amber');
-        html+='<div style="flex:1;font-size:12px">'+i.description+'</div>';
+        html+='<div style="flex:1;font-size:12px">'+i.reason+'</div>';
         html+='<div style="font-size:11px;color:var(--gray)">'+fmt(i.incident_date)+'</div></div>';
       });
       html+='</div></div></div>';
@@ -1967,7 +1967,7 @@ function renderRespHome() {
     else openIncs.forEach(function(i){
       html+='<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f5f5f5">';
       html+=bdg(INC_LBL[i.type]||i.type,'b-amber');
-      html+='<div style="flex:1"><div style="font-size:12px;font-weight:600">'+(i.schools?i.schools.name:'—')+'</div><div style="font-size:11px;color:var(--gray)">'+i.description+'</div></div>';
+      html+='<div style="flex:1"><div style="font-size:12px;font-weight:600">'+(i.schools?i.schools.name:'—')+'</div><div style="font-size:11px;color:var(--gray)">'+i.reason+'</div></div>';
       html+='<div style="font-size:11px;color:var(--gray)">'+fmt(i.incident_date)+'</div>';
       html+='<button data-id="'+i.id+'" onclick="resolverIncidencia(this.dataset.id)" style="background:var(--green-light);border:1px solid rgba(67,160,71,.3);color:var(--green);padding:4px 10px;border-radius:6px;font-size:10px;cursor:pointer;font-family:Montserrat,sans-serif;font-weight:600">Resolver</button>';
       html+='</div>';
@@ -1999,7 +1999,7 @@ function renderRespSesiones() {
         html+='<table class="t"><thead><tr><th>Tipo</th><th>Descripcion</th><th>Fecha</th><th>Estado</th></tr></thead><tbody>';
         si.forEach(function(i){
           html+='<tr><td>'+bdg(INC_LBL[i.type]||i.type,'b-amber')+'</td>';
-          html+='<td style="font-size:12px">'+i.description+'</td>';
+          html+='<td style="font-size:12px">'+i.reason+'</td>';
           html+='<td style="font-size:11px;color:var(--gray)">'+fmt(i.incident_date)+'</td>';
           html+='<td>'+bdg(i.status==='resolved'?'Resuelta':i.status==='in_progress'?'En proceso':'Abierta',i.status==='resolved'?'b-green':i.status==='in_progress'?'b-blue':'b-red')+'</td></tr>';
         });
@@ -2528,7 +2528,7 @@ function guardarIncidencia(){
   var desc=document.getElementById('inc-desc').value.trim();
   var fecha=document.getElementById('inc-fecha').value;
   if(!sid||!desc||!fecha){toast('Completa todos los campos',true);return;}
-  DB.from('incidents').insert({school_id:sid,type:tipo,description:desc,incident_date:fecha,reported_by:ME.id,status:'open'}).then(function(r){
+  DB.from('incidents').insert({school_id:sid,type:tipo,reason:desc,incident_date:fecha,reported_by:ME.id,teacher_id:ME.id,status:'open'}).then(function(r){
     if(r.error){toast('Error: '+r.error.message,true);return;}
     cM('m-incidencia');toast('Incidencia registrada');
     var refreshMap={'s-sesiones':renderSesiones,'s-resp-sesiones':renderRespSesiones,'s-resp-home':renderRespHome,'s-dash':renderDash};
@@ -3482,7 +3482,7 @@ function renderDocIncidencias() {
       incs.forEach(function(i){
         html += '<tr>';
         html += '<td style="padding:10px 16px">' + bdg(INC_LBL[i.type]||i.type, 'b-amber') + '</td>';
-        html += '<td style="font-size:12px">' + i.description + '</td>';
+        html += '<td style="font-size:12px">' + i.reason + '</td>';
         html += '<td style="font-size:12px;color:var(--gray)">' + (i.schools?i.schools.name:'—') + '</td>';
         html += '<td style="font-size:11px;color:var(--gray)">' + fmt(i.incident_date) + '</td>';
         html += '<td>' + bdg(i.status==='resolved'?'Resuelta':i.status==='in_progress'?'En proceso':'Abierta', i.status==='resolved'?'b-green':i.status==='in_progress'?'b-blue':'b-red') + '</td>';
@@ -3714,7 +3714,7 @@ function loadDetalleDocente(teacherId) {
       html += '<table class="t" style="margin-bottom:16px"><thead><tr><th>Tipo</th><th>Descripcion</th><th>Fecha</th><th>Estado</th></tr></thead><tbody>';
       incs.forEach(function(i){
         html += '<tr><td>'+bdg(INC_LBL[i.type]||i.type,'b-amber')+'</td>';
-        html += '<td style="font-size:12px">'+i.description+'</td>';
+        html += '<td style="font-size:12px">'+i.reason+'</td>';
         html += '<td style="font-size:11px;color:var(--gray)">'+fmt(i.incident_date)+'</td>';
         html += '<td>'+bdg(i.status==='resolved'?'Resuelta':'Abierta',i.status==='resolved'?'b-green':'b-red')+'</td></tr>';
       });
@@ -3974,7 +3974,7 @@ function loadDetalleEscuela(schoolId) {
       incs.slice(0,5).forEach(function(i){
         html += '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f5f5f5">';
         html += bdg(INC_LBL[i.type]||i.type,'b-amber');
-        html += '<div style="flex:1;font-size:12px">'+i.description+'</div>';
+        html += '<div style="flex:1;font-size:12px">'+i.reason+'</div>';
         html += '<div style="font-size:11px;color:var(--gray)">'+fmt(i.incident_date)+'</div>';
         html += bdg(i.status==='resolved'?'Resuelta':'Abierta',i.status==='resolved'?'b-green':'b-red');
         html += '</div>';
@@ -4407,7 +4407,7 @@ function renderDocIncidencias() {
             html += '<span style="font-size:11px;color:var(--gray)">'+fmt(i.incident_date)+'</span>';
             html += '<div style="margin-left:auto">'+bdg(i.status==='resolved'?'Resuelta':i.status==='in_progress'?'En proceso':'Abierta',i.status==='resolved'?'b-green':i.status==='in_progress'?'b-blue':'b-red')+'</div>';
             html += '</div>';
-            html += '<div style="font-size:12px">'+i.description+'</div>';
+            html += '<div style="font-size:12px">'+i.reason+'</div>';
             if(i.status==='resolved'&&i.resolution) html += '<div style="font-size:11px;color:var(--green);margin-top:4px">✓ '+i.resolution+'</div>';
             html += '</div>';
           });
@@ -5141,7 +5141,7 @@ function renderDocIncidencias() {
             html+=bdg(INC_LBL[i.type]||i.type,'b-amber');
             html+='<span style="font-size:11px;color:var(--gray)">'+fmt(i.incident_date)+'</span>';
             html+='<div style="margin-left:auto">'+bdg(i.status==='resolved'?'Resuelta':i.status==='in_progress'?'En proceso':'Abierta',i.status==='resolved'?'b-green':i.status==='in_progress'?'b-blue':'b-red')+'</div>';
-            html+='</div><div style="font-size:12px">'+i.description+'</div>';
+            html+='</div><div style="font-size:12px">'+i.reason+'</div>';
             if(i.resolution) html+='<div style="font-size:11px;color:var(--green);margin-top:4px">✓ '+i.resolution+'</div>';
             html+='</div>';
           });
@@ -5695,7 +5695,7 @@ function renderRespSesiones() {
       open.forEach(function(i){
         html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f5f5f5">';
         html += bdg(INC_LBL[i.type]||i.type,'b-amber');
-        html += '<div style="flex:1"><div style="font-size:12px;font-weight:600">'+(i.schools?i.schools.name:'—')+'</div><div style="font-size:11px;color:var(--gray)">'+i.description+'</div></div>';
+        html += '<div style="flex:1"><div style="font-size:12px;font-weight:600">'+(i.schools?i.schools.name:'—')+'</div><div style="font-size:11px;color:var(--gray)">'+i.reason+'</div></div>';
         html += '<div style="font-size:11px;color:var(--gray)">'+fmt(i.incident_date)+'</div>';
         html += '<button data-id="'+i.id+'" onclick="resolverIncidencia(this.dataset.id)" style="background:var(--green-light);border:1px solid rgba(67,160,71,.3);color:var(--green);padding:4px 10px;border-radius:6px;font-size:10px;cursor:pointer;font-family:Montserrat,sans-serif;font-weight:600">Resolver</button>';
         html += '</div>';
