@@ -5180,6 +5180,601 @@ function escalarSesion(pipeId) {
 }
 
 
+// ═══════════════════════════════════════════════════════
+// HOUP — Fixes batch 2
+// ═══════════════════════════════════════════════════════
+
+// ── FIX 1: Nav docente solo muestra pestaña docente ──
+// Override initApp to enforce role-based nav
+var _origInitApp = initApp;
+initApp = function(user) {
+  _origInitApp(user);
+};
+
+// Override showNav to hide role switcher for docentes
+var _existingShowNav = showNav;
+showNav = function(role) {
+  _existingShowNav(role);
+  // Hide role switcher for docentes
+  var switchers = document.querySelectorAll('.role-switcher, [class*="role-btn"]');
+  switchers.forEach(function(el) {
+    el.closest('div') && (el.closest('div').style.display = (role === 'docente') ? 'none' : '');
+  });
+  // Also hide the entire role switch bar
+  var roleBar = document.querySelector('.role-bar, .switcher-bar');
+  if(roleBar) roleBar.style.display = (role === 'docente') ? 'none' : '';
+};
+
+// More aggressive: after DOM loads, hide switcher for docentes
+document.addEventListener('DOMContentLoaded', function() {
+  setTimeout(function() {
+    if(PROFILE && PROFILE.role === 'docente') {
+      document.querySelectorAll('.role-btn').forEach(function(btn) {
+        var parent = btn.parentElement;
+        if(parent) parent.style.display = 'none';
+      });
+    }
+  }, 1000);
+});
+
+// ── FIX 2: Solicitud de manual - fix DB insert ────────
+function guardarSolicitudManual() {
+  var gid    = document.getElementById('mat-grupo') && document.getElementById('mat-grupo').value;
+  var qty    = parseInt(document.getElementById('mat-cantidad') && document.getElementById('mat-cantidad').value) || 0;
+  var reason = document.getElementById('mat-motivo') && document.getElementById('mat-motivo').value.trim();
+  if(!gid || !qty || !reason) { toast('Completa todos los campos', true); return; }
+  var school = SCHOOLS.find(function(s){ return s.id === (PROFILE && PROFILE.school_id); }) || SCHOOLS[0];
+  // Only insert columns that exist in the table
+  DB.from('manual_requests').insert({
+    school_id:    school ? school.id : null,
+    group_id:     gid,
+    requested_by: ME.id,
+    quantity:     qty,
+    reason:       reason,
+    status:       'requested'
+  }).then(function(r) {
+    if(r.error) { toast('Error: ' + r.error.message, true); return; }
+    cM('m-manual-request');
+    toast('Solicitud enviada al responsable');
+    if(SCREEN === 's-doc-home') renderDocHome();
+    if(SCREEN === 's-doc-material') renderDocMaterial();
+  });
+}
+
+// ── FIX 3: Rúbricas — tabla full width, filtros inline ─
+function renderDocRubrica() {
+  var c = document.getElementById('s-doc-rubrica'); if(!c) return;
+  loading(c);
+  DB.from('teacher_assignments')
+    .select('groups(id,grade,group_name,shift,school_id)')
+    .eq('teacher_id', ME.id).eq('active', true)
+    .then(function(r) {
+      var assignments = r.data || [];
+      if(!assignments.length) { c.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray)">Sin grupos asignados</div>'; return; }
+      var schoolId = assignments[0].groups && assignments[0].groups.school_id;
+      Promise.all([
+        DB.from('students').select('*').eq('school_id', schoolId).eq('active', true).order('grade').order('name'),
+        DB.from('rubric_evaluations').select('*').eq('school_id', schoolId)
+      ]).then(function(results) {
+        window._rubricaData = { students: results[0].data||[], evals: results[1].data||[], schoolId: schoolId };
+        renderRubricaTable(1, 0, '', '', '');
+      });
+    });
+}
+
+function renderRubricaTable(block, grade, shift, manual, evaluated) {
+  var c = document.getElementById('s-doc-rubrica'); if(!c) return;
+  var d = window._rubricaData; if(!d) return;
+  var students = d.students, evals = d.evals, schoolId = d.schoolId;
+
+  var filtered = students.filter(function(s) {
+    var ev = evals.find(function(e){ return e.student_id===s.id && e.block===block; });
+    if(grade    && s.grade !== grade)                       return false;
+    if(shift    && s.shift !== shift)                       return false;
+    if(manual === 'no'  && !(ev && !ev.has_manual))         return false;
+    if(manual === 'yes' && !(ev &&  ev.has_manual))         return false;
+    if(evaluated === 'yes' && !ev)                          return false;
+    if(evaluated === 'no'  &&  ev)                          return false;
+    return true;
+  });
+
+  var noEval   = filtered.filter(function(s){ return !evals.find(function(e){ return e.student_id===s.id&&e.block===block; }); }).length;
+  var withEval = filtered.length - noEval;
+  var selStyle = 'width:100%;padding:2px 4px;border:1px solid rgba(0,0,0,.1);border-radius:3px;font-size:11px;outline:none;font-family:Montserrat,sans-serif';
+
+  var html = '';
+
+  // Block selector only (compact)
+  html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;padding:8px 12px;background:#fff;border-radius:8px;border:1px solid rgba(0,0,0,.06)">';
+  html += '<span style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:var(--gray)">BLOQUE:</span>';
+  [1,2,3].forEach(function(b){
+    html += '<button onclick="renderRubricaTable('+b+',0,\'\',\'\',\'\')" style="padding:5px 14px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid '+(b===block?'var(--blue)':'rgba(0,0,0,.12)')+';background:'+(b===block?'var(--blue)':'#fff')+';color:'+(b===block?'#fff':'#444')+'">Bloque '+b+'</button>';
+  });
+  html += '<div style="margin-left:auto;display:flex;align-items:center;gap:10px">';
+  html += '<span style="font-size:11px;color:var(--gray)">'+filtered.length+' alumnos · <span style="color:var(--green)">'+withEval+' eval</span> · <span style="color:var(--amber)">'+noEval+' pend</span></span>';
+  html += '<button onclick="abrirAgregarAlumno()" style="background:rgba(2,193,244,.1);border:1px solid rgba(2,193,244,.3);color:var(--blue);padding:5px 12px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;cursor:pointer">+ Alumno</button>';
+  html += '<button onclick="guardarRubricas()" style="background:#43a047;color:#fff;border:none;padding:5px 14px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;cursor:pointer">Guardar</button>';
+  html += '</div></div>';
+
+  // Full-width table with inline filters in header
+  html += '<div style="background:#fff;border-radius:10px;border:1px solid rgba(0,0,0,.06);overflow:hidden;width:100%">';
+  html += '<div style="overflow-x:auto;height:calc(100vh - 220px);overflow-y:auto">';
+  html += '<table style="width:100%;border-collapse:collapse;min-width:900px">';
+  html += '<thead style="position:sticky;top:0;z-index:10;background:#f8f9fa">';
+
+  // Row 1: Column headers
+  html += '<tr>';
+  html += '<th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e0e0e0;font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;min-width:200px">Alumno</th>';
+  html += '<th style="padding:8px 8px;text-align:center;border-bottom:2px solid #e0e0e0;font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;min-width:55px">Grado</th>';
+  html += '<th style="padding:8px 8px;text-align:center;border-bottom:2px solid #e0e0e0;font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;min-width:65px">Turno</th>';
+  html += '<th style="padding:8px 8px;text-align:center;border-bottom:2px solid #e0e0e0;font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;min-width:55px">Sin<br>manual</th>';
+  ['Profundidad','Conexion','Coherencia','Autenticidad','Evidencia'].forEach(function(h){
+    html += '<th style="padding:8px 6px;text-align:center;border-bottom:2px solid #e0e0e0;font-family:Montserrat,sans-serif;font-size:10px;font-weight:700;min-width:110px">'+h+'</th>';
+  });
+  html += '<th style="padding:8px 8px;text-align:center;border-bottom:2px solid #e0e0e0;font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;min-width:60px">Prom</th>';
+  html += '<th style="border-bottom:2px solid #e0e0e0;min-width:36px"></th>';
+  html += '</tr>';
+
+  // Row 2: Excel-style filters
+  html += '<tr style="background:#f0f0f0">';
+  html += '<td style="padding:4px 8px"><input id="f-search" oninput="applyRubricaFilter()" placeholder="🔍 Buscar..." style="width:100%;padding:4px 8px;border:1px solid rgba(0,0,0,.15);border-radius:4px;font-size:11px;outline:none"></td>';
+  // Grade filter
+  html += '<td style="padding:4px 6px"><select id="f-grade" onchange="applyRubricaFilter()" style="width:100%;padding:3px 4px;border:1px solid rgba(0,0,0,.15);border-radius:4px;font-size:10px;outline:none">';
+  html += '<option value="0">Todo</option><option value="1">1°</option><option value="2">2°</option><option value="3">3°</option>';
+  html += '</select></td>';
+  // Shift filter
+  html += '<td style="padding:4px 6px"><select id="f-shift" onchange="applyRubricaFilter()" style="width:100%;padding:3px 4px;border:1px solid rgba(0,0,0,.15);border-radius:4px;font-size:10px;outline:none">';
+  html += '<option value="">Todo</option><option value="matutino">Mat</option><option value="vespertino">Vesp</option>';
+  html += '</select></td>';
+  // Manual filter
+  html += '<td style="padding:4px 6px"><select id="f-manual" onchange="applyRubricaFilter()" style="width:100%;padding:3px 4px;border:1px solid rgba(0,0,0,.15);border-radius:4px;font-size:10px;outline:none">';
+  html += '<option value="">Todo</option><option value="yes">Con</option><option value="no">Sin</option>';
+  html += '</select></td>';
+  // 5 dimension filters
+  ['f-d1','f-d2','f-d3','f-d4','f-d5'].forEach(function(id){
+    html += '<td style="padding:4px 6px"><select id="'+id+'" onchange="applyRubricaFilter()" style="width:100%;padding:3px 4px;border:1px solid rgba(0,0,0,.15);border-radius:4px;font-size:10px;outline:none">';
+    html += '<option value="">Todo</option><option value="1">Inicial</option><option value="2">Adecuado</option><option value="3">Excelente</option><option value="0">Sin eval</option>';
+    html += '</select></td>';
+  });
+  html += '<td style="padding:4px 6px"><select id="f-eval" onchange="applyRubricaFilter()" style="width:100%;padding:3px 4px;border:1px solid rgba(0,0,0,.15);border-radius:4px;font-size:10px;outline:none">';
+  html += '<option value="">Todo</option><option value="no">Pend</option><option value="yes">Eval</option>';
+  html += '</select></td>';
+  html += '<td></td>';
+  html += '</tr></thead><tbody id="rub-tbody">';
+
+  var DIMS = ['profundidad','conexion','coherencia','autenticidad','evidencia'];
+
+  filtered.forEach(function(s) {
+    var ev    = evals.find(function(e){ return e.student_id===s.id && e.block===block; });
+    var noMan = ev && !ev.has_manual;
+    var rowBg = noMan ? '#fff8e1' : '';
+    html += '<tr data-sid="'+s.id+'" style="background:'+rowBg+';border-bottom:1px solid #f0f0f0" onmouseover="this.style.background=\''+(noMan?'#fff0b0':'#f5fbff')+'\'" onmouseout="this.style.background=\''+rowBg+'\'">';
+    // Editable name
+    html += '<td style="padding:5px 12px">';
+    html += '<input type="text" data-sid="'+s.id+'" value="'+s.name+'" ';
+    html += 'style="width:100%;padding:2px 5px;border:1px solid transparent;border-radius:3px;font-size:12px;font-family:Montserrat,sans-serif;font-weight:600;background:transparent;cursor:text" ';
+    html += 'onfocus="this.style.borderColor=\'rgba(2,193,244,.5)\';this.style.background=\'#f0fbff\'" ';
+    html += 'onblur="actualizarNombreAlumno(this);this.style.borderColor=\'transparent\';this.style.background=\'transparent\'">';
+    html += '</td>';
+    html += '<td style="font-size:11px;color:var(--gray);text-align:center">'+s.grade+'°</td>';
+    html += '<td style="text-align:center"><span style="font-size:10px;font-family:Montserrat,sans-serif;font-weight:600;padding:2px 6px;border-radius:4px;background:'+(s.shift==='matutino'?'rgba(2,193,244,.12)':'#f0f0f0')+';color:'+(s.shift==='matutino'?'var(--blue)':'#666')+'">'+(s.shift==='matutino'?'Mat':'Vesp')+'</span></td>';
+    html += '<td style="text-align:center"><input type="checkbox" data-sid="'+s.id+'" class="rub-check" '+(noMan?'checked':'')+' style="width:14px;height:14px;cursor:pointer" onchange="toggleNoManual(this)"></td>';
+    DIMS.forEach(function(dim) {
+      var val = ev ? ev[dim] : null;
+      html += '<td style="padding:4px 6px">';
+      html += '<select data-sid="'+s.id+'" data-dim="'+dim+'" data-block="'+block+'" class="rub-sel" '+(noMan?'disabled':'')+' style="'+selStyle+(noMan?';background:#f5f5f5;color:#ccc':val===3?';background:rgba(67,160,71,.08)':val===2?';background:rgba(2,193,244,.08)':val===1?';background:rgba(255,160,0,.08)':'')+'">';
+      html += '<option value="">—</option>';
+      html += '<option value="1"'+(val===1?' selected':'')+'>Inicial</option>';
+      html += '<option value="2"'+(val===2?' selected':'')+'>Adecuado</option>';
+      html += '<option value="3"'+(val===3?' selected':'')+'>Excelente</option>';
+      html += '</select></td>';
+    });
+    var ts = ev && ev.total_score;
+    html += '<td style="text-align:center">';
+    if(ts){ var col=ts>=2.5?'var(--green)':ts>=1.5?'var(--blue)':'var(--amber)'; html+='<strong style="font-family:Montserrat,sans-serif;font-size:12px;color:'+col+'">'+ts+'</strong>'; }
+    else html+='<span style="font-size:10px;color:#ccc">—</span>';
+    html += '</td>';
+    html += '<td style="text-align:center"><button data-sid="'+s.id+'" onclick="confirmarEliminarAlumno(this.dataset.sid)" style="background:none;border:none;color:#ddd;font-size:14px;cursor:pointer;padding:2px 4px" onmouseover="this.style.color=\'var(--red-dark)\'" onmouseout="this.style.color=\'#ddd\'" title="Eliminar">×</button></td>';
+    html += '</tr>';
+  });
+
+  if(!filtered.length) {
+    html += '<tr><td colspan="11" style="text-align:center;padding:40px;color:var(--gray);font-size:13px">Sin alumnos con estos filtros</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  window._rubricaBlock    = block;
+  window._rubricaSchoolId = schoolId;
+  window._rubricaGrade    = grade;
+  window._rubricaShift    = shift;
+  window._rubricaManual   = manual;
+  window._rubricaEvaluated= evaluated;
+
+  c.innerHTML = html;
+}
+
+function applyRubricaFilter() {
+  var block    = window._rubricaBlock || 1;
+  var grade    = parseInt(document.getElementById('f-grade') && document.getElementById('f-grade').value) || 0;
+  var shift    = document.getElementById('f-shift') && document.getElementById('f-shift').value || '';
+  var manual   = document.getElementById('f-manual') && document.getElementById('f-manual').value || '';
+  var evaluated= document.getElementById('f-eval') && document.getElementById('f-eval').value || '';
+  var search   = document.getElementById('f-search') && document.getElementById('f-search').value.toUpperCase() || '';
+
+  var d = window._rubricaData; if(!d) return;
+  var tbody = document.getElementById('rub-tbody'); if(!tbody) return;
+
+  // Filter rows in-place (faster than re-rendering)
+  var rows = tbody.querySelectorAll('tr[data-sid]');
+  var students = d.students, evals = d.evals;
+
+  rows.forEach(function(row) {
+    var sid = row.dataset.sid;
+    var s   = students.find(function(x){ return x.id===sid; });
+    if(!s){ row.style.display='none'; return; }
+    var ev  = evals.find(function(e){ return e.student_id===sid && e.block===block; });
+
+    var show = true;
+    if(search   && s.name.toUpperCase().indexOf(search) < 0) show = false;
+    if(grade    && s.grade !== grade)                         show = false;
+    if(shift    && s.shift !== shift)                         show = false;
+    if(manual === 'no'  && !(ev && !ev.has_manual))           show = false;
+    if(manual === 'yes' && !(ev &&  ev.has_manual))           show = false;
+    if(evaluated === 'yes' && !ev)                            show = false;
+    if(evaluated === 'no'  &&  ev)                            show = false;
+    row.style.display = show ? '' : 'none';
+  });
+}
+
+// ── FIX 4: Material didáctico — una vista por sesión + solicitud de stock ──
+function renderDocMaterial() {
+  var c = document.getElementById('s-doc-material'); if(!c) return;
+  loading(c);
+
+  DB.from('teacher_assignments')
+    .select('*,groups(id,grade,group_name,school_id),courses(name,short_name,grade)')
+    .eq('teacher_id', ME.id).eq('active', true)
+    .then(function(r) {
+      var assignments = r.data||[];
+      if(!assignments.length){ c.innerHTML='<div style="text-align:center;padding:40px;color:var(--gray)">Sin grupos asignados</div>'; return; }
+      var groupIds = assignments.map(function(a){return a.groups&&a.groups.id;}).filter(Boolean);
+
+      DB.from('session_logs')
+        .select('*,sessions(id,title,session_number,modules(name,number))')
+        .in('group_id', groupIds).eq('status','pending').order('scheduled_date')
+        .then(function(lr){
+          var nextLogs = lr.data||[];
+          var nextByGrade = {};
+          [1,2,3].forEach(function(grade){
+            var asgmts = assignments.filter(function(a){return a.courses&&a.courses.grade===grade;});
+            var gIds   = asgmts.map(function(a){return a.groups&&a.groups.id;}).filter(Boolean);
+            nextByGrade[grade] = nextLogs.find(function(l){return gIds.indexOf(l.group_id)>-1;})||null;
+          });
+
+          // Materials per session (mock data per program)
+          var SESSION_MATERIALS = {
+            1: [{icon:'🍬', name:'Dulces',         qty:'30 pzs', consumable:true,  stock:true},
+                {icon:'📄', name:'Hojas blancas',  qty:'30 pzs', consumable:true,  stock:true},
+                {icon:'✏️', name:'Plumones',        qty:'10 pzs', consumable:false, stock:true},
+                {icon:'📊', name:'Presentacion',    qty:'1 archivo', consumable:false, stock:false},
+                {icon:'📖', name:'Manual alumno',   qty:'1 por alumno', consumable:false, stock:true}],
+            2: [{icon:'🎯', name:'Tarjetas de roles', qty:'30 pzs', consumable:true, stock:true},
+                {icon:'📄', name:'Hojas blancas',  qty:'30 pzs', consumable:true,  stock:true},
+                {icon:'📊', name:'Presentacion',    qty:'1 archivo', consumable:false, stock:false},
+                {icon:'📖', name:'Manual alumno',   qty:'1 por alumno', consumable:false, stock:true}],
+            3: [{icon:'📋', name:'Post-its',       qty:'30 pzs', consumable:true,  stock:true},
+                {icon:'✏️', name:'Lapices',         qty:'30 pzs', consumable:false, stock:true},
+                {icon:'📊', name:'Presentacion',    qty:'1 archivo', consumable:false, stock:false},
+                {icon:'📖', name:'Manual alumno',   qty:'1 por alumno', consumable:false, stock:true}]
+          };
+
+          var gradeColors = {1:'var(--blue)',2:'var(--green)',3:'#9c27b0'};
+
+          // Single unified view
+          var html = '<div class="card">';
+          html += '<div class="card-hd"><div>';
+          html += '<div class="card-title">Material de esta semana</div>';
+          html += '<div class="card-sub">Click en "Ver materiales" para ver el detalle de cada sesion</div>';
+          html += '</div></div>';
+
+          // One row per active grade
+          [1,2,3].forEach(function(grade){
+            var nl  = nextByGrade[grade];
+            var ses = nl&&nl.sessions;
+            var mod = ses&&ses.modules;
+            var mats= SESSION_MATERIALS[grade]||[];
+            var stockItems = mats.filter(function(m){return m.stock;});
+
+            html += '<div style="display:flex;align-items:center;gap:14px;padding:14px;border-radius:10px;background:'+(ses?'rgba(0,0,0,.02)':'#f9f9f9')+';border:1px solid rgba(0,0,0,.06);margin-bottom:10px">';
+            // Grade badge
+            html += '<div style="width:44px;height:44px;border-radius:10px;background:'+gradeColors[grade]+'18;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0">';
+            html += '<div style="font-family:Montserrat,sans-serif;font-size:14px;font-weight:800;color:'+gradeColors[grade]+'">'+grade+'°</div>';
+            html += '</div>';
+            // Session info
+            html += '<div style="flex:1">';
+            if(ses){
+              html += '<div style="font-family:Montserrat,sans-serif;font-size:13px;font-weight:700">S'+ses.session_number+': '+ses.title+'</div>';
+              html += '<div style="font-size:11px;color:var(--gray)">'+(mod?'Bloque '+mod.number+' — '+mod.name:'')+'</div>';
+              html += '<div style="font-size:11px;color:var(--gray);margin-top:2px">'+mats.length+' materiales requeridos · '+stockItems.length+' de la caja</div>';
+            } else {
+              html += '<div style="font-size:12px;color:var(--gray);font-style:italic">Sin sesion activa esta semana</div>';
+            }
+            html += '</div>';
+            // Actions
+            if(ses){
+              html += '<div style="display:flex;gap:8px;flex-shrink:0">';
+              html += '<button onclick="verMaterialesSesion('+grade+')" style="background:'+gradeColors[grade]+';color:#fff;border:none;padding:8px 16px;border-radius:8px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;cursor:pointer">Ver materiales</button>';
+              html += '<button onclick="abrirSolicitudStock('+grade+')" style="background:#fff8e1;border:1px solid rgba(255,152,0,.3);color:#e65100;padding:8px 14px;border-radius:8px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:600;cursor:pointer">Solicitar stock</button>';
+              html += '</div>';
+            }
+            html += '</div>';
+          });
+          html += '</div>';
+
+          window._docNextByGrade  = nextByGrade;
+          window._sessionMaterials= SESSION_MATERIALS;
+          c.innerHTML = html;
+        });
+    });
+}
+
+function verMaterialesSesion(grade) {
+  var nl   = window._docNextByGrade && window._docNextByGrade[grade];
+  var ses  = nl && nl.sessions;
+  var mod  = ses && ses.modules;
+  var mats = window._sessionMaterials && window._sessionMaterials[grade] || [];
+  var gradeColors = {1:'var(--blue)',2:'var(--green)',3:'#9c27b0'};
+
+  var modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:8500;display:flex;align-items:center;justify-content:center';
+  var rows = mats.map(function(m){
+    return '<tr>'
+      +'<td style="padding:10px 16px;font-size:16px">'+m.icon+'</td>'
+      +'<td style="padding:10px 8px;font-family:Montserrat,sans-serif;font-size:13px;font-weight:600">'+m.name+'</td>'
+      +'<td style="padding:10px 8px;font-size:12px;color:var(--gray)">'+m.qty+'</td>'
+      +'<td style="padding:10px 8px">'+(m.stock?'<span style="background:rgba(67,160,71,.1);color:var(--green);padding:3px 8px;border-radius:4px;font-size:11px;font-family:Montserrat,sans-serif;font-weight:600">De la caja</span>':'<span style="background:rgba(2,193,244,.1);color:var(--blue);padding:3px 8px;border-radius:4px;font-size:11px;font-family:Montserrat,sans-serif;font-weight:600">Digital</span>')+'</td>'
+      +'</tr>';
+  }).join('');
+
+  modal.innerHTML = '<div style="background:#fff;border-radius:14px;padding:28px;width:500px;box-shadow:0 20px 60px rgba(0,0,0,.25)">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
+    +'<div><div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700">'+grade+'° — '+(ses?'S'+ses.session_number+': '+ses.title:'')+'</div>'
+    +'<div style="font-size:12px;color:var(--gray)">'+(mod?'Bloque '+mod.number+' — '+mod.name:'')+'</div></div>'
+    +'<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="background:#fff;border:1px solid rgba(0,0,0,.14);color:#444;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer">Cerrar</button>'
+    +'</div>'
+    +'<table style="width:100%;border-collapse:collapse"><thead><tr>'
+    +'<th style="padding:8px 16px;text-align:left;font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:var(--gray);border-bottom:2px solid #f0f0f0"></th>'
+    +'<th style="padding:8px 8px;text-align:left;font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:var(--gray);border-bottom:2px solid #f0f0f0">Material</th>'
+    +'<th style="padding:8px 8px;text-align:left;font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:var(--gray);border-bottom:2px solid #f0f0f0">Cantidad</th>'
+    +'<th style="padding:8px 8px;text-align:left;font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:var(--gray);border-bottom:2px solid #f0f0f0">Origen</th>'
+    +'</tr></thead><tbody>'+rows+'</tbody></table>'
+    +'<div style="margin-top:16px;padding-top:14px;border-top:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">'
+    +'<span style="font-size:12px;color:var(--gray)">¿Te falta algo de la caja?</span>'
+    +'<button onclick="this.closest(\'div[style*=fixed]\').remove();abrirSolicitudStock('+grade+')" style="background:#ffa000;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;cursor:pointer">Solicitar stock</button>'
+    +'</div></div>';
+  document.body.appendChild(modal);
+}
+
+function abrirSolicitudStock(grade) {
+  var mats = window._sessionMaterials && window._sessionMaterials[grade] || [];
+  var stockMats = mats.filter(function(m){return m.stock;});
+  var gradeColors = {1:'var(--blue)',2:'var(--green)',3:'#9c27b0'};
+
+  var modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:8500;display:flex;align-items:center;justify-content:center';
+
+  var matOpts = stockMats.map(function(m){
+    return '<option value="'+m.name+'">'+m.icon+' '+m.name+'</option>';
+  }).join('');
+
+  modal.innerHTML = '<div style="background:#fff;border-radius:14px;padding:28px;width:460px;box-shadow:0 20px 60px rgba(0,0,0,.25)">'
+    +'<div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:6px">Solicitar reposicion de stock</div>'
+    +'<div style="font-size:12px;color:var(--gray);margin-bottom:20px">El responsable de escuela gestionara la entrega desde la caja</div>'
+    +'<div style="margin-bottom:12px"><label class="_lbl">Material a solicitar</label>'
+    +'<select id="stock-item" class="_inp">'+matOpts+'</select></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">'
+    +'<div><label class="_lbl">Cantidad</label><input id="stock-qty" type="number" min="1" placeholder="Ej: 30" class="_inp"></div>'
+    +'<div><label class="_lbl">Unidad</label><select id="stock-unit" class="_inp"><option value="piezas">Piezas</option><option value="hojas">Hojas</option><option value="paquetes">Paquetes</option><option value="cajas">Cajas</option></select></div>'
+    +'</div>'
+    +'<div style="margin-bottom:20px"><label class="_lbl">Motivo</label>'
+    +'<input id="stock-reason" type="text" class="_inp" placeholder="Ej: Se agotaron los dulces del bloque anterior"></div>'
+    +'<div style="background:#fff8e1;border-radius:8px;padding:10px 12px;margin-bottom:16px;font-size:11px;color:#e65100">'
+    +'El responsable de escuela recibira esta solicitud y surtira el material de la caja asignada a tu escuela.</div>'
+    +'<div style="display:flex;gap:10px;justify-content:flex-end">'
+    +'<button onclick="this.closest(\'div[style*=fixed]\').remove()" class="_bg">Cancelar</button>'
+    +'<button onclick="guardarSolicitudStock('+grade+')" class="_bp">Enviar solicitud</button>'
+    +'</div></div>';
+  document.body.appendChild(modal);
+}
+
+function guardarSolicitudStock(grade) {
+  var item   = document.getElementById('stock-item') && document.getElementById('stock-item').value;
+  var qty    = parseInt(document.getElementById('stock-qty') && document.getElementById('stock-qty').value) || 0;
+  var unit   = document.getElementById('stock-unit') && document.getElementById('stock-unit').value;
+  var reason = document.getElementById('stock-reason') && document.getElementById('stock-reason').value.trim();
+  if(!qty || !reason) { toast('Completa todos los campos', true); return; }
+  var school = SCHOOLS.find(function(s){ return s.id === (PROFILE&&PROFILE.school_id); }) || SCHOOLS[0];
+  DB.from('manual_requests').insert({
+    school_id:    school ? school.id : null,
+    requested_by: ME.id,
+    quantity:     qty,
+    reason:       item + ' — ' + qty + ' ' + unit + ' — ' + reason,
+    status:       'requested'
+  }).then(function(r){
+    if(r.error){ toast('Error: '+r.error.message, true); return; }
+    document.querySelector('div[style*="position:fixed"][style*="8500"]') &&
+      document.querySelector('div[style*="position:fixed"][style*="8500"]').remove();
+    toast('Solicitud enviada al responsable de escuela');
+  });
+}
+
+// ── FIX 5: Pipeline completo para el responsable ──────
+// Override renderRespHome to show pipeline actions
+var _origRespHome = renderRespHome;
+
+// Add pipeline view to responsable sessions screen
+function renderRespSesiones() {
+  var c = document.getElementById('s-resp-sesiones'); if(!c) return;
+  loading(c);
+
+  Promise.all([
+    DB.from('session_pipeline')
+      .select('*,session_logs(id,scheduled_date,rescheduled_date,postpone_reason,sessions(title,session_number),groups(grade,group_name,shift)),profiles(full_name,email)')
+      .order('created_at', {ascending:false}),
+    DB.from('incidents').select('*,schools(name)').order('incident_date',{ascending:false})
+  ]).then(function(results){
+    var pipelines = results[0].data||[];
+    var incs      = results[1].data||[];
+    var pending   = pipelines.filter(function(p){return p.status==='pending'||p.status==='in_progress';});
+
+    var html = '';
+    if(pending.length){
+      html += '<div class="alert-red"><div class="alert-dot ad-red"></div>'
+        +'<div class="alert-txt"><strong>'+pending.length+' sesion'+(pending.length>1?'es':'')+' cancelada'+(pending.length>1?'s':'')+' requieren accion</strong> — Coordina la recuperacion.</div></div>';
+    }
+
+    html += '<div class="card" style="margin-bottom:14px"><div class="card-hd"><div>';
+    html += '<div class="card-title">Pipeline de sesiones canceladas</div>';
+    html += '<div class="card-sub">Gestiona la recuperacion de cada sesion</div></div></div>';
+
+    if(!pipelines.length){
+      html += '<div style="text-align:center;padding:40px;color:var(--gray)"><div style="font-size:32px;margin-bottom:8px">✓</div><div style="font-size:13px;font-weight:600">Sin sesiones canceladas pendientes</div></div>';
+    } else {
+      pipelines.forEach(function(pipe){
+        var sl  = pipe.session_logs;
+        var ses = sl && sl.sessions;
+        var g   = sl && sl.groups;
+        var doc = pipe.profiles;
+        var gradeColors={1:'var(--blue)',2:'var(--green)',3:'#9c27b0'};
+
+        html += '<div style="border:1px solid rgba(0,0,0,.08);border-radius:10px;padding:16px;margin-bottom:12px">';
+        // Header
+        html += '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px">';
+        html += '<div>';
+        if(g) html += '<div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:'+(gradeColors[g.grade]||'var(--blue)')+';margin-bottom:3px">'+g.grade+'° Grupo '+g.group_name+' ('+(g.shift==='matutino'?'Mat':'Vesp')+')</div>';
+        html += '<div style="font-size:14px;font-weight:700;margin-bottom:2px">'+(ses?'S'+ses.session_number+': '+ses.title:'—')+'</div>';
+        html += '<div style="font-size:11px;color:var(--gray)">Docente: '+(doc?doc.full_name||doc.email:'—')+'</div>';
+        if(sl&&sl.postpone_reason) html += '<div style="font-size:11px;color:var(--amber);margin-top:2px">Motivo: '+sl.postpone_reason+'</div>';
+        html += '</div>';
+        // Status badge
+        var stCol={pending:'b-amber',in_progress:'b-blue',success:'b-green',failed:'b-red',escalated:'b-red'};
+        var stLbl={pending:'Pendiente',in_progress:'En proceso',success:'Completado',failed:'No resuelto',escalated:'Escalado'};
+        html += '<div style="flex-shrink:0">'+bdg(stLbl[pipe.status]||pipe.status, stCol[pipe.status]||'b-gray')+'</div>';
+        html += '</div>';
+
+        // Pipeline steps visual
+        var steps=[
+          {label:'Cancelada',  done:true,                    color:'#c62828'},
+          {label:'Responsable actua', done:pipe.step>=2||pipe.status!=='pending', color:'#ffa000'},
+          {label:'Nueva fecha', done:pipe.step>=3&&pipe.status==='success', color:'#02c1f4'},
+          {label:'Completada', done:pipe.status==='success',  color:'#43a047'}
+        ];
+        html += '<div style="display:flex;align-items:center;margin-bottom:12px">';
+        steps.forEach(function(step,i){
+          html += '<div style="display:flex;flex-direction:column;align-items:center;flex:1">';
+          html += '<div style="width:30px;height:30px;border-radius:50%;background:'+(step.done?step.color:'#e8e8e8')+';display:flex;align-items:center;justify-content:center;font-size:12px;color:'+(step.done?'#fff':'#bbb')+'">'+(step.done?'✓':(i+1))+'</div>';
+          html += '<div style="font-size:9px;color:'+(step.done?step.color:'var(--gray)')+';margin-top:3px;text-align:center;font-family:Montserrat,sans-serif;font-weight:'+(step.done?'700':'400')+'">'+step.label+'</div></div>';
+          if(i<steps.length-1) html += '<div style="height:2px;background:'+(step.done?'#02c1f4':'#e8e8e8')+';flex:1;margin-bottom:14px"></div>';
+        });
+        html += '</div>';
+
+        // Action area for pending pipelines
+        if(pipe.status === 'pending' || pipe.status === 'in_progress'){
+          html += '<div style="background:#f0fbff;border-radius:8px;padding:12px;border:1px solid rgba(2,193,244,.2)">';
+          html += '<div style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;color:var(--blue);margin-bottom:10px">Accion requerida: Coordinar recuperacion</div>';
+          html += '<div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:end">';
+          html += '<div><label style="display:block;font-family:Montserrat,sans-serif;font-size:10px;font-weight:600;margin-bottom:3px">Nueva fecha de la sesion</label>';
+          html += '<input type="date" id="resp-pipe-date-'+pipe.id+'" value="'+(sl&&sl.rescheduled_date||'')+'" style="width:100%;padding:7px 10px;border:1.5px solid rgba(2,193,244,.35);border-radius:6px;font-size:12px;outline:none"></div>';
+          html += '<button data-pid="'+pipe.id+'" data-lid="'+(sl&&sl.id||'')+'" onclick="respReagendar(this.dataset.pid,this.dataset.lid)" style="background:var(--blue);color:#fff;border:none;padding:8px 14px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Confirmar fecha</button>';
+          html += '<button data-pid="'+pipe.id+'" onclick="respEscalar(this.dataset.pid)" style="background:#fff5f5;border:1px solid rgba(224,53,53,.2);color:var(--red-dark);padding:8px 12px;border-radius:6px;font-size:12px;cursor:pointer;white-space:nowrap">No fue posible — Escalar</button>';
+          html += '</div></div>';
+        }
+
+        if(pipe.status === 'escalated'){
+          html += '<div style="background:#fff5f5;border-radius:8px;padding:10px 12px;border:1px solid rgba(224,53,53,.2)">';
+          html += '<div style="font-size:12px;font-weight:600;color:var(--red-dark)">🚨 Caso escalado al equipo Houp</div>';
+          html += '<div style="font-size:11px;color:var(--gray);margin-top:3px">'+(pipe.notes||'No fue posible reagendar directamente')+'</div>';
+          html += '</div>';
+        }
+
+        if(pipe.status === 'success'){
+          html += '<div style="background:var(--green-light);border-radius:8px;padding:10px 12px;border:1px solid rgba(67,160,71,.2)">';
+          html += '<div style="font-size:12px;font-weight:600;color:var(--green)">✓ Sesion reagendada para '+fmt(pipe.new_date)+'</div>';
+          html += '</div>';
+        }
+
+        html += '</div>';
+      });
+    }
+
+    // Incidents below
+    html += '<div class="card"><div class="card-hd"><div>';
+    html += '<div class="card-title">Incidencias activas</div></div>';
+    html += '<button onclick="abrirIncidencia(null)" class="btn-p" style="font-size:11px">+ Nueva</button></div>';
+    var open = incs.filter(function(i){return i.status==='open';});
+    if(!open.length){
+      html += '<div style="font-size:12px;color:var(--gray);font-style:italic">Sin incidencias abiertas</div>';
+    } else {
+      open.forEach(function(i){
+        html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f5f5f5">';
+        html += bdg(INC_LBL[i.type]||i.type,'b-amber');
+        html += '<div style="flex:1"><div style="font-size:12px;font-weight:600">'+(i.schools?i.schools.name:'—')+'</div><div style="font-size:11px;color:var(--gray)">'+i.description+'</div></div>';
+        html += '<div style="font-size:11px;color:var(--gray)">'+fmt(i.incident_date)+'</div>';
+        html += '<button data-id="'+i.id+'" onclick="resolverIncidencia(this.dataset.id)" style="background:var(--green-light);border:1px solid rgba(67,160,71,.3);color:var(--green);padding:4px 10px;border-radius:6px;font-size:10px;cursor:pointer;font-family:Montserrat,sans-serif;font-weight:600">Resolver</button>';
+        html += '</div>';
+      });
+    }
+    html += '</div>';
+    c.innerHTML = html;
+  });
+}
+
+function respReagendar(pipeId, logId) {
+  var dateEl  = document.getElementById('resp-pipe-date-'+pipeId);
+  var newDate = dateEl ? dateEl.value : null;
+  if(!newDate){ toast('Selecciona una fecha', true); return; }
+  Promise.all([
+    DB.from('session_pipeline').update({
+      status:'success', step:3, new_date:newDate,
+      acted_by:ME.id, acted_at:new Date().toISOString(),
+      notes:'Reagendada por el responsable para '+newDate
+    }).eq('id',pipeId),
+    DB.from('session_logs').update({
+      status:'pending', rescheduled_date:newDate,
+      scheduled_date:newDate, updated_at:new Date().toISOString()
+    }).eq('id',logId),
+    // Resolve the alert
+    DB.from('alerts').update({is_active:false, resolved_at:new Date().toISOString()})
+      .eq('data->>session_log_id', logId)
+  ]).then(function(){
+    toast('Sesion reagendada para '+fmt(newDate));
+    renderRespSesiones();
+  });
+}
+
+function respEscalar(pipeId) {
+  DB.from('session_pipeline').select('school_id,teacher_id').eq('id',pipeId).single().then(function(r){
+    Promise.all([
+      DB.from('session_pipeline').update({
+        status:'escalated', step:3,
+        acted_by:ME.id, acted_at:new Date().toISOString(),
+        notes:'No fue posible reagendar — escalado al equipo Houp'
+      }).eq('id',pipeId),
+      r.data ? DB.from('alerts').insert({
+        school_id:r.data.school_id, teacher_id:r.data.teacher_id,
+        type:'open_incident', severity:'red',
+        title:'URGENTE: Sesion escalada — requiere intervencion de Houp',
+        description:'El responsable no pudo reagendar la sesion cancelada.',
+        is_active:true
+      }) : Promise.resolve()
+    ]).then(function(){
+      toast('Caso escalado al equipo Houp con alerta roja');
+      renderRespSesiones();
+    });
+  });
+}
+
+
 </script>
 </body>
 </html>
