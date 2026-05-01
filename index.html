@@ -4443,12 +4443,7 @@ nav = function(el, screenId) {
 
 // ── FIX 1: Docente solo ve su nav ─────────────────────
 // Override showNav to hide role switcher for docentes
-var _origShowNav = showNav;
-showNav = function(role) {
-  _origShowNav(role);
-  var switcher = document.querySelector('.role-switcher');
-  if(switcher) switcher.style.display = (role === 'docente') ? 'none' : '';
-};
+// showNav handled in fixes3
 
 // ── FIX 2: Cerrar modal al guardar ───────────────────
 // Override guardarReporte to close modal properly
@@ -5194,31 +5189,9 @@ initApp = function(user) {
   _origInitApp(user);
 };
 
-// Override showNav to hide role switcher for docentes
-var _existingShowNav = showNav;
-showNav = function(role) {
-  _existingShowNav(role);
-  // Hide role switcher for docentes
-  var switchers = document.querySelectorAll('.role-switcher, [class*="role-btn"]');
-  switchers.forEach(function(el) {
-    el.closest('div') && (el.closest('div').style.display = (role === 'docente') ? 'none' : '');
-  });
-  // Also hide the entire role switch bar
-  var roleBar = document.querySelector('.role-bar, .switcher-bar');
-  if(roleBar) roleBar.style.display = (role === 'docente') ? 'none' : '';
-};
+// handled in fixes3
 
-// More aggressive: after DOM loads, hide switcher for docentes
-document.addEventListener('DOMContentLoaded', function() {
-  setTimeout(function() {
-    if(PROFILE && PROFILE.role === 'docente') {
-      document.querySelectorAll('.role-btn').forEach(function(btn) {
-        var parent = btn.parentElement;
-        if(parent) parent.style.display = 'none';
-      });
-    }
-  }, 1000);
-});
+// handled in fixes3
 
 // ── FIX 2: Solicitud de manual - fix DB insert ────────
 function guardarSolicitudManual() {
