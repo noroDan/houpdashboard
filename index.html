@@ -485,6 +485,16 @@
       <svg class="nav-ico" viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16M4 10h16M4 14h10M4 18h8"/></svg>
       Módulos
     </div>
+    <div class="nav-group">Herramientas</div>
+    <div class="nav-item" onclick="nav(this,'s-calendario')">
+      <svg class="nav-ico" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg>
+      Calendario sesiones
+    </div>
+    <div class="nav-item" onclick="nav(this,'s-solicitudes')">
+      <svg class="nav-ico" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"/></svg>
+      Solicitudes de manual
+      <span class="nav-badge nb-amber" id="badge-solicitudes">0</span>
+    </div>
     <div class="nav-group">Reportes</div>
     <div class="nav-item" onclick="nav(this,'s-evidencia')">
       <svg class="nav-ico" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="white" stroke-width="1.2" fill="none"/></svg>
@@ -730,6 +740,12 @@
         </div>
       </div>
     </div>
+
+    <!-- ══ CALENDARIO ══ -->
+    <div class="screen" id="s-calendario"></div>
+
+    <!-- ══ SOLICITUDES ══ -->
+    <div class="screen" id="s-solicitudes"></div>
 
     <!-- ══ EVIDENCIA ══ -->
     <div class="screen" id="s-evidencia">
@@ -1041,6 +1057,7 @@ function nav(el, screenId){
   try{sessionStorage.setItem('houp_screen',screenId);}catch(e){}
   var TITLES={'s-dash':'Panel general','s-escuelas':'Escuelas','s-sesiones':'Seguimiento de sesiones',
     's-modulos':'Avance por escuela','s-evidencia':'Evidencia',
+    's-calendario':'Calendario de sesiones','s-solicitudes':'Solicitudes de manual',
     's-found-dash':'Panel Fundacion','s-found-rubrics':'Rubricas','s-found-reports':'Reportes',
     's-resp-home':'Mi panel','s-resp-sesiones':'Mis sesiones','s-resp-equipo':'Mis escuelas',
     's-doc-home':'Mis clases','s-doc-material':'Material','s-doc-plan':'Planeacion'};
@@ -1061,6 +1078,7 @@ function nav(el, screenId){
   }
   var LOADERS={'s-dash':renderDash,'s-escuelas':renderEscuelas,'s-sesiones':renderSesiones,
     's-modulos':renderModulos,'s-evidencia':renderEvidencia,
+    's-calendario':renderCalendario,'s-solicitudes':renderSolicitudes,
     's-found-dash':renderFundDash,'s-found-rubrics':renderFundRubricas,'s-found-reports':renderFundReportes,
     's-resp-home':renderRespHome,'s-resp-sesiones':renderRespSesiones,'s-resp-equipo':renderRespEscuelas,
     's-doc-home':renderDocHome,'s-doc-material':renderDocMaterial,'s-doc-plan':renderDocPlan};
@@ -2452,6 +2470,254 @@ function uploadFile(file,bucket,folder){
     if(res.error)throw res.error;
     var pub=SB.storage.from(bucket).getPublicUrl(path);
     return {path:path,url:pub.data.publicUrl,name:file.name,size:file.size};
+  });
+}
+
+
+// ── SCREEN: CALENDARIO DE SESIONES ───────────────────────────
+// El equipo Houp asigna fechas a cada sesion de cada grupo
+function renderCalendario(){
+  var c=document.getElementById('s-calendario'); if(!c)return;
+  var schoolOpts=SCHOOLS.map(function(s){return '<option value="'+s.id+'">'+s.name+'</option>';}).join('');
+  c.innerHTML='<div style="display:flex;gap:12px;align-items:center;margin-bottom:18px;background:#fff;padding:14px 18px;border-radius:10px;border:1px solid rgba(0,0,0,.06)">'
+    +'<label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;white-space:nowrap">Escuela:</label>'
+    +'<select id="cal-school" onchange="renderCalEscuela(this.value)" style="flex:1;padding:9px 12px;border:1.5px solid rgba(2,193,244,.35);border-radius:6px;font-size:13px;font-family:Montserrat,sans-serif;font-weight:600;outline:none">'+schoolOpts+'</select>'
+    +'</div>'
+    +'<div id="cal-content"></div>';
+  if(SCHOOLS.length)renderCalEscuela(SCHOOLS[0].id);
+}
+
+function renderCalEscuela(schoolId){
+  var c=document.getElementById('cal-content'); if(!c)return;
+  c.innerHTML='<div style="text-align:center;padding:20px;color:#797979;font-family:Montserrat,sans-serif">Cargando grupos...</div>';
+  loadGroups(schoolId, function(groups){
+    if(!groups.length){
+      c.innerHTML='<div style="text-align:center;padding:40px;color:var(--gray)">Sin grupos registrados para esta escuela.</div>';
+      return;
+    }
+    // Build grade tabs
+    var html='<div style="display:flex;gap:8px;margin-bottom:16px">';
+    [1,2,3].forEach(function(g){
+      var cnt=groups.filter(function(x){return x.grade===g;}).length;
+      if(!cnt)return;
+      html+='<button onclick="renderCalGrade(''+schoolId+'','+g+')" id="cal-tab-'+g+'" style="padding:8px 18px;border-radius:8px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid rgba(2,193,244,.3);background:'+(g===1?'#02c1f4':'#fff')+';color:'+(g===1?'#fff':'var(--blue)')+'">'
+        +g+'° — '+PROG_NAME[g]+'</button>';
+    });
+    html+='</div><div id="cal-grade-content"></div>';
+    c.innerHTML=html;
+    // Default: show grade 1
+    var firstGrade=groups[0]&&groups[0].grade;
+    if(firstGrade)renderCalGrade(schoolId, firstGrade);
+  });
+}
+
+function renderCalGrade(schoolId, grade){
+  // Update tab styles
+  [1,2,3].forEach(function(g){
+    var t=document.getElementById('cal-tab-'+g); if(!t)return;
+    t.style.background=g===grade?'#02c1f4':'#fff';
+    t.style.color=g===grade?'#fff':'var(--blue)';
+  });
+  var c=document.getElementById('cal-grade-content'); if(!c)return;
+  c.innerHTML='<div style="text-align:center;padding:20px;color:#797979">Cargando sesiones...</div>';
+  // Get groups for this grade
+  var gradeGroups=GROUPS.filter(function(g){return g.grade===grade&&g.school_id===schoolId;});
+  if(!gradeGroups.length){c.innerHTML='<div style="color:var(--gray);padding:20px">Sin grupos para este grado</div>';return;}
+  // Get all group_sessions for these groups
+  var groupIds=gradeGroups.map(function(g){return g.id;});
+  SB.from('group_sessions')
+    .select('*,program_sessions(session_number,session_name,block,block_name)')
+    .in('group_id',groupIds)
+    .order('program_sessions(session_number)')
+    .then(function(res){
+      var sessions=res.data||[];
+      // Get program sessions (temario) for this grade
+      var temario=PROG_SESSIONS.filter(function(ps){return ps.grade===grade;});
+      // If no group_sessions exist yet, offer to generate them
+      if(!sessions.length){
+        c.innerHTML='<div class="card" style="text-align:center;padding:30px">'
+          +'<div style="font-size:32px;margin-bottom:10px">📅</div>'
+          +'<div style="font-family:Montserrat,sans-serif;font-size:14px;font-weight:700;margin-bottom:8px">Sin sesiones programadas</div>'
+          +'<div style="font-size:12px;color:var(--gray);margin-bottom:16px">Genera las sesiones para los '+gradeGroups.length+' grupos de '+grade+'° con un clic</div>'
+          +'<button onclick="generarSesiones(''+schoolId+'','+grade+')" class="btn-p" style="font-size:13px;padding:10px 24px">📅 Generar sesiones de '+grade+'°</button>'
+          +'</div>';
+        return;
+      }
+      // Build table: rows = sessions, columns = groups
+      var html='<div class="card" style="padding:0;overflow:hidden">';
+      html+='<div style="padding:14px 20px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">';
+      html+='<div><div class="card-title">'+grade+'° — '+PROG_NAME[grade]+'</div>';
+      html+='<div class="card-sub">'+temario.length+' sesiones · '+gradeGroups.length+' grupos · Click en una fecha para editarla</div></div>';
+      html+='<button onclick="guardarFechasLote(''+schoolId+'','+grade+')" class="btn-p" style="font-size:11px">💾 Guardar fechas</button>';
+      html+='</div>';
+      html+='<div style="overflow-x:auto"><table class="t"><thead><tr>';
+      html+='<th style="padding:9px 14px;min-width:50px">#</th>';
+      html+='<th style="min-width:180px">Sesion</th>';
+      html+='<th style="min-width:70px">Bloque</th>';
+      gradeGroups.forEach(function(g){
+        html+='<th style="min-width:120px;text-align:center">'+g.group_name+'<br><span style="font-family:inherit;font-size:9px;font-weight:400;color:var(--gray)">'+g.shift.substring(0,3)+'.</span></th>';
+      });
+      html+='</tr></thead><tbody>';
+      temario.forEach(function(ps){
+        html+='<tr>';
+        html+='<td style="padding:8px 14px;font-family:Montserrat,sans-serif;font-weight:700;color:var(--blue);font-size:13px">'+ps.session_number+'</td>';
+        html+='<td style="font-size:12px"><div style="font-weight:600">'+ps.session_name+'</div></td>';
+        html+='<td style="font-size:11px">'+badge('B'+ps.block,'b-blue')+'</td>';
+        gradeGroups.forEach(function(g){
+          var gs=sessions.find(function(s){return s.group_id===g.id&&s.program_sessions&&s.program_sessions.session_number===ps.session_number;});
+          var dateVal=gs&&gs.scheduled_date?gs.scheduled_date:'';
+          var sessId=gs?gs.id:'';
+          html+='<td style="padding:6px 10px;text-align:center">';
+          html+='<input type="date" data-sess-id="'+sessId+'" data-group-id="'+g.id+'" data-ps-id="'+ps.id+'" data-school-id="'+schoolId+'"';
+          html+=' value="'+dateVal+'" style="padding:4px 6px;border:1px solid rgba(0,0,0,.12);border-radius:5px;font-size:11px;font-family:Montserrat,sans-serif;outline:none;width:100%;'+(dateVal?'background:#f0fbff;border-color:rgba(2,193,244,.4)':'')+';"';
+          html+=' onchange="this.style.background='#fff8e1';this.style.borderColor='rgba(255,152,0,.5)'"';
+          html+='>';
+          if(gs&&gs.status==='completada')html+='<div style="font-size:9px;color:var(--green);margin-top:2px">✓ Completada</div>';
+          html+='</td>';
+        });
+        html+='</tr>';
+      });
+      html+='</tbody></table></div></div>';
+      c.innerHTML=html;
+    });
+}
+
+function generarSesiones(schoolId, grade){
+  var gradeGroups=GROUPS.filter(function(g){return g.grade===grade&&g.school_id===schoolId;});
+  var temario=PROG_SESSIONS.filter(function(ps){return ps.grade===grade;});
+  if(!gradeGroups.length||!temario.length){toast('Sin grupos o temario cargado',true);return;}
+  var btn=document.querySelector('[onclick*="generarSesiones"]');
+  if(btn){btn.disabled=true;btn.textContent='Generando...';}
+  var rows=[];
+  gradeGroups.forEach(function(g){
+    temario.forEach(function(ps){
+      rows.push({group_id:g.id,program_session_id:ps.id,status:'pendiente'});
+    });
+  });
+  // Insert in batches of 50
+  function insertBatch(i){
+    var batch=rows.slice(i,i+50);
+    if(!batch.length){
+      toast('Sesiones generadas para '+grade+'° ('+rows.length+' sesiones)');
+      renderCalGrade(schoolId,grade);
+      return;
+    }
+    SB.from('group_sessions').insert(batch).then(function(res){
+      if(res.error){toast('Error: '+res.error.message,true);return;}
+      insertBatch(i+50);
+    });
+  }
+  insertBatch(0);
+}
+
+function guardarFechasLote(schoolId, grade){
+  var inputs=document.querySelectorAll('input[type="date"][data-group-id]');
+  var updates=[];
+  var inserts=[];
+  inputs.forEach(function(inp){
+    if(!inp.value)return;
+    if(inp.dataset.sessId){
+      updates.push({id:inp.dataset.sessId,scheduled_date:inp.value});
+    } else {
+      inserts.push({group_id:inp.dataset.groupId,program_session_id:inp.dataset.psId,scheduled_date:inp.value,status:'pendiente'});
+    }
+  });
+  if(!updates.length&&!inserts.length){toast('Sin fechas para guardar',true);return;}
+  var pending=0;
+  if(updates.length){
+    pending++;
+    // Update one by one (Supabase doesn't support bulk update easily)
+    var done=0;
+    updates.forEach(function(u){
+      SB.from('group_sessions').update({scheduled_date:u.scheduled_date}).eq('id',u.id).then(function(){
+        done++;
+        if(done===updates.length){
+          pending--;
+          if(!pending)toast('Fechas guardadas: '+updates.length+' sesiones actualizadas');
+          // Reset highlight
+          document.querySelectorAll('input[type="date"]').forEach(function(i){
+            if(i.value){i.style.background='#f0fbff';i.style.borderColor='rgba(2,193,244,.4)';}
+          });
+        }
+      });
+    });
+  }
+  if(inserts.length){
+    SB.from('group_sessions').insert(inserts).then(function(res){
+      if(res.error){toast('Error guardando: '+res.error.message,true);return;}
+      toast('Fechas nuevas guardadas: '+inserts.length);
+      renderCalGrade(schoolId,grade);
+    });
+  }
+}
+
+// ── SCREEN: SOLICITUDES DE MANUAL ─────────────────────────────
+function renderSolicitudes(){
+  var c=document.getElementById('s-solicitudes'); if(!c)return;
+  c.innerHTML='<div style="text-align:center;padding:20px;color:#797979;font-family:Montserrat,sans-serif">Cargando...</div>';
+  SB.from('manual_requests')
+    .select('*,profiles(full_name,email),groups(grade,group_name,shift),schools(name)')
+    .order('created_at',{ascending:false})
+    .then(function(res){
+      var reqs=res.data||[];
+      var pend=reqs.filter(function(r){return r.status==='pendiente';});
+      var html='';
+      if(pend.length)html+='<div class="alert-blue"><div class="alert-dot ad-blue"></div><div class="alert-txt"><strong>'+pend.length+' solicitud'+(pend.length>1?'es':'')+' pendiente'+(pend.length>1?'s':'')+' de responder.</strong></div></div>';
+      // Summary cards
+      html+='<div class="stats-row">';
+      html+='<div class="stat"><div class="stat-val c-blue">'+pend.length+'</div><div class="stat-lbl">Pendientes</div></div>';
+      html+='<div class="stat"><div class="stat-val">'+reqs.filter(function(r){return r.status==='aprobada';}).length+'</div><div class="stat-lbl">Aprobadas</div></div>';
+      html+='<div class="stat"><div class="stat-val c-green">'+reqs.filter(function(r){return r.status==='enviada';}).length+'</div><div class="stat-lbl">Enviadas</div></div>';
+      html+='<div class="stat"><div class="stat-val">'+reqs.reduce(function(a,r){return a+(r.quantity||0);},0)+'</div><div class="stat-lbl">Manuales solicitados</div></div>';
+      html+='</div>';
+      if(!reqs.length){
+        html+='<div style="text-align:center;padding:60px;color:var(--gray)"><div style="font-size:32px;margin-bottom:10px">📚</div><div style="font-family:Montserrat,sans-serif;font-size:14px;font-weight:600;margin-bottom:6px">Sin solicitudes aun</div><div style="font-size:12px">Las solicitudes apareceran cuando los docentes las envien desde su panel</div></div>';
+        c.innerHTML=html;return;
+      }
+      html+='<div class="card" style="padding:0;overflow:hidden"><table class="t"><thead><tr>';
+      html+='<th style="padding:11px 16px">Docente</th><th>Escuela</th><th>Grupo</th><th>Cantidad</th><th>Motivo</th><th>Fecha</th><th>Estado</th><th>Acciones</th>';
+      html+='</tr></thead><tbody>';
+      reqs.forEach(function(r){
+        var p=r.profiles,g=r.groups,s=r.schools;
+        var statusColor={pendiente:'b-amber',aprobada:'b-blue',enviada:'b-green',cancelada:'b-red'};
+        html+='<tr>';
+        html+='<td style="padding:10px 16px"><div style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:600">'+(p&&p.full_name||p&&p.email||'--')+'</div></td>';
+        html+='<td style="font-size:12px">'+(s&&s.name||'--')+'</td>';
+        html+='<td style="font-size:12px">'+(g?g.grade+'° '+g.group_name+' ('+g.shift.substring(0,3)+'.)':'--')+'</td>';
+        html+='<td style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:800;color:var(--blue);text-align:center">'+r.quantity+'</td>';
+        html+='<td style="font-size:12px;color:var(--gray)">'+r.reason+'</td>';
+        html+='<td style="font-size:11px;color:var(--gray)">'+fmt(r.created_at)+'</td>';
+        html+='<td>'+badge(r.status.charAt(0).toUpperCase()+r.status.slice(1),statusColor[r.status]||'b-gray')+'</td>';
+        html+='<td style="padding:8px 12px"><div style="display:flex;gap:5px;flex-wrap:wrap">';
+        if(r.status==='pendiente'){
+          html+='<button onclick="actualizarSolicitud(''+r.id+'','aprobada')" style="background:var(--blue-light);border:1px solid rgba(2,193,244,.25);color:var(--blue);padding:4px 10px;border-radius:6px;font-size:10px;font-family:Montserrat,sans-serif;font-weight:600;cursor:pointer">✓ Aprobar</button>';
+          html+='<button onclick="actualizarSolicitud(''+r.id+'','cancelada')" style="background:#fff5f5;border:1px solid rgba(224,53,53,.2);color:var(--red-dark);padding:4px 10px;border-radius:6px;font-size:10px;cursor:pointer">✗ Cancelar</button>';
+        }
+        if(r.status==='aprobada'){
+          html+='<button onclick="actualizarSolicitud(''+r.id+'','enviada')" style="background:var(--green-light);border:1px solid rgba(67,160,71,.25);color:var(--green);padding:4px 10px;border-radius:6px;font-size:10px;font-family:Montserrat,sans-serif;font-weight:600;cursor:pointer">📦 Marcar enviada</button>';
+        }
+        if(r.status==='enviada'){
+          html+='<span style="font-size:11px;color:var(--green)">✓ Enviada el '+fmt(r.sent_at)+'</span>';
+        }
+        html+='</div></td></tr>';
+      });
+      html+='</tbody></table></div>';
+      c.innerHTML=html;
+      // Update badge count
+      var badge_el=document.getElementById('badge-solicitudes');
+      if(badge_el){badge_el.textContent=pend.length;badge_el.style.display=pend.length?'inline':'none';}
+    });
+}
+
+function actualizarSolicitud(id,status){
+  var update={status:status};
+  if(status==='enviada')update.sent_at=new Date().toISOString();
+  if(status==='aprobada')update.approved_at=new Date().toISOString();
+  SB.from('manual_requests').update(update).eq('id',id).then(function(res){
+    if(res.error){toast('Error: '+res.error.message,true);return;}
+    var msgs={aprobada:'Solicitud aprobada',enviada:'Manuales marcados como enviados',cancelada:'Solicitud cancelada'};
+    toast(msgs[status]||'Actualizado');
+    renderSolicitudes();
   });
 }
 
