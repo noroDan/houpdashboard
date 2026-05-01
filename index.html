@@ -4434,6 +4434,752 @@ nav = function(el, screenId) {
   if(extra[screenId]) extra[screenId]();
 };
 
+// ═══════════════════════════════════════════════════════
+// HOUP — 7 fixes + pipeline de cancelación
+// ═══════════════════════════════════════════════════════
+
+// ── FIX 1: Docente solo ve su nav ─────────────────────
+// Override showNav to hide role switcher for docentes
+var _origShowNav = showNav;
+showNav = function(role) {
+  _origShowNav(role);
+  var switcher = document.querySelector('.role-switcher');
+  if(switcher) switcher.style.display = (role === 'docente') ? 'none' : '';
+};
+
+// ── FIX 2: Cerrar modal al guardar ───────────────────
+// Override guardarReporte to close modal properly
+function guardarReporte(logId, hasEval) {
+  var status   = document.getElementById('rep-status').value;
+  var date     = document.getElementById('rep-date').value;
+  var count    = parseInt(document.getElementById('rep-count').value)||0;
+  var notes    = document.getElementById('rep-notes').value;
+  var reason   = document.getElementById('rep-postpone-reason') && document.getElementById('rep-postpone-reason').value;
+  var reschedule = document.getElementById('rep-reschedule') && document.getElementById('rep-reschedule').value;
+
+  if(status === 'postponed' && !reason) { toast('Ingresa el motivo de la posposicion', true); return; }
+  if(status === 'cancelled' && !reason) { toast('Ingresa el motivo de la cancelacion', true); return; }
+
+  var upd = {
+    status: status, executed_date: date, student_count: count,
+    teacher_notes: notes, reported_by: ME.id,
+    reported_at: new Date().toISOString(), updated_at: new Date().toISOString()
+  };
+  if(status === 'postponed' || status === 'cancelled') {
+    upd.postpone_reason = reason;
+    if(reschedule) upd.rescheduled_date = reschedule;
+  }
+  if(hasEval && status === 'completed') {
+    var total = parseInt(document.getElementById('rub-total') && document.getElementById('rub-total').value)||0;
+    upd.rubric_total      = total;
+    upd.rubric_no_manual  = parseInt(document.getElementById('rub-no-manual') && document.getElementById('rub-no-manual').value)||0;
+    upd.rubric_initial    = parseInt(document.getElementById('rub-initial')   && document.getElementById('rub-initial').value)||0;
+    upd.rubric_adequate   = parseInt(document.getElementById('rub-adequate')  && document.getElementById('rub-adequate').value)||0;
+    upd.rubric_excellent  = parseInt(document.getElementById('rub-excellent') && document.getElementById('rub-excellent').value)||0;
+    upd.rubric_submitted  = true;
+  }
+
+  DB.from('session_logs').update(upd).eq('id', logId).then(function(r) {
+    if(r.error) { toast('Error: ' + r.error.message, true); return; }
+
+    // Close modal - find and remove the report modal
+    var modals = document.querySelectorAll('div[style*="z-index: 8500"], div[style*="z-index:8500"]');
+    modals.forEach(function(m) { if(m.querySelector('#rep-status')) m.remove(); });
+
+    toast(status === 'completed' ? 'Sesion completada ✓' :
+          status === 'postponed' ? 'Sesion marcada como pospuesta' : 'Sesion cancelada');
+
+    // Update last_session_date if completed
+    if(status === 'completed') {
+      DB.from('session_logs').select('school_id').eq('id', logId).single().then(function(x) {
+        if(x.data && x.data.school_id)
+          DB.from('schools').update({last_session_date: date}).eq('id', x.data.school_id);
+      });
+    }
+
+    // FIX 3 + 7: If cancelled, create pipeline entry + alert
+    if(status === 'cancelled') {
+      DB.from('session_logs').select('school_id,teacher_id,group_id').eq('id', logId).single().then(function(x) {
+        if(!x.data) return;
+        var d = x.data;
+        // Create pipeline
+        DB.from('session_pipeline').insert({
+          session_log_id: logId, school_id: d.school_id,
+          teacher_id: d.teacher_id, step: 1, status: 'pending',
+          notes: reason
+        });
+        // Create alert for responsable
+        DB.from('alerts').insert({
+          school_id: d.school_id, teacher_id: d.teacher_id,
+          type: 'open_incident', severity: 'yellow',
+          title: 'Sesion cancelada — requiere reagendar',
+          description: 'Motivo: ' + (reason||'No especificado') + '. Accion requerida: coordinar nueva fecha.',
+          is_active: true,
+          data: JSON.stringify({session_log_id: logId, step: 1})
+        });
+      });
+    }
+
+    // Refresh current screen
+    if(SCREEN === 's-doc-home') renderDocHome();
+    else if(SCREEN === 's-doc-incidencias') renderDocIncidencias();
+  });
+}
+
+// ── FIX 3: Modal de reporte mejorado con pipeline ─────
+function abrirReporteSesion(logId) {
+  DB.from('session_logs')
+    .select('*,sessions(title,session_number,has_evaluation,modules(name,number)),groups(grade,group_name)')
+    .eq('id', logId).single()
+    .then(function(r) {
+      var log = r.data; if(!log) { toast('No se encontro la sesion', true); return; }
+      var ses = log.sessions; var g = log.groups;
+      var hasEval = ses && ses.has_evaluation;
+
+      // Remove any existing modal
+      var ex = document.getElementById('m-reporte-sesion'); if(ex) ex.remove();
+      var modal = document.createElement('div');
+      modal.id = 'm-reporte-sesion';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:8500;display:flex;align-items:center;justify-content:center';
+
+      var statusOpts = '<option value="completed"'+(log.status==='completed'?' selected':'')+'>✅ Completada</option>'
+        + '<option value="postponed"'+(log.status==='postponed'?' selected':'')+'>⏸ Pospuesta</option>'
+        + '<option value="cancelled"'+(log.status==='cancelled'?' selected':'')+'>❌ Cancelada</option>';
+
+      modal.innerHTML = '<div style="background:#fff;border-radius:14px;padding:28px;width:560px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25)">'
+        + '<div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:4px">Reportar sesion</div>'
+        + '<div style="font-size:12px;color:var(--gray);margin-bottom:20px">'+(ses?'S'+ses.session_number+': '+ses.title:'—')+(g?' · Grupo '+g.group_name:'')+'</div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">'
+        + '<div><label class="_lbl">Estado de la sesion</label>'
+        + '<select id="rep-status" onchange="toggleReportFields(this.value)" class="_inp">'+statusOpts+'</select></div>'
+        + '<div><label class="_lbl">Fecha de la clase</label>'
+        + '<input id="rep-date" type="date" value="'+new Date().toISOString().split('T')[0]+'" class="_inp"></div>'
+        + '</div>'
+        // Postpone/cancel reason
+        + '<div id="rep-issue-div" style="display:'+(log.status==='completed'?'none':'block')+';margin-bottom:12px">'
+        + '<label class="_lbl" id="rep-reason-lbl">'+(log.status==='cancelled'?'Motivo de la cancelacion':'Motivo de la posposicion')+'</label>'
+        + '<input id="rep-postpone-reason" type="text" value="'+(log.postpone_reason||'')+'" placeholder="Ej: Paro docente, junta directiva..." class="_inp">'
+        + '</div>'
+        // Pipeline options when cancelled
+        + '<div id="rep-pipeline-div" style="display:'+(log.status==='cancelled'?'block':'none')+';margin-bottom:12px">'
+        + '<div style="background:#fff3cd;border:1px solid rgba(255,152,0,.3);border-radius:8px;padding:12px">'
+        + '<div style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;color:#e65100;margin-bottom:8px">⚡ Siguiente accion requerida</div>'
+        + '<select id="rep-next-action" class="_inp" style="margin-bottom:8px">'
+        + '<option value="reagendar_director">Reagendar con director de horarios</option>'
+        + '<option value="juntar_grupos">Juntar dos grupos para sesion doble</option>'
+        + '<option value="sesion_extra">Agregar sesion extra al final del bloque</option>'
+        + '<option value="escalar">Escalar al equipo Houp</option>'
+        + '</select>'
+        + '<div><label class="_lbl">Fecha propuesta para recuperar</label>'
+        + '<input id="rep-reschedule" type="date" value="'+(log.rescheduled_date||'')+'" class="_inp"></div>'
+        + '</div></div>'
+        // Student count + notes
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">'
+        + '<div><label class="_lbl">Alumnos presentes</label>'
+        + '<input id="rep-count" type="number" min="0" value="'+(log.student_count||'')+'" placeholder="Ej: 35" class="_inp"></div>'
+        + '<div><label class="_lbl">Observaciones</label>'
+        + '<input id="rep-notes" type="text" value="'+(log.teacher_notes||'')+'" placeholder="Como fue la sesion..." class="_inp"></div>'
+        + '</div>'
+        // Rubrica (only for sessions with evaluation)
+        + (hasEval ? '<div style="background:#f0fbff;border-radius:8px;padding:14px;margin-bottom:12px" id="rep-rubrica-div">'
+          + '<div style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;color:var(--blue);margin-bottom:10px">📋 RUBRICA DEL MANUAL — Esta sesion tiene evaluacion de bloque</div>'
+          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'
+          + '<div><label class="_lbl">Total evaluados</label><input id="rub-total" type="number" min="0" value="'+(log.rubric_total||'')+'" class="_inp"></div>'
+          + '<div><label class="_lbl">Sin manual</label><input id="rub-no-manual" type="number" min="0" value="'+(log.rubric_no_manual||'')+'" class="_inp"></div>'
+          + '</div>'
+          + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">'
+          + '<div><label class="_lbl">Reflexion inicial</label><input id="rub-initial"  type="number" min="0" value="'+(log.rubric_initial||'')+'"  class="_inp"></div>'
+          + '<div><label class="_lbl">Adecuada</label>         <input id="rub-adequate" type="number" min="0" value="'+(log.rubric_adequate||'')+'" class="_inp"></div>'
+          + '<div><label class="_lbl">Excelente</label>        <input id="rub-excellent" type="number" min="0" value="'+(log.rubric_excellent||'')+'" class="_inp"></div>'
+          + '</div></div>' : '')
+        + '<div style="display:flex;gap:10px;justify-content:flex-end">'
+        + '<button onclick="document.getElementById(\'m-reporte-sesion\').remove()" class="_bg">Cancelar</button>'
+        + '<button onclick="guardarReporte(\''+logId+'\','+!!hasEval+')" class="_bp">Guardar reporte</button>'
+        + '</div></div>';
+
+      document.body.appendChild(modal);
+    });
+}
+
+function toggleReportFields(status) {
+  var issueDiv    = document.getElementById('rep-issue-div');
+  var pipeDiv     = document.getElementById('rep-pipeline-div');
+  var reasonLbl   = document.getElementById('rep-reason-lbl');
+  var rubricaDiv  = document.getElementById('rep-rubrica-div');
+  if(issueDiv)   issueDiv.style.display   = status === 'completed' ? 'none' : 'block';
+  if(pipeDiv)    pipeDiv.style.display    = status === 'cancelled'  ? 'block' : 'none';
+  if(reasonLbl)  reasonLbl.textContent    = status === 'cancelled'  ? 'Motivo de la cancelacion' : 'Motivo de la posposicion';
+  if(rubricaDiv) rubricaDiv.style.display = status === 'completed'  ? 'block' : 'none';
+}
+
+// ── FIX 4: Material didáctico con materiales ficticios ─
+function renderDocMaterial() {
+  var c = document.getElementById('s-doc-material'); if(!c) return;
+  loading(c);
+
+  DB.from('teacher_assignments')
+    .select('*,groups(id,grade,group_name,school_id),courses(name,short_name,grade)')
+    .eq('teacher_id', ME.id).eq('active', true)
+    .then(function(r) {
+      var assignments = r.data||[];
+      if(!assignments.length) { c.innerHTML='<div style="text-align:center;padding:40px;color:var(--gray)">Sin grupos asignados</div>'; return; }
+      var groupIds = assignments.map(function(a){return a.groups&&a.groups.id;}).filter(Boolean);
+      DB.from('session_logs')
+        .select('*,sessions(id,title,session_number,modules(name,number))')
+        .in('group_id', groupIds).eq('status','pending').order('scheduled_date')
+        .then(function(lr){
+          var nextLogs = lr.data||[];
+          var nextByGrade = {};
+          [1,2,3].forEach(function(grade){
+            var asgmts = assignments.filter(function(a){return a.courses&&a.courses.grade===grade;});
+            var gIds   = asgmts.map(function(a){return a.groups&&a.groups.id;}).filter(Boolean);
+            nextByGrade[grade] = nextLogs.find(function(l){return gIds.indexOf(l.group_id)>-1;})||null;
+          });
+
+          // Fictitious materials with real Drive-style links
+          var FICTITIOUS = {
+            1: [
+              {type:'presentation', title:'Presentacion — Emociones Positivas', desc:'Slides para proyectar en clase', icon:'📊', color:'#1565c0', url:'#'},
+              {type:'planning',     title:'Guia de planeacion docente',          desc:'Tiempos y estructura de la sesion', icon:'📝', color:'#2e7d32', url:'#'},
+              {type:'activity',     title:'Dinamica de inicio',                  desc:'Actividad rompe-hielo (15 min)', icon:'🎯', color:'#6a1b9a', url:'#'},
+              {type:'manual_pages', title:'Manual del protagonista',             desc:'Paginas a trabajar esta sesion', icon:'📖', color:'#e65100', url:'#'}
+            ],
+            2: [
+              {type:'presentation', title:'Presentacion — Relaciones Positivas', desc:'Slides para proyectar en clase', icon:'📊', color:'#1565c0', url:'#'},
+              {type:'planning',     title:'Guia de planeacion docente',          desc:'Tiempos y estructura de la sesion', icon:'📝', color:'#2e7d32', url:'#'},
+              {type:'activity',     title:'Dinamica grupal',                     desc:'Ejercicio de confianza (20 min)', icon:'🎯', color:'#6a1b9a', url:'#'},
+              {type:'manual_pages', title:'Manual del protagonista',             desc:'Paginas a trabajar esta sesion', icon:'📖', color:'#e65100', url:'#'}
+            ],
+            3: [
+              {type:'presentation', title:'Presentacion — Camino a Metas', desc:'Slides para proyectar en clase', icon:'📊', color:'#1565c0', url:'#'},
+              {type:'planning',     title:'Guia de planeacion docente',     desc:'Tiempos y estructura de la sesion', icon:'📝', color:'#2e7d32', url:'#'},
+              {type:'activity',     title:'Ejercicio de metas',             desc:'Vision board individual (20 min)', icon:'🎯', color:'#6a1b9a', url:'#'},
+              {type:'manual_pages', title:'Manual del protagonista',        desc:'Paginas a trabajar esta sesion', icon:'📖', color:'#e65100', url:'#'}
+            ]
+          };
+
+          var gradeColors = {1:'var(--blue)',2:'var(--green)',3:'#9c27b0'};
+          var gradeBg     = {1:'rgba(2,193,244,.06)',2:'rgba(67,160,71,.06)',3:'rgba(156,39,176,.06)'};
+
+          var html = '<div style="margin-bottom:16px"><div style="font-family:Montserrat,sans-serif;font-size:15px;font-weight:700;margin-bottom:4px">Material de esta semana</div>'
+            + '<div style="font-size:12px;color:var(--gray)">El material es el mismo para todos los grupos del mismo grado</div></div>';
+
+          html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px">';
+          [1,2,3].forEach(function(grade){
+            var nl  = nextByGrade[grade];
+            var ses = nl&&nl.sessions;
+            var mod = ses&&ses.modules;
+            var mats= FICTITIOUS[grade]||[];
+
+            html += '<div class="card">';
+            html += '<div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:'+gradeColors[grade]+';text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">'+grade+'° — '+COURSE_NAME[grade]+'</div>';
+
+            if(ses){
+              html += '<div style="font-family:Montserrat,sans-serif;font-size:15px;font-weight:800;margin-bottom:2px">S'+ses.session_number+': '+ses.title+'</div>';
+              html += '<div style="font-size:11px;color:var(--gray);margin-bottom:14px">'+(mod?'Bloque '+mod.number+' — '+mod.name:'')+'</div>';
+              html += '<div style="display:flex;flex-direction:column;gap:8px">';
+              mats.forEach(function(m){
+                html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:'+gradeBg[grade]+';border-radius:8px;border:1px solid rgba(0,0,0,.05)">';
+                html += '<div style="width:36px;height:36px;border-radius:8px;background:'+m.color+'18;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">'+m.icon+'</div>';
+                html += '<div style="flex:1"><div style="font-size:12px;font-weight:700;font-family:Montserrat,sans-serif">'+m.title+'</div>';
+                html += '<div style="font-size:10px;color:var(--gray)">'+m.desc+'</div></div>';
+                html += '<button onclick="toast(\'Material disponible proximamente — el equipo Houp lo subira antes de la clase\')" style="background:'+m.color+';color:#fff;border:none;padding:6px 12px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;cursor:pointer;flex-shrink:0">Ver</button>';
+                html += '</div>';
+              });
+              html += '</div>';
+            } else {
+              html += '<div style="font-size:12px;color:var(--gray);font-style:italic;padding:20px 0;text-align:center">Sin sesion activa esta semana</div>';
+            }
+            html += '<button onclick="abrirSolicitudManual()" style="margin-top:12px;width:100%;padding:8px;background:#fff8e1;border:1px solid rgba(255,152,0,.3);color:#e65100;border-radius:6px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;cursor:pointer">📚 Solicitar reposicion de manual</button>';
+            html += '</div>';
+          });
+          html += '</div>';
+          c.innerHTML = html;
+        });
+    });
+}
+
+// ── FIX 5: Planeación — descarga de 3 documentos ──────
+function renderDocPlan() {
+  var c = document.getElementById('s-doc-plan'); if(!c) return;
+  loading(c);
+
+  DB.from('teacher_assignments')
+    .select('*,groups(id,grade,group_name),courses(name,short_name,grade)')
+    .eq('teacher_id', ME.id).eq('active', true)
+    .then(function(r){
+      var assignments = r.data||[];
+      var groupIds = assignments.map(function(a){return a.groups&&a.groups.id;}).filter(Boolean);
+
+      DB.from('session_logs')
+        .select('*,sessions(id,title,session_number,modules(name,number))')
+        .in('group_id', groupIds).eq('status','pending').order('scheduled_date')
+        .then(function(lr){
+          var nextLogs = lr.data||[];
+          var nextByGrade = {};
+          [1,2,3].forEach(function(grade){
+            var asgmts = assignments.filter(function(a){return a.courses&&a.courses.grade===grade;});
+            var gIds   = asgmts.map(function(a){return a.groups&&a.groups.id;}).filter(Boolean);
+            nextByGrade[grade] = nextLogs.find(function(l){return gIds.indexOf(l.group_id)>-1;})||null;
+          });
+
+          var gradeColors = {1:'var(--blue)',2:'var(--green)',3:'#9c27b0'};
+          var gradeBg     = {1:'rgba(2,193,244,.06)',2:'rgba(67,160,71,.06)',3:'rgba(156,39,176,.06)'};
+
+          var html = '<div style="margin-bottom:16px">';
+          html += '<div style="font-family:Montserrat,sans-serif;font-size:15px;font-weight:700;margin-bottom:4px">Planeacion de esta semana</div>';
+          html += '<div style="font-size:12px;color:var(--gray)">Descarga los 3 documentos, completa lo que te corresponde y ejecuta tu clase</div></div>';
+
+          html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px">';
+          [1,2,3].forEach(function(grade){
+            var nl  = nextByGrade[grade];
+            var ses = nl&&nl.sessions;
+            var mod = ses&&ses.modules;
+
+            html += '<div class="card">';
+            html += '<div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:'+gradeColors[grade]+';text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">'+grade+'° — '+COURSE_NAME[grade]+'</div>';
+
+            if(ses){
+              html += '<div style="font-family:Montserrat,sans-serif;font-size:15px;font-weight:800;margin-bottom:2px">S'+ses.session_number+': '+ses.title+'</div>';
+              html += '<div style="font-size:11px;color:var(--gray);margin-bottom:14px">'+(mod?'Bloque '+mod.number+' — '+mod.name:'')+'</div>';
+
+              // 3 documents to download
+              var docs = [
+                {icon:'📑', title:'Puntos clave de la sesion',    desc:'Lo mas importante que debes cubrir', color:'#1565c0'},
+                {icon:'📊', title:'Presentacion para la clase',   desc:'Slides listos para proyectar',       color:'#6a1b9a'},
+                {icon:'📝', title:'Documento de planeacion',      desc:'Llena los espacios en blanco y listo',color:'#2e7d32'}
+              ];
+
+              html += '<div style="display:flex;flex-direction:column;gap:8px">';
+              docs.forEach(function(d){
+                html += '<div style="display:flex;align-items:center;gap:10px;padding:12px;background:'+gradeBg[grade]+';border-radius:8px;border:1px solid rgba(0,0,0,.05)">';
+                html += '<div style="width:40px;height:40px;border-radius:10px;background:'+d.color+'18;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">'+d.icon+'</div>';
+                html += '<div style="flex:1"><div style="font-size:13px;font-weight:700;font-family:Montserrat,sans-serif">'+d.title+'</div>';
+                html += '<div style="font-size:10px;color:var(--gray)">'+d.desc+'</div></div>';
+                html += '<button onclick="toast(\'Documento disponible proximamente — el equipo Houp lo subira antes de la sesion\')" style="display:flex;align-items:center;gap:5px;background:'+d.color+';color:#fff;border:none;padding:7px 12px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;cursor:pointer;flex-shrink:0">⬇ Descargar</button>';
+                html += '</div>';
+              });
+              html += '</div>';
+            } else {
+              html += '<div style="font-size:12px;color:var(--gray);font-style:italic;padding:20px 0;text-align:center">Sin sesion activa esta semana</div>';
+            }
+            html += '</div>';
+          });
+          html += '</div>';
+          c.innerHTML = html;
+        });
+    });
+}
+
+// ── FIX 6: Rúbricas mejoradas ─────────────────────────
+function renderDocRubrica() {
+  var c = document.getElementById('s-doc-rubrica'); if(!c) return;
+  loading(c);
+
+  DB.from('teacher_assignments')
+    .select('groups(id,grade,group_name,shift,school_id)')
+    .eq('teacher_id', ME.id).eq('active', true)
+    .then(function(r){
+      var assignments = r.data||[];
+      if(!assignments.length){ c.innerHTML='<div style="text-align:center;padding:40px;color:var(--gray)">Sin grupos asignados</div>'; return; }
+      var schoolId = assignments[0].groups&&assignments[0].groups.school_id;
+
+      Promise.all([
+        DB.from('students').select('*').eq('school_id', schoolId).eq('active', true).order('grade').order('name'),
+        DB.from('rubric_evaluations').select('*').eq('school_id', schoolId)
+      ]).then(function(results){
+        var students = results[0].data||[];
+        var evals    = results[1].data||[];
+        window._rubricaData = {students:students, evals:evals, schoolId:schoolId};
+        renderRubricaTable(1, 0, '', '', '');
+      });
+    });
+}
+
+function renderRubricaTable(block, grade, shift, manual, evaluated) {
+  var c = document.getElementById('s-doc-rubrica'); if(!c) return;
+  var d = window._rubricaData;
+  if(!d) return;
+  var students=d.students, evals=d.evals, schoolId=d.schoolId;
+
+  var filtered = students.filter(function(s){
+    if(grade && s.grade !== grade) return false;
+    if(shift && s.shift !== shift) return false;
+    var ev = evals.find(function(e){return e.student_id===s.id && e.block===block;});
+    if(manual==='no'  && !(ev && !ev.has_manual)) return false;
+    if(manual==='yes' && !(ev &&  ev.has_manual)) return false;
+    if(evaluated==='yes' && !ev) return false;
+    if(evaluated==='no'  &&  ev) return false;
+    return true;
+  });
+
+  var noEval   = filtered.filter(function(s){return !evals.find(function(e){return e.student_id===s.id&&e.block===block;});}).length;
+  var withEval = filtered.length - noEval;
+
+  var selStyle = 'width:100%;padding:3px 4px;border:1px solid rgba(0,0,0,.12);border-radius:4px;font-size:11px;outline:none;font-family:Montserrat,sans-serif;background:#fff';
+
+  var html = '';
+
+  // Compact filters bar
+  html += '<div style="background:#fff;border-radius:10px;padding:10px 14px;border:1px solid rgba(0,0,0,.06);margin-bottom:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center">';
+  html += '<span style="font-family:Montserrat,sans-serif;font-size:10px;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.5px">Filtros:</span>';
+
+  // Block
+  html += '<select id="f-block" onchange="applyRubricaFilter()" style="padding:4px 8px;border:1.5px solid rgba(2,193,244,.4);border-radius:5px;font-size:11px;font-family:Montserrat,sans-serif;font-weight:700;outline:none;color:var(--blue)">';
+  [1,2,3].forEach(function(b){ html+='<option value="'+b+'"'+(b===block?' selected':'')+'>Bloque '+b+'</option>'; });
+  html += '</select>';
+
+  html += '<select id="f-grade" onchange="applyRubricaFilter()" style="padding:4px 8px;border:1px solid rgba(0,0,0,.13);border-radius:5px;font-size:11px;outline:none">';
+  html += '<option value="0">Todos los grados</option>';
+  [1,2,3].forEach(function(g){ html+='<option value="'+g+'"'+(g===grade?' selected':'')+'>'+g+'° '+COURSE_SHORT[g]+'</option>'; });
+  html += '</select>';
+
+  html += '<select id="f-shift" onchange="applyRubricaFilter()" style="padding:4px 8px;border:1px solid rgba(0,0,0,.13);border-radius:5px;font-size:11px;outline:none">';
+  html += '<option value="">Ambos turnos</option>';
+  html += '<option value="matutino"'+(shift==='matutino'?' selected':'')+'>Mat</option>';
+  html += '<option value="vespertino"'+(shift==='vespertino'?' selected':'')+'>Vesp</option>';
+  html += '</select>';
+
+  html += '<select id="f-manual" onchange="applyRubricaFilter()" style="padding:4px 8px;border:1px solid rgba(0,0,0,.13);border-radius:5px;font-size:11px;outline:none">';
+  html += '<option value="">Con/Sin manual</option>';
+  html += '<option value="yes"'+(manual==='yes'?' selected':'')+'>Con manual</option>';
+  html += '<option value="no"'+(manual==='no'?' selected':'')+'>Sin manual</option>';
+  html += '</select>';
+
+  html += '<select id="f-eval" onchange="applyRubricaFilter()" style="padding:4px 8px;border:1px solid rgba(0,0,0,.13);border-radius:5px;font-size:11px;outline:none">';
+  html += '<option value="">Todos</option>';
+  html += '<option value="no"'+(evaluated==='no'?' selected':'')+'>Sin evaluar</option>';
+  html += '<option value="yes"'+(evaluated==='yes'?' selected':'')+'>Evaluados</option>';
+  html += '</select>';
+
+  html += '<div style="margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap">';
+  html += '<span style="font-size:11px;color:var(--gray)">'+filtered.length+' alumnos · <span style="color:var(--green)">'+withEval+' eval</span> · <span style="color:var(--amber)">'+noEval+' pend</span></span>';
+  html += '<button onclick="abrirAgregarAlumno()" style="background:rgba(2,193,244,.1);border:1px solid rgba(2,193,244,.3);color:var(--blue);padding:4px 10px;border-radius:5px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;cursor:pointer">+ Alumno</button>';
+  html += '<button onclick="guardarRubricas()" style="background:#43a047;color:#fff;border:none;padding:5px 14px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;cursor:pointer">Guardar</button>';
+  html += '</div></div>';
+
+  // Full-width scrollable table
+  html += '<div style="background:#fff;border-radius:10px;border:1px solid rgba(0,0,0,.06);overflow:hidden">';
+  html += '<div style="overflow-x:auto;max-height:calc(100vh - 280px);overflow-y:auto">';
+  html += '<table class="t" style="min-width:900px"><thead style="position:sticky;top:0;z-index:10;background:#fff"><tr>';
+  html += '<th style="padding:9px 14px;text-align:left;min-width:220px">Alumno</th>';
+  html += '<th style="min-width:50px;text-align:center">Grado</th>';
+  html += '<th style="min-width:60px;text-align:center">Turno</th>';
+  html += '<th style="min-width:60px;text-align:center">Sin<br>manual</th>';
+  html += '<th style="min-width:120px;text-align:center">Profundidad</th>';
+  html += '<th style="min-width:120px;text-align:center">Conexion</th>';
+  html += '<th style="min-width:120px;text-align:center">Coherencia</th>';
+  html += '<th style="min-width:120px;text-align:center">Autenticidad</th>';
+  html += '<th style="min-width:120px;text-align:center">Evidencia</th>';
+  html += '<th style="min-width:70px;text-align:center">Prom.</th>';
+  html += '<th style="min-width:60px;text-align:center"></th>';
+  html += '</tr></thead><tbody>';
+
+  var DIMS = ['profundidad','conexion','coherencia','autenticidad','evidencia'];
+  var DIM_OPTS = '<option value="">—</option><option value="1">Inicial</option><option value="2">Adecuado</option><option value="3">Excelente</option>';
+
+  filtered.forEach(function(s){
+    var ev     = evals.find(function(e){return e.student_id===s.id&&e.block===block;});
+    var noMan  = ev && !ev.has_manual;
+    var rowBg  = noMan ? 'background:#fff8e1;' : '';
+    html += '<tr style="'+rowBg+'">';
+    // Editable name
+    html += '<td style="padding:6px 14px">';
+    html += '<input type="text" data-sid="'+s.id+'" data-field="name" value="'+s.name+'" ';
+    html += 'style="width:100%;padding:3px 6px;border:1px solid transparent;border-radius:4px;font-size:12px;font-family:Montserrat,sans-serif;font-weight:600;background:transparent" ';
+    html += 'onfocus="this.style.border=\'1px solid rgba(2,193,244,.4)\';this.style.background=\'#f0fbff\'" ';
+    html += 'onblur="actualizarNombreAlumno(this)">';
+    html += '</td>';
+    html += '<td style="font-size:11px;color:var(--gray);text-align:center">'+s.grade+'°</td>';
+    html += '<td style="text-align:center">'+bdg(s.shift==='matutino'?'Mat':'Vesp',s.shift==='matutino'?'b-blue':'b-gray')+'</td>';
+    html += '<td style="text-align:center"><input type="checkbox" data-sid="'+s.id+'" class="rub-check" '+(noMan?'checked':'')+' style="width:15px;height:15px;cursor:pointer" onchange="toggleNoManual(this)"></td>';
+
+    DIMS.forEach(function(dim){
+      var val = ev ? ev[dim] : null;
+      html += '<td style="padding:5px 8px">';
+      html += '<select data-sid="'+s.id+'" data-dim="'+dim+'" data-block="'+block+'" class="rub-sel" '+(noMan?'disabled':'')+' style="'+selStyle+(noMan?';background:#f5f5f5;color:#bbb':'')+'">';
+      html += '<option value="">—</option>';
+      html += '<option value="1"'+(val===1?' selected':'')+'>Inicial</option>';
+      html += '<option value="2"'+(val===2?' selected':'')+'>Adecuado</option>';
+      html += '<option value="3"'+(val===3?' selected':'')+'>Excelente</option>';
+      html += '</select></td>';
+    });
+
+    var ts = ev&&ev.total_score;
+    html += '<td style="text-align:center">';
+    if(ts){ var col=ts>=2.5?'var(--green)':ts>=1.5?'var(--blue)':'var(--amber)'; html+='<strong style="font-family:Montserrat,sans-serif;font-size:13px;color:'+col+'">'+ts+'</strong>'; }
+    else html+='<span style="font-size:11px;color:var(--gray)">—</span>';
+    html += '</td>';
+    // Delete button
+    html += '<td style="text-align:center"><button data-sid="'+s.id+'" onclick="confirmarEliminarAlumno(this.dataset.sid)" style="background:none;border:none;color:#ccc;font-size:14px;cursor:pointer;padding:4px" title="Eliminar alumno">×</button></td>';
+    html += '</tr>';
+  });
+
+  if(!filtered.length) {
+    html += '<tr><td colspan="11" style="text-align:center;padding:40px;color:var(--gray)">Sin alumnos con estos filtros</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  window._rubricaBlock   = block;
+  window._rubricaSchoolId= schoolId;
+
+  c.innerHTML = html;
+}
+
+function applyRubricaFilter() {
+  var block    = parseInt(document.getElementById('f-block').value)||1;
+  var grade    = parseInt(document.getElementById('f-grade').value)||0;
+  var shift    = document.getElementById('f-shift').value;
+  var manual   = document.getElementById('f-manual').value;
+  var evaluated= document.getElementById('f-eval').value;
+  renderRubricaTable(block, grade, shift, manual, evaluated);
+}
+
+function actualizarNombreAlumno(input) {
+  var sid  = input.dataset.sid;
+  var name = input.value.trim();
+  if(!name || !sid) return;
+  input.style.border='1px solid transparent';
+  input.style.background='transparent';
+  DB.from('students').update({name:name}).eq('id',sid).then(function(r){
+    if(r.error){ toast('Error al guardar nombre',true); return; }
+    // Update local cache
+    var d = window._rubricaData;
+    if(d){ var s=d.students.find(function(x){return x.id===sid;}); if(s) s.name=name; }
+    toast('Nombre actualizado');
+  });
+}
+
+function abrirAgregarAlumno() {
+  var d = window._rubricaData; if(!d) return;
+  var ex = document.getElementById('m-add-alumno'); if(ex) ex.remove();
+  var modal = document.createElement('div');
+  modal.id = 'm-add-alumno';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:8500;display:flex;align-items:center;justify-content:center';
+  modal.innerHTML = '<div style="background:#fff;border-radius:14px;padding:28px;width:440px;box-shadow:0 20px 60px rgba(0,0,0,.25)">'
+    + '<div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:20px">Agregar alumno</div>'
+    + '<div style="display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:20px">'
+    + '<div><label class="_lbl">Nombre completo</label><input id="add-name" type="text" class="_inp" placeholder="APELLIDO NOMBRE"></div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
+    + '<div><label class="_lbl">Grado</label><select id="add-grade" class="_inp"><option value="1">1°</option><option value="2">2°</option><option value="3">3°</option></select></div>'
+    + '<div><label class="_lbl">Turno</label><select id="add-shift" class="_inp"><option value="matutino">Matutino</option><option value="vespertino">Vespertino</option></select></div>'
+    + '</div></div>'
+    + '<div style="display:flex;gap:10px;justify-content:flex-end">'
+    + '<button onclick="document.getElementById(\'m-add-alumno\').remove()" class="_bg">Cancelar</button>'
+    + '<button onclick="guardarNuevoAlumno()" class="_bp">Agregar</button>'
+    + '</div></div>';
+  document.body.appendChild(modal);
+}
+
+function guardarNuevoAlumno() {
+  var name  = document.getElementById('add-name').value.trim().toUpperCase();
+  var grade = parseInt(document.getElementById('add-grade').value);
+  var shift = document.getElementById('add-shift').value;
+  var d     = window._rubricaData; if(!d) return;
+  if(!name){ toast('Ingresa el nombre', true); return; }
+  DB.from('students').insert({school_id:d.schoolId, name:name, grade:grade, shift:shift, active:true}).select().then(function(r){
+    if(r.error){ toast('Error: '+r.error.message,true); return; }
+    document.getElementById('m-add-alumno').remove();
+    toast('Alumno agregado');
+    d.students.push(r.data[0]);
+    renderRubricaTable(window._rubricaBlock||1, 0, '', '', '');
+  });
+}
+
+function confirmarEliminarAlumno(sid) {
+  var d = window._rubricaData; if(!d) return;
+  var s = d.students.find(function(x){return x.id===sid;});
+  if(!s) return;
+  confirm2('Eliminar a "'+s.name+'"', 'Se eliminara este alumno de la lista. Sus evaluaciones se conservan.', function(){
+    DB.from('students').update({active:false}).eq('id',sid).then(function(r){
+      if(r.error){ toast('Error: '+r.error.message,true); return; }
+      toast('Alumno eliminado');
+      d.students = d.students.filter(function(x){return x.id!==sid;});
+      renderRubricaTable(window._rubricaBlock||1, 0, '', '', '');
+    });
+  }, true);
+}
+
+function guardarRubricas() {
+  var selects  = document.querySelectorAll('.rub-sel');
+  var checks   = document.querySelectorAll('.rub-check');
+  var block    = window._rubricaBlock||1;
+  var schoolId = window._rubricaSchoolId;
+  var evalMap  = {};
+  selects.forEach(function(sel){
+    var sid=sel.dataset.sid, dim=sel.dataset.dim;
+    if(!evalMap[sid]) evalMap[sid]={student_id:sid,school_id:schoolId,block:block,has_manual:true};
+    if(sel.value) evalMap[sid][dim]=parseInt(sel.value);
+  });
+  checks.forEach(function(chk){
+    var sid=chk.dataset.sid;
+    if(!evalMap[sid]) evalMap[sid]={student_id:sid,school_id:schoolId,block:block,has_manual:true};
+    evalMap[sid].has_manual=!chk.checked;
+  });
+  var rows=Object.values(evalMap).filter(function(r){
+    return r.profundidad||r.conexion||r.coherencia||r.autenticidad||r.evidencia||!r.has_manual;
+  });
+  rows.forEach(function(r){
+    if(r.has_manual&&(r.profundidad||r.conexion||r.coherencia||r.autenticidad||r.evidencia)){
+      var vals=[r.profundidad,r.conexion,r.coherencia,r.autenticidad,r.evidencia].filter(Boolean);
+      r.total_score=vals.length?Math.round(vals.reduce(function(a,b){return a+b;},0)/vals.length*100)/100:null;
+    }
+    r.evaluated_by=ME.id; r.evaluated_at=new Date().toISOString();
+  });
+  if(!rows.length){toast('Sin cambios para guardar',true);return;}
+  DB.from('rubric_evaluations').upsert(rows,{onConflict:'student_id,block'}).then(function(res){
+    if(res.error){toast('Error: '+res.error.message,true);return;}
+    toast('Rubricas guardadas ('+rows.length+' alumnos)');
+    // Refresh evals cache
+    DB.from('rubric_evaluations').select('*').eq('school_id',schoolId).then(function(r){
+      if(window._rubricaData) window._rubricaData.evals=r.data||[];
+      applyRubricaFilter();
+    });
+  });
+}
+
+// ── FIX 7: Incidencias con pipeline visual ────────────
+function renderDocIncidencias() {
+  var c = document.getElementById('s-doc-incidencias'); if(!c) return;
+  loading(c);
+
+  Promise.all([
+    DB.from('teacher_assignments').select('*,groups(id,grade,group_name,shift)').eq('teacher_id',ME.id).eq('active',true),
+    DB.from('incidents').select('*,schools(name)').eq('teacher_id',ME.id).order('incident_date',{ascending:false}),
+    DB.from('session_pipeline').select('*,session_logs(sessions(title,session_number),groups(grade,group_name))').eq('teacher_id',ME.id).order('created_at',{ascending:false})
+  ]).then(function(results){
+    var assignments = results[0].data||[];
+    var incs        = results[1].data||[];
+    var pipelines   = results[2].data||[];
+    var groupIds    = assignments.map(function(a){return a.groups&&a.groups.id;}).filter(Boolean);
+
+    DB.from('session_logs')
+      .select('*,sessions(title,session_number,modules(name,number))')
+      .in('group_id',groupIds)
+      .in('status',['postponed','cancelled'])
+      .order('scheduled_date',{ascending:false})
+      .then(function(lr){
+        var specialLogs = lr.data||[];
+        var open  = incs.filter(function(i){return i.status==='open';});
+        var gradeColors={1:'var(--blue)',2:'var(--green)',3:'#9c27b0'};
+
+        var html='';
+        html+='<div class="stats-row">';
+        html+=statCard(open.length,'Incidencias abiertas',open.length?'c-red':'');
+        html+=statCard(pipelines.filter(function(p){return p.status==='pending';}).length,'Pendientes en pipeline','c-amber');
+        html+=statCard(specialLogs.filter(function(l){return l.status==='postponed';}).length,'Pospuestas','');
+        html+=statCard(specialLogs.filter(function(l){return l.status==='cancelled';}).length,'Canceladas','');
+        html+='</div>';
+
+        html+='<div class="two-col">';
+
+        // Left: Pipeline of cancelled sessions
+        html+='<div class="card"><div class="card-hd"><div>';
+        html+='<div class="card-title">Pipeline de sesiones</div>';
+        html+='<div class="card-sub">Seguimiento de cancelaciones</div></div></div>';
+
+        if(!pipelines.length&&!specialLogs.length){
+          html+='<div style="text-align:center;padding:30px;color:var(--gray)"><div style="font-size:32px;margin-bottom:8px">✓</div><div style="font-family:Montserrat,sans-serif;font-size:13px;font-weight:600">Sin sesiones con problemas</div></div>';
+        } else {
+          specialLogs.forEach(function(l){
+            var ses=l.sessions, mod=ses&&ses.modules;
+            var asgmt=assignments.find(function(a){return a.groups&&a.groups.id===l.group_id;});
+            var g=asgmt&&asgmt.groups;
+            var isCanc=l.status==='cancelled';
+            var pipe=pipelines.find(function(p){return p.session_log_id===l.id;});
+
+            html+='<div style="border:1px solid rgba(0,0,0,.08);border-radius:10px;padding:14px;margin-bottom:10px">';
+            // Header
+            html+='<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px">';
+            html+='<div>';
+            if(g) html+='<div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:'+(gradeColors[g.grade]||'var(--blue)')+';margin-bottom:3px">'+g.grade+'° Grupo '+g.group_name+'</div>';
+            html+='<div style="font-size:13px;font-weight:700">'+(ses?'S'+ses.session_number+': '+ses.title:'—')+'</div>';
+            if(l.postpone_reason) html+='<div style="font-size:11px;color:var(--gray);margin-top:2px">Motivo: '+l.postpone_reason+'</div>';
+            html+='</div>';
+            html+=bdg(isCanc?'Cancelada':'Pospuesta',isCanc?'b-red':'b-amber');
+            html+='</div>';
+
+            // Pipeline steps
+            html+='<div style="display:flex;align-items:center;gap:0">';
+            var steps=[
+              {label:'Cancelada', icon:'❌', done:true},
+              {label:'Reagendar', icon:'📅', done:pipe&&pipe.step>=2},
+              {label:'Confirmar', icon:'✓',  done:pipe&&pipe.step>=3&&pipe.status==='success'},
+              {label:pipe&&pipe.status==='failed'?'Escalar':'Completar', icon:pipe&&pipe.status==='failed'?'🚨':'✅', done:pipe&&(pipe.status==='success'||pipe.status==='failed')}
+            ];
+            steps.forEach(function(step, i){
+              html+='<div style="display:flex;flex-direction:column;align-items:center;flex:1">';
+              html+='<div style="width:28px;height:28px;border-radius:50%;background:'+(step.done?'#02c1f4':'#e8e8e8')+';display:flex;align-items:center;justify-content:center;font-size:12px;color:'+(step.done?'#fff':'#aaa')+'">'+(step.done?step.icon:''+( i+1))+'</div>';
+              html+='<div style="font-size:9px;color:'+(step.done?'var(--blue)':'var(--gray)')+';margin-top:3px;text-align:center;font-family:Montserrat,sans-serif;font-weight:'+(step.done?'700':'400')+'">'+step.label+'</div></div>';
+              if(i<steps.length-1) html+='<div style="height:2px;background:'+(step.done?'#02c1f4':'#e8e8e8')+';flex:1;margin-bottom:14px"></div>';
+            });
+            html+='</div>';
+
+            // Action if pending
+            if(pipe&&pipe.status==='pending'){
+              html+='<div style="margin-top:10px;display:flex;gap:8px">';
+              html+='<input type="date" id="pipe-date-'+pipe.id+'" style="flex:1;padding:6px 10px;border:1.5px solid rgba(2,193,244,.35);border-radius:6px;font-size:12px;outline:none">';
+              html+='<button data-pid="'+pipe.id+'" data-lid="'+l.id+'" onclick="reagendarSesion(this.dataset.pid,this.dataset.lid)" style="background:var(--blue);color:#fff;border:none;padding:6px 14px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;cursor:pointer">Confirmar fecha</button>';
+              html+='<button data-pid="'+pipe.id+'" onclick="escalarSesion(this.dataset.pid)" style="background:#fff5f5;border:1px solid rgba(224,53,53,.2);color:var(--red-dark);padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer">Escalar</button>';
+              html+='</div>';
+            }
+            html+='</div>';
+          });
+        }
+        html+='</div>';
+
+        // Right: incident list
+        html+='<div class="card"><div class="card-hd"><div>';
+        html+='<div class="card-title">Mis incidencias</div>';
+        html+='<div class="card-sub">'+incs.length+' registradas</div></div>';
+        html+='<button onclick="abrirIncidenciaDoc()" class="btn-p" style="font-size:11px">+ Nueva</button></div>';
+
+        if(!incs.length){
+          html+='<div style="text-align:center;padding:30px;color:var(--gray)"><div style="font-size:32px;margin-bottom:8px">✓</div><div style="font-family:Montserrat,sans-serif;font-size:13px;font-weight:600">Sin incidencias</div></div>';
+        } else {
+          incs.forEach(function(i){
+            html+='<div style="padding:10px;border-radius:8px;margin-bottom:8px;border:1px solid rgba(0,0,0,.06)">';
+            html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">';
+            html+=bdg(INC_LBL[i.type]||i.type,'b-amber');
+            html+='<span style="font-size:11px;color:var(--gray)">'+fmt(i.incident_date)+'</span>';
+            html+='<div style="margin-left:auto">'+bdg(i.status==='resolved'?'Resuelta':i.status==='in_progress'?'En proceso':'Abierta',i.status==='resolved'?'b-green':i.status==='in_progress'?'b-blue':'b-red')+'</div>';
+            html+='</div><div style="font-size:12px">'+i.description+'</div>';
+            if(i.resolution) html+='<div style="font-size:11px;color:var(--green);margin-top:4px">✓ '+i.resolution+'</div>';
+            html+='</div>';
+          });
+        }
+        html+='</div></div>';
+        c.innerHTML=html;
+      });
+  });
+}
+
+function reagendarSesion(pipeId, logId) {
+  var dateEl = document.getElementById('pipe-date-'+pipeId);
+  var newDate = dateEl ? dateEl.value : null;
+  if(!newDate){ toast('Selecciona una fecha', true); return; }
+  Promise.all([
+    DB.from('session_pipeline').update({status:'success',step:3,new_date:newDate,acted_by:ME.id,acted_at:new Date().toISOString()}).eq('id',pipeId),
+    DB.from('session_logs').update({status:'pending',rescheduled_date:newDate,scheduled_date:newDate,updated_at:new Date().toISOString()}).eq('id',logId)
+  ]).then(function(){
+    toast('Sesion reagendada para '+fmt(newDate));
+    renderDocIncidencias();
+    renderDocHome();
+  });
+}
+
+function escalarSesion(pipeId) {
+  DB.from('session_pipeline').update({status:'escalated',step:3,acted_by:ME.id,acted_at:new Date().toISOString(),notes:'Escalado al equipo Houp — no fue posible reagendar directamente'}).eq('id',pipeId).then(function(){
+    // Create red alert for Houp
+    DB.from('session_pipeline').select('school_id,teacher_id').eq('id',pipeId).single().then(function(r){
+      if(r.data) DB.from('alerts').insert({school_id:r.data.school_id,teacher_id:r.data.teacher_id,type:'open_incident',severity:'red',title:'Sesion escalada — requiere atencion urgente del equipo Houp',description:'El responsable no pudo reagendar la sesion cancelada. Se requiere intervencion.',is_active:true});
+    });
+    toast('Caso escalado al equipo Houp');
+    renderDocIncidencias();
+  });
+}
+
+
 </script>
 </body>
 </html>
