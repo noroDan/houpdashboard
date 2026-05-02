@@ -3515,7 +3515,7 @@ function renderRespHome() {
     DB.from('profiles').select('*').eq('role','docente').eq('active',true).order('full_name'),
     DB.from('teacher_assignments').select('*,groups(id,grade,group_name,shift)').eq('active',true),
     DB.from('session_logs').select('group_id,status'),
-    DB.from('incidents').select('teacher_id,status'),
+    DB.from('incidents').select('school_id,status'),
     DB.from('alerts').select('*').eq('is_active',true).order('severity')
   ]).then(function(results) {
     var teachers     = results[0].data || [];
