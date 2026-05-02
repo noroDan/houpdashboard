@@ -6430,6 +6430,296 @@ function cancelManualResp(id) {
   });
 }
 
+// ═══════════════════════════════════════════════════════
+// HORARIO — Panel de horario semanal para responsable
+// ═══════════════════════════════════════════════════════
+
+// Override renderRespEquipo to include schedule panel
+function renderRespEquipo() {
+  var c = document.getElementById('s-resp-equipo'); if(!c) return;
+  c.innerHTML = '<div style="padding:20px;color:#797979;font-family:Montserrat,sans-serif">Cargando...</div>';
+
+  Promise.all([
+    DB.from('profiles').select('*').eq('role','docente').eq('active',true).order('full_name'),
+    DB.from('teacher_assignments').select('*,groups(id,grade,group_name,shift),courses(name,short_name,grade)').eq('active',true),
+    DB.from('schedules').select('*').eq('active',true).order('day_of_week')
+  ]).then(function(results) {
+    var teachers    = results[0].data || [];
+    var assignments = results[1].data || [];
+    var schedules   = results[2].data || [];
+
+    var html = '<div class="card" style="margin-bottom:14px"><div class="card-hd"><div>';
+    html += '<div class="card-title">Equipo docente</div>';
+    html += '<div class="card-sub">'+teachers.length+' docentes · Click en "Horario" para gestionar</div>';
+    html += '</div><div style="display:flex;gap:8px">';
+    html += '<button onclick="abrirNuevoDocente()" class="btn-p" style="font-size:11px">+ Agregar docente</button>';
+    html += '<button onclick="abrirAsignacion()" class="btn-g" style="font-size:11px">Asignar grupos</button>';
+    html += '</div></div>';
+
+    if(!teachers.length) {
+      html += '<div style="font-size:12px;color:var(--gray);font-style:italic;padding:20px 0">Sin docentes registrados</div>';
+    } else {
+      teachers.forEach(function(t) {
+        var tAssign = assignments.filter(function(a){ return a.teacher_id===t.id; });
+        var tSched  = schedules.filter(function(s){ return s.teacher_id===t.id; });
+        var school  = SCHOOLS.find(function(s){ return s.id===t.school_id; });
+        var ini     = (t.full_name||t.email).split(' ').map(function(w){return w[0];}).join('').substring(0,2).toUpperCase();
+        var gradeColors = {1:'var(--blue)',2:'var(--green)',3:'#9c27b0'};
+
+        html += '<div style="border:1px solid rgba(0,0,0,.06);border-radius:10px;padding:14px;margin-bottom:10px">';
+        // Header
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
+        html += '<div style="display:flex;align-items:center;gap:10px">';
+        html += '<div style="width:38px;height:38px;border-radius:50%;background:rgba(2,193,244,.1);display:flex;align-items:center;justify-content:center;color:var(--blue);font-family:Montserrat,sans-serif;font-size:12px;font-weight:700">'+ini+'</div>';
+        html += '<div><div style="font-family:Montserrat,sans-serif;font-size:13px;font-weight:700">'+(t.full_name||t.email)+'</div>';
+        html += '<div style="font-size:11px;color:var(--gray)">'+t.email+(school?' · '+school.name:'')+'</div></div></div>';
+        html += '<div style="display:flex;gap:6px">';
+        html += '<button data-tid="'+t.id+'" data-tname="'+encodeURIComponent(t.full_name||t.email)+'" onclick="abrirHorarioPanel(this.dataset.tid,this.dataset.tname)" style="background:var(--blue);color:#fff;border:none;padding:5px 12px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;cursor:pointer">Horario</button>';
+        html += '<button onclick="editarDocente(\''+t.id+'\')" class="btn-g" style="font-size:10px;padding:4px 10px">Editar</button>';
+        html += '<button data-id="'+t.id+'" data-name="'+encodeURIComponent(t.full_name||t.email)+'" onclick="confirmarEliminarDocente(this.dataset.id,this.dataset.name)" style="background:#fff5f5;border:1px solid rgba(224,53,53,.2);color:var(--red-dark);padding:4px 10px;border-radius:6px;font-size:10px;cursor:pointer">Eliminar</button>';
+        html += '</div></div>';
+
+        // Assignments
+        if(tAssign.length) {
+          html += '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px">';
+          tAssign.forEach(function(a) {
+            var g=a.groups, co=a.courses;
+            html += bdg((g?g.grade+'° '+g.group_name+(g.shift==='matutino'?' Mat':' Vesp'):'—')+(co?' ('+co.short_name+')':''),'b-blue');
+          });
+          html += '</div>';
+        } else {
+          html += '<div style="font-size:11px;color:var(--amber);font-style:italic;margin-bottom:8px">Sin grupos asignados</div>';
+        }
+
+        // Weekly schedule mini view
+        if(!tSched.length) {
+          html += '<div style="font-size:11px;color:var(--gray);font-style:italic">Sin horario — haz click en "Horario" para agregar</div>';
+        } else {
+          // Group by day
+          var byDay = {1:[],2:[],3:[],4:[],5:[]};
+          tSched.forEach(function(s){ if(byDay[s.day_of_week]) byDay[s.day_of_week].push(s); });
+          html += '<div style="display:flex;gap:4px;overflow-x:auto">';
+          [1,2,3,4,5].forEach(function(d) {
+            if(!byDay[d].length) return;
+            html += '<div style="flex-shrink:0">';
+            html += '<div style="font-family:Montserrat,sans-serif;font-size:9px;font-weight:700;color:var(--gray);text-transform:uppercase;text-align:center;margin-bottom:3px">'+DIAS[d].substring(0,3)+'</div>';
+            byDay[d].forEach(function(h) {
+              var gc = gradeColors[h.grade]||'var(--blue)';
+              html += '<div style="background:'+gc+'18;border:1px solid '+gc+'35;border-radius:5px;padding:3px 6px;margin-bottom:2px;font-size:9px;font-family:Montserrat,sans-serif;font-weight:600;color:'+gc+';white-space:nowrap">';
+              html += (h.start_time||'').substring(0,5)+' '+h.grade+'°'+h.group_name;
+              html += '</div>';
+            });
+            html += '</div>';
+          });
+          html += '</div>';
+        }
+        html += '</div>';
+      });
+    }
+    html += '</div>';
+    c.innerHTML = html;
+  });
+}
+
+// ── PANEL DE HORARIO SEMANAL ──────────────────────────
+function abrirHorarioPanel(teacherId, nombre) {
+  var dn = decodeURIComponent(nombre);
+  var ex = document.getElementById('m-horario-panel'); if(ex) ex.remove();
+
+  var modal = document.createElement('div');
+  modal.id = 'm-horario-panel';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:8500;display:flex;align-items:center;justify-content:center';
+
+  modal.innerHTML = '<div style="background:#fff;border-radius:14px;width:900px;max-height:92vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
+    + '<div style="padding:20px 24px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#fff;z-index:10">'
+    + '<div><div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700">Horario semanal — '+dn+'</div>'
+    + '<div style="font-size:12px;color:var(--gray)">Horario fijo semanal · Lunes a Viernes</div></div>'
+    + '<div style="display:flex;gap:8px">'
+    + '<button onclick="abrirAgregarClase(\''+teacherId+'\',\''+encodeURIComponent(dn)+'\')" class="btn-p" style="font-size:12px">+ Agregar clase</button>'
+    + '<button onclick="document.getElementById(\'m-horario-panel\').remove()" class="_bg">Cerrar</button>'
+    + '</div></div>'
+    + '<div id="horario-content" style="padding:20px 24px">Cargando...</div>'
+    + '</div>';
+
+  document.body.appendChild(modal);
+  cargarHorario(teacherId, dn);
+}
+
+function cargarHorario(teacherId, dn) {
+  var c = document.getElementById('horario-content'); if(!c) return;
+
+  DB.from('schedules').select('*').eq('teacher_id',teacherId).eq('active',true).order('day_of_week').order('start_time').then(function(r) {
+    var scheds = r.data || [];
+
+    // Group by day
+    var byDay = {1:[],2:[],3:[],4:[],5:[]};
+    scheds.forEach(function(s){ if(byDay[s.day_of_week]) byDay[s.day_of_week].push(s); });
+
+    var gradeColors = {1:'#1565c0',2:'#2e7d32',3:'#6a1b9a'};
+    var gradeBg     = {1:'rgba(21,101,192,.08)',2:'rgba(46,125,50,.08)',3:'rgba(106,27,154,.08)'};
+
+    var html = '';
+
+    // Summary stats
+    html += '<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">';
+    html += '<div style="background:rgba(2,193,244,.08);border-radius:8px;padding:8px 14px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;color:var(--blue)">'+scheds.length+' clases registradas</div>';
+    [1,2,3].forEach(function(g) {
+      var cnt = scheds.filter(function(s){ return s.grade===g; }).length;
+      if(cnt) html += '<div style="background:'+gradeBg[g]+';border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;color:'+gradeColors[g]+'">'+cnt+' grupo'+(cnt>1?'s':'')+' de '+g+'°</div>';
+    });
+    html += '</div>';
+
+    // Weekly grid
+    html += '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px">';
+
+    [1,2,3,4,5].forEach(function(d) {
+      var dayClasses = byDay[d];
+      var isToday    = (new Date().getDay() === d);
+
+      html += '<div style="border:2px solid '+(isToday?'var(--blue)':'rgba(0,0,0,.08)')+';border-radius:10px;overflow:hidden">';
+      // Day header
+      html += '<div style="background:'+(isToday?'var(--blue)':'#f8f9fa')+';padding:10px 12px;text-align:center">';
+      html += '<div style="font-family:Montserrat,sans-serif;font-size:13px;font-weight:700;color:'+(isToday?'#fff':'#444')+'">'+DIAS[d]+'</div>';
+      if(isToday) html += '<div style="font-size:10px;color:rgba(255,255,255,.8)">HOY</div>';
+      html += '</div>';
+      // Classes
+      html += '<div style="padding:8px;min-height:120px">';
+      if(!dayClasses.length) {
+        html += '<div style="text-align:center;padding:20px 8px;color:#ccc;font-size:11px;font-family:Montserrat,sans-serif">Sin clases<br>este día</div>';
+      } else {
+        dayClasses.forEach(function(h) {
+          var gc  = gradeColors[h.grade]||'#333';
+          var gbg = gradeBg[h.grade]||'#f5f5f5';
+          html += '<div style="background:'+gbg+';border:1px solid '+gc+'25;border-left:3px solid '+gc+';border-radius:6px;padding:8px 10px;margin-bottom:6px;position:relative">';
+          // Time
+          html += '<div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:800;color:'+gc+';margin-bottom:3px">';
+          html += '⏰ '+(h.start_time||'--').substring(0,5)+' — '+(h.end_time||'--').substring(0,5);
+          html += '</div>';
+          // Group info
+          html += '<div style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;color:#333">';
+          html += h.grade+'° Grupo '+h.group_name;
+          html += '</div>';
+          html += '<div style="font-size:10px;color:var(--gray)">';
+          html += (h.shift==='matutino'?'Matutino':'Vespertino');
+          html += '</div>';
+          // Delete button
+          html += '<button data-hid="'+h.id+'" data-tid="'+teacherId+'" data-tname="'+encodeURIComponent(dn)+'" onclick="eliminarClase(this.dataset.hid,this.dataset.tid,this.dataset.tname)" ';
+          html += 'style="position:absolute;top:6px;right:6px;background:none;border:none;color:#ddd;font-size:14px;cursor:pointer;line-height:1;padding:2px">×</button>';
+          html += '</div>';
+        });
+      }
+      // Add class button for this day
+      html += '<button data-day="'+d+'" data-tid="'+teacherId+'" data-tname="'+encodeURIComponent(dn)+'" onclick="agregarClaseDia(this.dataset.day,this.dataset.tid,this.dataset.tname)" ';
+      html += 'style="width:100%;padding:5px;background:none;border:1px dashed rgba(2,193,244,.3);border-radius:5px;color:var(--blue);font-size:11px;cursor:pointer;margin-top:4px">+ Clase</button>';
+      html += '</div></div>';
+    });
+    html += '</div>';
+
+    // List view below
+    if(scheds.length) {
+      html += '<div style="border-top:1px solid #f0f0f0;padding-top:16px">';
+      html += '<div style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">Lista completa</div>';
+      html += '<table class="t"><thead><tr><th style="padding:8px 12px">Día</th><th>Entrada</th><th>Salida</th><th>Grado</th><th>Grupo</th><th>Turno</th><th></th></tr></thead><tbody>';
+      scheds.forEach(function(h) {
+        html += '<tr>';
+        html += '<td style="padding:8px 12px;font-family:Montserrat,sans-serif;font-weight:700">'+(DIAS[h.day_of_week]||h.day_of_week)+'</td>';
+        html += '<td style="font-family:Montserrat,sans-serif;font-size:13px;font-weight:800;color:var(--green)">'+(h.start_time||'--').substring(0,5)+'</td>';
+        html += '<td style="font-family:Montserrat,sans-serif;font-size:13px;font-weight:800;color:var(--red-dark)">'+(h.end_time||'--').substring(0,5)+'</td>';
+        html += '<td style="font-weight:700;color:'+(gradeColors[h.grade]||'#333')+'">'+(h.grade?h.grade+'°':'—')+'</td>';
+        html += '<td style="font-size:12px">'+(h.group_name||'—')+'</td>';
+        html += '<td>'+bdg(h.shift==='matutino'?'Mat':'Vesp',h.shift==='matutino'?'b-blue':'b-gray')+'</td>';
+        html += '<td><button data-hid="'+h.id+'" data-tid="'+teacherId+'" data-tname="'+encodeURIComponent(dn)+'" onclick="eliminarClase(this.dataset.hid,this.dataset.tid,this.dataset.tname)" style="background:#fff5f5;border:1px solid rgba(224,53,53,.2);color:var(--red-dark);padding:3px 8px;border-radius:5px;font-size:10px;cursor:pointer">Eliminar</button></td>';
+        html += '</tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+
+    c.innerHTML = html;
+  });
+}
+
+function abrirAgregarClase(teacherId, nombre) {
+  agregarClaseDia(null, teacherId, nombre);
+}
+
+function agregarClaseDia(preDay, teacherId, nombre) {
+  var dn = decodeURIComponent(nombre);
+  var ex = document.getElementById('m-add-clase'); if(ex) ex.remove();
+  var modal = document.createElement('div');
+  modal.id = 'm-add-clase';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9000;display:flex;align-items:center;justify-content:center';
+
+  // Get teacher's groups for the select
+  DB.from('teacher_assignments').select('*,groups(id,grade,group_name,shift)').eq('teacher_id',teacherId).eq('active',true).then(function(r) {
+    var assignments = r.data || [];
+    var groupOpts = assignments.map(function(a) {
+      var g = a.groups; if(!g) return '';
+      return '<option value="'+g.grade+'|'+g.group_name+'|'+g.shift+'">'+g.grade+'° Grupo '+g.group_name+' ('+g.shift+')</option>';
+    }).join('');
+
+    modal.innerHTML = '<div style="background:#fff;border-radius:14px;padding:28px;width:480px;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
+      +'<div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700;margin-bottom:6px">Agregar clase al horario</div>'
+      +'<div style="font-size:12px;color:var(--gray);margin-bottom:20px">'+dn+'</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">'
+      +'<div><label class="_lbl">Día</label><select id="nc-dia" class="_inp">'
+      +'<option value="1"'+(preDay==1?' selected':'')+'>Lunes</option>'
+      +'<option value="2"'+(preDay==2?' selected':'')+'>Martes</option>'
+      +'<option value="3"'+(preDay==3?' selected':'')+'>Miércoles</option>'
+      +'<option value="4"'+(preDay==4?' selected':'')+'>Jueves</option>'
+      +'<option value="5"'+(preDay==5?' selected':'')+'>Viernes</option>'
+      +'</select></div>'
+      +'<div><label class="_lbl">Grupo</label><select id="nc-group" class="_inp">'+(groupOpts||'<option>Sin grupos asignados</option>')+'</select></div>'
+      +'</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">'
+      +'<div><label class="_lbl">Hora entrada</label><input id="nc-ini" type="time" value="08:00" class="_inp" style="font-size:16px;font-weight:700;color:var(--green)"></div>'
+      +'<div><label class="_lbl">Hora salida</label><input id="nc-fin" type="time" value="09:00" class="_inp" style="font-size:16px;font-weight:700;color:var(--red-dark)"></div>'
+      +'</div>'
+      +'<div style="display:flex;gap:10px;justify-content:flex-end">'
+      +'<button onclick="document.getElementById(\'m-add-clase\').remove()" class="_bg">Cancelar</button>'
+      +'<button onclick="guardarClaseHorario(\''+teacherId+'\',\''+encodeURIComponent(dn)+'\')" class="_bp">Guardar clase</button>'
+      +'</div></div>';
+    document.body.appendChild(modal);
+  });
+}
+
+function guardarClaseHorario(teacherId, nombre) {
+  var dia   = parseInt(document.getElementById('nc-dia').value);
+  var gval  = document.getElementById('nc-group').value.split('|');
+  var grade = parseInt(gval[0]);
+  var gname = gval[1];
+  var shift = gval[2];
+  var ini   = document.getElementById('nc-ini').value;
+  var fin   = document.getElementById('nc-fin').value;
+
+  if(!ini||!fin||!gname) { toast('Completa todos los campos',true); return; }
+
+  var school = SCHOOLS.find(function(s){ return s.id===(PROFILE&&PROFILE.school_id); })||SCHOOLS[0];
+
+  DB.from('schedules').insert({
+    school_id:  school?school.id:null,
+    teacher_id: teacherId,
+    day_of_week:dia,
+    start_time: ini,
+    end_time:   fin,
+    grade:      grade,
+    group_name: gname,
+    shift:      shift,
+    active:     true
+  }).then(function(r) {
+    if(r.error){ toast('Error: '+r.error.message,true); return; }
+    var ex = document.getElementById('m-add-clase'); if(ex) ex.remove();
+    toast('Clase agregada');
+    cargarHorario(teacherId, decodeURIComponent(nombre));
+  });
+}
+
+function eliminarClase(hid, teacherId, nombre) {
+  DB.from('schedules').update({active:false}).eq('id',hid).then(function() {
+    toast('Clase eliminada');
+    cargarHorario(teacherId, decodeURIComponent(nombre));
+  });
+}
+
 </script>
 </body>
 </html>
