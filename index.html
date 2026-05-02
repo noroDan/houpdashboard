@@ -6720,6 +6720,375 @@ function eliminarClase(hid, teacherId, nombre) {
   });
 }
 
+// ═══════════════════════════════════════════════════════
+// PIPELINE DE INCIDENCIAS — Estilo Uber Eats
+// ═══════════════════════════════════════════════════════
+
+var PIPELINE_STEPS = [
+  {step:1, label:'Cancelada',           icon:'❌', color:'#c62828', who:'docente'},
+  {step:2, label:'En revision',         icon:'🔍', color:'#f57c00', who:'responsable'},
+  {step:3, label:'Contactando director',icon:'📞', color:'#1565c0', who:'responsable'},
+  {step:4, label:'Reagendada',          icon:'📅', color:'#7b1fa2', who:'responsable'},
+  {step:5, label:'Completada',          icon:'✅', color:'#2e7d32', who:'docente'}
+];
+
+// ── RESPONSABLE: Mis sesiones con pipeline completo ───
+function renderRespSesiones() {
+  var c = document.getElementById('s-resp-sesiones'); if(!c) return;
+  c.innerHTML = '<div style="padding:20px;color:#797979;font-family:Montserrat,sans-serif">Cargando...</div>';
+
+  DB.from('session_pipeline')
+    .select('*,session_logs(id,scheduled_date,postpone_reason,sessions(title,session_number),groups(grade,group_name,shift)),profiles!session_pipeline_teacher_id_fkey(full_name,email)')
+    .order('created_at',{ascending:false})
+    .then(function(r) {
+      var pipelines = r.data || [];
+
+      var active   = pipelines.filter(function(p){ return p.pipeline_step < 5 && !p.escalated; });
+      var escalated= pipelines.filter(function(p){ return p.escalated; });
+      var done     = pipelines.filter(function(p){ return p.pipeline_step >= 5; });
+
+      var html = '';
+
+      if(active.length) {
+        html += '<div class="alert-red"><div class="alert-dot ad-red"></div>'
+          +'<div class="alert-txt"><strong>'+active.length+' incidencia'+(active.length>1?'s':'')+' activa'+(active.length>1?'s':'')+' requieren atención</strong></div></div>';
+      }
+
+      html += '<div class="stats-row">';
+      html += statCard(active.length,    'En proceso',    active.length?'c-amber':'');
+      html += statCard(escalated.length, 'Escaladas',     escalated.length?'c-red':'');
+      html += statCard(done.length,      'Completadas',   '');
+      html += statCard(pipelines.length, 'Total',         'c-blue');
+      html += '</div>';
+
+      if(!pipelines.length) {
+        html += '<div style="text-align:center;padding:60px;color:var(--gray)">';
+        html += '<div style="font-size:48px;margin-bottom:12px">✓</div>';
+        html += '<div style="font-family:Montserrat,sans-serif;font-size:15px;font-weight:700">Sin incidencias de sesiones</div>';
+        html += '<div style="font-size:12px;margin-top:6px">Todas las sesiones están en orden</div></div>';
+        c.innerHTML = html; return;
+      }
+
+      // Active pipelines first
+      if(active.length) {
+        html += '<div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">En proceso ('+active.length+')</div>';
+        active.forEach(function(p) { html += renderPipelineCard(p, true); });
+      }
+
+      // Escalated
+      if(escalated.length) {
+        html += '<div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:var(--red-dark);text-transform:uppercase;letter-spacing:.8px;margin:16px 0 10px">Escaladas ('+escalated.length+')</div>';
+        escalated.forEach(function(p) { html += renderPipelineCard(p, true); });
+      }
+
+      // Completed
+      if(done.length) {
+        html += '<div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.8px;margin:16px 0 10px">Completadas ('+done.length+')</div>';
+        done.forEach(function(p) { html += renderPipelineCard(p, false); });
+      }
+
+      c.innerHTML = html;
+    });
+}
+
+function renderPipelineCard(p, interactive) {
+  var sl  = p.session_logs;
+  var ses = sl && sl.sessions;
+  var g   = sl && sl.groups;
+  var doc = p.profiles;
+  var cur = p.pipeline_step || 1;
+  var gradeColors = {1:'var(--blue)',2:'var(--green)',3:'#9c27b0'};
+
+  var html = '<div style="border:1px solid rgba(0,0,0,.08);border-radius:12px;overflow:hidden;margin-bottom:14px;background:#fff">';
+
+  // Header
+  html += '<div style="padding:14px 16px;border-bottom:1px solid #f5f5f5;display:flex;align-items:flex-start;justify-content:space-between;gap:12px">';
+  html += '<div>';
+  if(g) html += '<div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:'+(gradeColors[g.grade]||'var(--blue)')+';margin-bottom:3px">'+g.grade+'° Grupo '+g.group_name+' ('+(g.shift==='matutino'?'Matutino':'Vespertino')+')</div>';
+  html += '<div style="font-family:Montserrat,sans-serif;font-size:14px;font-weight:800;margin-bottom:3px">'+(ses?'S'+ses.session_number+': '+ses.title:'Sesión')+'</div>';
+  html += '<div style="font-size:11px;color:var(--gray)">Docente: '+(doc?doc.full_name||doc.email:'—')+'</div>';
+  if(sl&&sl.postpone_reason) html += '<div style="font-size:11px;color:var(--amber);margin-top:3px">Motivo: '+sl.postpone_reason+'</div>';
+  if(sl&&sl.scheduled_date) html += '<div style="font-size:11px;color:var(--gray)">Fecha original: '+fmt(sl.scheduled_date)+'</div>';
+  html += '</div>';
+  if(p.escalated) html += '<div style="background:#fff5f5;border:1px solid rgba(224,53,53,.2);border-radius:6px;padding:4px 10px;font-size:11px;font-family:Montserrat,sans-serif;font-weight:700;color:var(--red-dark)">🚨 Escalada</div>';
+  else html += '<div style="background:rgba(2,193,244,.08);border-radius:6px;padding:4px 10px;font-size:11px;font-family:Montserrat,sans-serif;font-weight:700;color:var(--blue)">Paso '+cur+'/5</div>';
+  html += '</div>';
+
+  // Pipeline stepper - Uber Eats style
+  html += '<div style="padding:16px;border-bottom:1px solid #f5f5f5">';
+  html += '<div style="display:flex;align-items:center;position:relative">';
+
+  // Progress line behind steps
+  html += '<div style="position:absolute;top:15px;left:0;right:0;height:3px;background:#f0f0f0;z-index:0"></div>';
+  var progressPct = ((cur-1)/4*100);
+  html += '<div style="position:absolute;top:15px;left:0;width:'+progressPct+'%;height:3px;background:linear-gradient(to right,#43a047,#02c1f4);z-index:1;transition:width .4s ease"></div>';
+
+  PIPELINE_STEPS.forEach(function(step) {
+    var isDone    = cur > step.step;
+    var isCurrent = cur === step.step;
+    var isPending = cur < step.step;
+    var col = isDone ? '#43a047' : isCurrent ? step.color : '#ccc';
+
+    html += '<div style="display:flex;flex-direction:column;align-items:center;flex:1;position:relative;z-index:2">';
+    html += '<div style="width:34px;height:34px;border-radius:50%;background:'+(isDone?'#43a047':isCurrent?step.color:'#f0f0f0')+';display:flex;align-items:center;justify-content:center;font-size:'+(isDone?'16px':'13px')+';border:3px solid '+(isCurrent?step.color:isDone?'#43a047':'#e0e0e0')+';box-shadow:'+(isCurrent?'0 0 0 4px '+step.color+'25':'none')+';transition:all .3s">';
+    html += isDone ? '✓' : (isCurrent ? step.icon : (step.step));
+    html += '</div>';
+    html += '<div style="font-family:Montserrat,sans-serif;font-size:9px;font-weight:'+(isCurrent?'700':'600')+';color:'+col+';text-align:center;margin-top:5px;line-height:1.2;max-width:70px">'+step.label+'</div>';
+    if(isCurrent) html += '<div style="font-size:8px;color:'+step.color+';font-family:Montserrat,sans-serif;font-weight:600;margin-top:2px">'+(step.who==='responsable'?'Tu turno':'Docente')+'</div>';
+    html += '</div>';
+  });
+  html += '</div></div>';
+
+  // Notes if any
+  if(p.contact_notes) {
+    html += '<div style="padding:10px 16px;background:#f8f9fa;border-bottom:1px solid #f0f0f0;font-size:11px;color:var(--gray)">'+p.contact_notes+'</div>';
+  }
+  if(p.new_session_date && cur >= 4) {
+    html += '<div style="padding:10px 16px;background:rgba(67,160,71,.06);border-bottom:1px solid #f0f0f0;font-size:12px;font-weight:600;color:var(--green)">📅 Nueva fecha: '+fmt(p.new_session_date)+'</div>';
+  }
+
+  // Action area
+  if(interactive && !p.escalated && cur < 5) {
+    html += '<div style="padding:14px 16px;background:#fafafa">';
+    var curStep = PIPELINE_STEPS.find(function(s){ return s.step===cur; });
+    html += '<div style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">Siguiente acción</div>';
+
+    // Notes input
+    html += '<input type="text" id="notes-'+p.id+'" placeholder="Notas (opcional)..." style="width:100%;padding:8px 12px;border:1px solid rgba(0,0,0,.12);border-radius:6px;font-size:12px;margin-bottom:10px;box-sizing:border-box;font-family:Montserrat,sans-serif;outline:none">';
+
+    // Date input for step 4
+    if(cur === 3) {
+      html += '<input type="date" id="date-'+p.id+'" style="width:100%;padding:8px 12px;border:1px solid rgba(0,0,0,.12);border-radius:6px;font-size:12px;margin-bottom:10px;box-sizing:border-box;font-family:Montserrat,sans-serif;outline:none">';
+    }
+
+    html += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
+    // Advance button
+    var nextStep = PIPELINE_STEPS.find(function(s){ return s.step===cur+1; });
+    if(nextStep) {
+      html += '<button data-pid="'+p.id+'" data-cur="'+cur+'" data-lid="'+(sl?sl.id:'')+'" onclick="avanzarPipeline(this.dataset.pid,parseInt(this.dataset.cur),this.dataset.lid)" ';
+      html += 'style="background:'+curStep.color+';color:#fff;border:none;padding:9px 18px;border-radius:8px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;cursor:pointer">';
+      html += nextStep.icon+' Pasar a: '+nextStep.label+'</button>';
+    }
+    // Escalate
+    if(cur >= 2) {
+      html += '<button data-pid="'+p.id+'" onclick="escalarPipeline(this.dataset.pid)" ';
+      html += 'style="background:#fff5f5;border:1px solid rgba(224,53,53,.25);color:var(--red-dark);padding:9px 16px;border-radius:8px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:600;cursor:pointer">';
+      html += '🚨 Escalar a Houp</button>';
+    }
+    html += '</div></div>';
+  }
+
+  if(cur >= 5) {
+    html += '<div style="padding:12px 16px;background:rgba(67,160,71,.06);display:flex;align-items:center;gap:8px">';
+    html += '<span style="font-size:20px">✅</span>';
+    html += '<div style="font-size:12px;font-weight:600;color:var(--green);font-family:Montserrat,sans-serif">Incidencia resuelta'+(p.new_session_date?' · Clase recuperada el '+fmt(p.new_session_date):'')+'</div>';
+    html += '</div>';
+  }
+
+  html += '</div>';
+  return html;
+}
+
+function avanzarPipeline(pipeId, currentStep, logId) {
+  var notes   = (document.getElementById('notes-'+pipeId) && document.getElementById('notes-'+pipeId).value) || '';
+  var dateEl  = document.getElementById('date-'+pipeId);
+  var newDate = dateEl ? dateEl.value : null;
+  var nextStep = currentStep + 1;
+  var nextLabel = PIPELINE_STEPS.find(function(s){ return s.step===nextStep; });
+
+  var upd = {
+    pipeline_step: nextStep,
+    step_label:    nextLabel ? nextLabel.label : '',
+    acted_by:      ME.id,
+    acted_at:      new Date().toISOString()
+  };
+  if(notes) upd.contact_notes = notes;
+  if(newDate) upd.new_session_date = newDate;
+  if(nextStep === 5) upd.status = 'success';
+
+  var promises = [DB.from('session_pipeline').update(upd).eq('id',pipeId)];
+
+  // If step 4 (reagendada) - update the session log
+  if(nextStep === 4 && newDate && logId) {
+    promises.push(DB.from('session_logs').update({
+      status:'pending',
+      scheduled_date:newDate,
+      rescheduled_date:newDate,
+      updated_at:new Date().toISOString()
+    }).eq('id',logId));
+  }
+  // If step 5 - mark pipeline complete
+  if(nextStep === 5) {
+    promises.push(DB.from('alerts').update({is_active:false}).eq('data->>session_log_id', logId));
+  }
+
+  Promise.all(promises).then(function() {
+    toast('Paso actualizado: '+( nextLabel?nextLabel.label:''));
+    renderRespSesiones();
+  });
+}
+
+function escalarPipeline(pipeId) {
+  var notes = (document.getElementById('notes-'+pipeId) && document.getElementById('notes-'+pipeId).value) || 'Sin resolución posible a nivel escuela';
+  DB.from('session_pipeline').update({
+    escalated:     true,
+    status:        'escalated',
+    contact_notes: notes,
+    acted_by:      ME.id,
+    acted_at:      new Date().toISOString()
+  }).eq('id',pipeId).then(function() {
+    toast('Caso escalado al equipo Houp');
+    renderRespSesiones();
+  });
+}
+
+// ── DOCENTE: Incidencias con contexto y pipeline ──────
+function renderDocIncidencias() {
+  var c = document.getElementById('s-doc-incidencias'); if(!c) return;
+  c.innerHTML = '<div style="padding:20px;color:#797979;font-family:Montserrat,sans-serif">Cargando...</div>';
+
+  Promise.all([
+    DB.from('teacher_assignments').select('*,groups(id,grade,group_name,shift)').eq('teacher_id',ME.id).eq('active',true),
+    DB.from('incidents').select('*,schools(name)').eq('teacher_id',ME.id).order('created_at',{ascending:false}),
+    DB.from('session_pipeline')
+      .select('*,session_logs(id,scheduled_date,postpone_reason,sessions(title,session_number),groups(grade,group_name,shift))')
+      .eq('teacher_id',ME.id)
+      .order('created_at',{ascending:false})
+  ]).then(function(results) {
+    var assignments = results[0].data || [];
+    var incs        = results[1].data || [];
+    var pipelines   = results[2].data || [];
+    var groupIds    = assignments.map(function(a){ return a.groups&&a.groups.id; }).filter(Boolean);
+
+    var activeP  = pipelines.filter(function(p){ return p.pipeline_step<5&&!p.escalated; });
+    var openIncs = incs.filter(function(i){ return !i.resolved_at; });
+
+    var html = '';
+    html += '<div class="stats-row">';
+    html += statCard(activeP.length,  'Sesiones en pipeline', activeP.length?'c-amber':'');
+    html += statCard(openIncs.length, 'Incidencias abiertas', openIncs.length?'c-red':'');
+    html += statCard(incs.filter(function(i){return i.resolved_at;}).length, 'Resueltas','');
+    html += statCard(pipelines.filter(function(p){return p.pipeline_step>=5;}).length,'Recuperadas','');
+    html += '</div>';
+
+    // Pipelines section
+    if(pipelines.length) {
+      html += '<div style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;color:#333;margin-bottom:10px;margin-top:4px">Pipeline de sesiones canceladas</div>';
+      pipelines.forEach(function(p) {
+        var sl  = p.session_logs;
+        var ses = sl&&sl.sessions;
+        var g   = sl&&sl.groups;
+        var cur = p.pipeline_step||1;
+        var gradeColors={1:'var(--blue)',2:'var(--green)',3:'#9c27b0'};
+
+        html += '<div style="border:1px solid rgba(0,0,0,.08);border-radius:12px;overflow:hidden;margin-bottom:12px;background:#fff">';
+        // Header
+        html += '<div style="padding:12px 14px;border-bottom:1px solid #f5f5f5">';
+        if(g) html += '<div style="font-family:Montserrat,sans-serif;font-size:10px;font-weight:700;color:'+(gradeColors[g.grade]||'var(--blue)')+';margin-bottom:3px">'+g.grade+'° Grupo '+g.group_name+'</div>';
+        html += '<div style="font-family:Montserrat,sans-serif;font-size:13px;font-weight:800">'+(ses?'S'+ses.session_number+': '+ses.title:'Sesión')+'</div>';
+        if(sl&&sl.postpone_reason) html += '<div style="font-size:11px;color:var(--amber);margin-top:2px">Motivo: '+sl.postpone_reason+'</div>';
+        if(sl&&sl.scheduled_date)  html += '<div style="font-size:11px;color:var(--gray)">Fecha original: '+fmt(sl.scheduled_date)+'</div>';
+        html += '</div>';
+
+        // Pipeline tracker
+        html += '<div style="padding:14px;background:#fafafa;border-bottom:1px solid #f0f0f0">';
+        html += '<div style="display:flex;align-items:center;position:relative">';
+        html += '<div style="position:absolute;top:15px;left:0;right:0;height:3px;background:#f0f0f0;z-index:0"></div>';
+        var pct2 = ((cur-1)/4*100);
+        html += '<div style="position:absolute;top:15px;left:0;width:'+pct2+'%;height:3px;background:linear-gradient(to right,#c62828,#43a047);z-index:1"></div>';
+
+        PIPELINE_STEPS.forEach(function(step) {
+          var isDone    = cur > step.step;
+          var isCurrent = cur === step.step;
+          var col = isDone?'#43a047':isCurrent?step.color:'#ccc';
+          html += '<div style="display:flex;flex-direction:column;align-items:center;flex:1;position:relative;z-index:2">';
+          html += '<div style="width:30px;height:30px;border-radius:50%;background:'+(isDone?'#43a047':isCurrent?step.color:'#f0f0f0')+';display:flex;align-items:center;justify-content:center;font-size:'+(isDone?'14px':'11px')+';border:2px solid '+(isCurrent?step.color:isDone?'#43a047':'#e0e0e0')+';">';
+          html += isDone?'✓':(isCurrent?step.icon:step.step);
+          html += '</div>';
+          html += '<div style="font-family:Montserrat,sans-serif;font-size:8px;font-weight:'+(isCurrent?'700':'500')+';color:'+col+';text-align:center;margin-top:4px;max-width:60px;line-height:1.2">'+step.label+'</div>';
+          html += '</div>';
+        });
+        html += '</div></div>';
+
+        // Current status message
+        var curStep = PIPELINE_STEPS.find(function(s){return s.step===cur;});
+        var statusMsg = {
+          1:'Tu responsable ha sido notificado y revisará la situación.',
+          2:'El responsable está revisando tu caso.',
+          3:'El responsable está coordinando con el director para reagendar.',
+          4:'Se ha confirmado una nueva fecha para tu sesión.',
+          5:'¡La sesión ha sido recuperada exitosamente!'
+        };
+        var statusColor = cur>=5?'var(--green)':cur===1?'var(--amber)':'var(--blue)';
+
+        html += '<div style="padding:10px 14px;background:'+statusColor+'08;border-left:3px solid '+statusColor+'">';
+        html += '<div style="font-size:11px;font-weight:600;color:'+statusColor+';font-family:Montserrat,sans-serif">'+(curStep?curStep.icon+' '+curStep.label:'')+'</div>';
+        html += '<div style="font-size:11px;color:var(--gray);margin-top:2px">'+(statusMsg[cur]||'')+'</div>';
+        if(p.contact_notes) html += '<div style="font-size:11px;color:#555;margin-top:4px;font-style:italic">Nota: '+p.contact_notes+'</div>';
+        if(p.new_session_date) html += '<div style="font-size:11px;color:var(--green);font-weight:600;margin-top:4px">📅 Nueva fecha confirmada: '+fmt(p.new_session_date)+'</div>';
+        html += '</div>';
+
+        // Docente action: step 5 (confirm class done)
+        if(cur===4 && !p.escalated) {
+          html += '<div style="padding:10px 14px;background:#f0fff4">';
+          html += '<div style="font-size:11px;font-weight:600;margin-bottom:6px;font-family:Montserrat,sans-serif">¿Ya impartiste la sesión recuperada?</div>';
+          html += '<button data-pid="'+p.id+'" data-lid="'+(sl?sl.id:'')+'" onclick="confirmarClaseDocente(this.dataset.pid,this.dataset.lid)" style="background:var(--green);color:#fff;border:none;padding:8px 18px;border-radius:8px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;cursor:pointer">✅ Confirmar sesión completada</button>';
+          html += '</div>';
+        }
+
+        if(p.escalated) {
+          html += '<div style="padding:10px 14px;background:#fff5f5;font-size:11px;color:var(--red-dark);font-weight:600">🚨 Caso escalado al equipo Houp — ellos te contactarán pronto.</div>';
+        }
+
+        html += '</div>';
+      });
+    }
+
+    // Regular incidents
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 10px">';
+    html += '<div style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;color:#333">Otras incidencias</div>';
+    html += '<button onclick="abrirIncidenciaDoc()" class="btn-p" style="font-size:11px">+ Nueva</button></div>';
+
+    if(!incs.length) {
+      html += '<div style="font-size:12px;color:var(--gray);font-style:italic;padding:12px 0">Sin incidencias registradas</div>';
+    } else {
+      incs.forEach(function(i) {
+        html += '<div style="border:1px solid rgba(0,0,0,.06);border-radius:8px;padding:12px 14px;margin-bottom:8px">';
+        html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">';
+        html += bdg(INC_LBL[i.type]||i.type,'b-amber');
+        html += '<span style="font-size:11px;color:var(--gray)">'+fmt(i.incident_date)+'</span>';
+        html += '<div style="margin-left:auto">'+bdg(i.resolved_at?'Resuelta':'Abierta',i.resolved_at?'b-green':'b-red')+'</div>';
+        html += '</div>';
+        html += '<div style="font-size:12px;font-weight:500">'+i.reason+'</div>';
+        if(i.schools) html += '<div style="font-size:11px;color:var(--gray);margin-top:3px">'+i.schools.name+'</div>';
+        if(i.resolved_at&&i.resolution) html += '<div style="font-size:11px;color:var(--green);margin-top:4px">✓ '+i.resolution+'</div>';
+        html += '</div>';
+      });
+    }
+
+    c.innerHTML = html;
+  });
+}
+
+function confirmarClaseDocente(pipeId, logId) {
+  Promise.all([
+    DB.from('session_pipeline').update({
+      pipeline_step:5,
+      step_label:'Completada',
+      status:'success',
+      acted_by:ME.id,
+      acted_at:new Date().toISOString()
+    }).eq('id',pipeId),
+    DB.from('session_logs').update({
+      status:'completed',
+      updated_at:new Date().toISOString()
+    }).eq('id',logId)
+  ]).then(function() {
+    toast('¡Sesión marcada como completada!');
+    renderDocIncidencias();
+  });
+}
+
 </script>
 </body>
 </html>
