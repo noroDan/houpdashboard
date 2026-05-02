@@ -1138,10 +1138,13 @@ function showNav(role) {
 
 // ── Boot ──────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function(){
+  console.log('DOM loaded');
   injectUI();
   DB.auth.getSession().then(function(r){
+    console.log('session:', r.data && r.data.session ? 'found' : 'none', r.error);
     var s = r.data && r.data.session;
     if(s && s.user) initApp(s.user);
+    else console.log('No session - showing login');
   });
 });
 
@@ -1160,8 +1163,10 @@ function doLogin() {
 }
 
 function initApp(user) {
+  console.log('initApp called', user.email);
   ME = user;
   DB.from('profiles').select('*').eq('id',user.id).single().then(function(r){
+    console.log('profile result', r.data, r.error);
     PROFILE = r.data || {id:user.id, email:user.email, full_name:user.email.split('@')[0], role:'admin_houp', school_id:null};
     if(!r.data) DB.from('profiles').upsert(PROFILE);
     var ov = document.getElementById('ov-login'); if(ov) ov.remove();
@@ -1175,6 +1180,9 @@ function initApp(user) {
       DB.from('courses').select('*').order('grade'),
       DB.from('sessions').select('*,modules(name,number)').order('session_number')
     ]).then(function(results){
+      if(results[0].error){console.error('Schools error:',results[0].error);}
+      if(results[1].error){console.error('Courses error:',results[1].error);}
+      if(results[2].error){console.error('Sessions error:',results[2].error);}
       var today = new Date();
       SCHOOLS = (results[0].data||[]).map(function(s){
         s.dias_atraso = s.last_session_date ? Math.floor((today-new Date(s.last_session_date))/864e5) : 999;
