@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Houp v4 — Plataforma de Bienestar Socioemocional</title>
+<title>Houp — Plataforma de Bienestar Socioemocional</title>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -526,6 +526,15 @@
       <svg class="nav-ico" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="7" r="4"/><path d="M1 21v-2a6 6 0 0112 0v2"/><circle cx="19" cy="7" r="3"/><path d="M23 21v-2a5 5 0 00-4-4.9"/></svg>
       Mi equipo
     </div>
+    <div class="nav-item" onclick="nav(this,'s-resp-seguimiento')">
+      <svg class="nav-ico" viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h18v18H3zM3 9h18M9 21V9"/></svg>
+      Seguimiento
+    </div>
+    <div class="nav-item" onclick="nav(this,'s-resp-solicitudes')">
+      <svg class="nav-ico" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+      Solicitudes
+      <span class="nav-badge nb-blue" id="badge-resp-solicitudes">0</span>
+    </div>
   </div>
 
   <!-- NAV DOCENTE -->
@@ -945,6 +954,8 @@
     </div>
 
     <!-- ══ DOCENTE HOME ══ -->
+    <div class="screen" id="s-resp-seguimiento"></div>
+    <div class="screen" id="s-resp-solicitudes"></div>
     <div class="screen" id="s-doc-home">
       <div class="alert-blue"><div class="alert-dot ad-blue"></div><div class="alert-txt">Tu próxima clase es el <strong>martes 4 de mayo</strong> — Sesión 9, Módulo 02: Gestión emocional. Prepara tu planeación antes del lunes.</div></div>
       <div class="two-col">
@@ -5934,6 +5945,490 @@ function filterRubricaRows() {
   });
 }
 applyRubricaFilter=filterRubricaRows;
+
+// ═══════════════════════════════════════════════════════
+// RESPONSABLE — Pantallas completas
+// ═══════════════════════════════════════════════════════
+
+// Wire new screens
+var _navResp = nav;
+nav = function(el, screenId) {
+  _navResp(el, screenId);
+  if(screenId === 's-resp-seguimiento') renderRespSeguimiento();
+  if(screenId === 's-resp-solicitudes') renderRespSolicitudes();
+};
+
+// ── MI PANEL — Panel principal del responsable ────────
+function renderRespHome() {
+  var c = document.getElementById('s-resp-home'); if(!c) return;
+  c.innerHTML = '<div style="padding:20px;color:#797979;font-family:Montserrat,sans-serif">Cargando...</div>';
+
+  var mySchoolId = PROFILE && PROFILE.school_id;
+
+  Promise.all([
+    DB.from('profiles').select('*').eq('role','docente').eq('active',true).order('full_name'),
+    DB.from('teacher_assignments').select('*,groups(id,grade,group_name,shift)').eq('active',true),
+    DB.from('session_logs').select('group_id,status,scheduled_date,teacher_id'),
+    DB.from('incidents').select('*').is('resolved_at',null).order('created_at',{ascending:false}),
+    DB.from('manual_requests').select('*,profiles(full_name),groups(grade,group_name)').eq('status','requested').order('created_at',{ascending:false})
+  ]).then(function(results) {
+    var teachers    = results[0].data || [];
+    var assignments = results[1].data || [];
+    var logs        = results[2].data || [];
+    var openIncs    = results[3].data || [];
+    var matReqs     = results[4].data || [];
+
+    var today = new Date();
+
+    // Global stats
+    var totalLogs  = logs.length;
+    var doneLogs   = logs.filter(function(l){ return l.status==='completed'; }).length;
+    var postLogs   = logs.filter(function(l){ return l.status==='postponed'; }).length;
+    var atrasadas  = logs.filter(function(l){
+      return l.status==='pending' && l.scheduled_date && new Date(l.scheduled_date) < today;
+    }).length;
+
+    var html = '';
+
+    // Critical alerts banner
+    if(openIncs.length > 3) {
+      html += '<div class="alert-red"><div class="alert-dot ad-red"></div>'
+        + '<div class="alert-txt"><strong>' + openIncs.length + ' incidencias sin resolver</strong> — Requieren atención inmediata.</div></div>';
+    }
+    if(atrasadas > 5) {
+      html += '<div class="alert-blue"><div class="alert-dot ad-blue"></div>'
+        + '<div class="alert-txt"><strong>' + atrasadas + ' sesiones atrasadas</strong> — Sesiones pendientes con fecha vencida.</div></div>';
+    }
+
+    // KPI row
+    html += '<div class="stats-row">';
+    html += statCard(pct(doneLogs,totalLogs)+'%', 'Avance de la escuela', 'c-blue');
+    html += statCard(atrasadas, 'Sesiones atrasadas', atrasadas>0?'c-red':'');
+    html += statCard(openIncs.length, 'Incidencias activas', openIncs.length>0?'c-amber':'');
+    html += statCard(matReqs.length, 'Solicitudes pendientes', matReqs.length>0?'c-blue':'');
+    html += '</div>';
+
+    // Progress bar
+    var p = pct(doneLogs, totalLogs);
+    html += '<div class="card" style="margin-bottom:14px">';
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:8px">';
+    html += '<div class="card-title">Avance general del ciclo</div>';
+    html += '<div style="font-family:Montserrat,sans-serif;font-size:22px;font-weight:800;color:var(--blue)">'+p+'%</div></div>';
+    html += progressBar(p, '#02c1f4', 10);
+    html += '<div style="display:flex;justify-content:space-between;margin-top:5px;font-size:11px;color:var(--gray)">';
+    html += '<span>'+doneLogs+' completadas · '+postLogs+' pospuestas · '+atrasadas+' atrasadas</span>';
+    html += '<span>'+totalLogs+' sesiones totales</span></div></div>';
+
+    html += '<div class="two-col">';
+
+    // LEFT: Teacher table (core visual)
+    html += '<div class="card" style="padding:0;overflow:hidden">';
+    html += '<div style="padding:12px 16px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">';
+    html += '<div><div class="card-title">Estado del equipo docente</div>';
+    html += '<div class="card-sub">'+teachers.length+' docentes · Click para ver timeline</div></div>';
+    html += '<button onclick="abrirNuevoDocente()" class="btn-p" style="font-size:11px">+ Agregar</button></div>';
+
+    if(!teachers.length) {
+      html += '<div style="text-align:center;padding:40px;color:var(--gray)">Sin docentes registrados</div>';
+    } else {
+      html += '<table class="t"><thead><tr>';
+      html += '<th style="padding:9px 14px">Docente</th>';
+      html += '<th style="min-width:100px">Avance</th>';
+      html += '<th style="text-align:center">Complet.</th>';
+      html += '<th style="text-align:center">Pospues.</th>';
+      html += '<th style="text-align:center">Incidenc.</th>';
+      html += '<th style="text-align:center">Atrasad.</th>';
+      html += '<th>Estado</th><th></th>';
+      html += '</tr></thead><tbody>';
+
+      teachers.forEach(function(t) {
+        var tAssign  = assignments.filter(function(a){ return a.teacher_id===t.id; });
+        var groupIds = tAssign.map(function(a){ return a.groups&&a.groups.id; }).filter(Boolean);
+        var tLogs    = logs.filter(function(l){ return groupIds.indexOf(l.group_id)>-1; });
+        var tDone    = tLogs.filter(function(l){ return l.status==='completed'; }).length;
+        var tPost    = tLogs.filter(function(l){ return l.status==='postponed'; }).length;
+        var tTotal   = tLogs.length;
+        var tPct     = pct(tDone, tTotal);
+        var tIncs    = openIncs.filter(function(i){ return i.teacher_id===t.id; }).length;
+        var tAtras   = tLogs.filter(function(l){
+          return l.status==='pending' && l.scheduled_date && new Date(l.scheduled_date) < today;
+        }).length;
+        var tl = tPct>=80&&tPost<3&&tIncs===0 ? 'green' : tPct>=50||tPost>=3||tIncs>0 ? 'yellow' : 'red';
+        if(tAtras>=3) tl = 'red';
+        var ini = (t.full_name||t.email).split(' ').map(function(w){return w[0];}).join('').substring(0,2).toUpperCase();
+
+        html += '<tr style="cursor:pointer" onclick="verTimelineDocente(\''+t.id+'\',\''+encodeURIComponent(t.full_name||t.email)+'\')">';
+        html += '<td style="padding:9px 14px"><div style="display:flex;align-items:center;gap:8px">';
+        html += '<div style="width:30px;height:30px;border-radius:50%;background:rgba(2,193,244,.1);display:flex;align-items:center;justify-content:center;color:var(--blue);font-family:Montserrat,sans-serif;font-size:10px;font-weight:700;flex-shrink:0">'+ini+'</div>';
+        html += '<div style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:600">'+(t.full_name||t.email)+'</div></div></td>';
+        html += '<td style="min-width:100px"><div style="font-size:10px;margin-bottom:2px">'+tDone+'/'+tTotal+' ('+tPct+'%)</div>'+progressBar(tPct)+'</td>';
+        html += '<td style="text-align:center;font-family:Montserrat,sans-serif;font-size:13px;font-weight:700;color:var(--green)">'+tDone+'</td>';
+        html += '<td style="text-align:center;font-family:Montserrat,sans-serif;font-size:13px;font-weight:700;color:'+(tPost>0?'var(--amber)':'var(--gray)')+'">'+tPost+'</td>';
+        html += '<td style="text-align:center;font-family:Montserrat,sans-serif;font-size:13px;font-weight:700;color:'+(tIncs>0?'var(--red-dark)':'var(--gray)')+'">'+tIncs+'</td>';
+        html += '<td style="text-align:center;font-family:Montserrat,sans-serif;font-size:13px;font-weight:700;color:'+(tAtras>0?'var(--red-dark)':'var(--gray)')+'">'+tAtras+'</td>';
+        html += '<td>'+trafficBdg(tl)+'</td>';
+        html += '<td style="padding:8px 10px"><button onclick="event.stopPropagation();verTimelineDocente(\''+t.id+'\',\''+encodeURIComponent(t.full_name||t.email)+'\')" class="btn-g" style="font-size:10px;padding:4px 8px">Timeline</button></td>';
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+    }
+    html += '</div>';
+
+    // RIGHT: Alerts + Incidents
+    html += '<div>';
+
+    // Alertas operativas
+    html += '<div class="card" style="margin-bottom:12px"><div class="card-hd"><div>';
+    html += '<div class="card-title">Alertas operativas</div>';
+    html += '<div class="card-sub">Accionables</div></div></div>';
+
+    var alerts = [];
+    // Build alerts from data
+    teachers.forEach(function(t) {
+      var tAssign  = assignments.filter(function(a){ return a.teacher_id===t.id; });
+      var groupIds = tAssign.map(function(a){ return a.groups&&a.groups.id; }).filter(Boolean);
+      var tLogs    = logs.filter(function(l){ return groupIds.indexOf(l.group_id)>-1; });
+      var tPost    = tLogs.filter(function(l){ return l.status==='postponed'; }).length;
+      var tAtras   = tLogs.filter(function(l){
+        return l.status==='pending' && l.scheduled_date && new Date(l.scheduled_date) < today;
+      }).length;
+      var tIncs    = openIncs.filter(function(i){ return i.teacher_id===t.id; }).length;
+      var name     = t.full_name||t.email;
+
+      if(tPost >= 2) alerts.push({sev:'red', icon:'⏸', msg: name+': '+tPost+' sesiones pospuestas sin recuperar', tid:t.id, tname:encodeURIComponent(name)});
+      if(tAtras >= 2) alerts.push({sev:'red', icon:'📅', msg: name+': '+tAtras+' sesiones atrasadas', tid:t.id, tname:encodeURIComponent(name)});
+      if(tIncs > 0) alerts.push({sev:'yellow', icon:'⚠', msg: name+': '+tIncs+' incidencia'+(tIncs>1?'s':'')+' sin resolver', tid:t.id, tname:encodeURIComponent(name)});
+    });
+    if(matReqs.length) alerts.push({sev:'blue', icon:'📚', msg: matReqs.length+' solicitud'+(matReqs.length>1?'es':'')+' de material pendiente'+(matReqs.length>1?'s':''), tid:null, tname:null, action:'solicitudes'});
+
+    if(!alerts.length) {
+      html += '<div style="text-align:center;padding:20px;color:var(--gray)"><div style="font-size:24px;margin-bottom:6px">✓</div><div style="font-size:12px;font-weight:600">Todo en orden</div></div>';
+    } else {
+      var sevColor = {red:'var(--red-dark)', yellow:'var(--amber)', blue:'var(--blue)'};
+      var sevBg    = {red:'var(--red-light)', yellow:'var(--amber-light)', blue:'var(--blue-light)'};
+      alerts.forEach(function(a) {
+        html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:'+sevBg[a.sev]+';border-radius:8px;margin-bottom:6px;border-left:3px solid '+sevColor[a.sev]+'">';
+        html += '<span style="font-size:16px">'+a.icon+'</span>';
+        html += '<div style="flex:1;font-size:12px;font-weight:600;color:'+sevColor[a.sev]+'">'+a.msg+'</div>';
+        if(a.tid) html += '<button onclick="verTimelineDocente(\''+a.tid+'\',\''+a.tname+'\')" style="background:'+sevColor[a.sev]+';color:#fff;border:none;padding:4px 10px;border-radius:5px;font-size:10px;font-family:Montserrat,sans-serif;font-weight:600;cursor:pointer;flex-shrink:0">Ver</button>';
+        if(a.action==='solicitudes') html += '<button onclick="nav(null,\'s-resp-solicitudes\')" style="background:var(--blue);color:#fff;border:none;padding:4px 10px;border-radius:5px;font-size:10px;font-family:Montserrat,sans-serif;font-weight:600;cursor:pointer;flex-shrink:0">Gestionar</button>';
+        html += '</div>';
+      });
+    }
+    html += '</div>';
+
+    // Incidencias activas
+    html += '<div class="card"><div class="card-hd"><div>';
+    html += '<div class="card-title">Incidencias activas</div>';
+    html += '<div class="card-sub">'+openIncs.length+' sin resolver</div></div>';
+    html += '<button onclick="abrirIncidencia(null)" class="btn-g" style="font-size:11px">+ Nueva</button></div>';
+
+    if(!openIncs.length) {
+      html += '<div style="font-size:12px;color:var(--gray);font-style:italic">Sin incidencias abiertas</div>';
+    } else {
+      openIncs.slice(0,6).forEach(function(i) {
+        html += '<div style="padding:8px 0;border-bottom:1px solid #f5f5f5">';
+        html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">';
+        html += bdg(INC_LBL[i.type]||i.type, 'b-amber');
+        html += '<span style="font-size:11px;color:var(--gray)">'+fmt(i.incident_date)+'</span>';
+        html += '<button data-id="'+i.id+'" onclick="resolverIncidenciaResp(this.dataset.id)" style="margin-left:auto;background:var(--green-light);border:1px solid rgba(67,160,71,.3);color:var(--green);padding:3px 8px;border-radius:5px;font-size:10px;cursor:pointer;font-family:Montserrat,sans-serif;font-weight:600">Resolver</button>';
+        html += '</div>';
+        html += '<div style="font-size:12px">'+i.reason+'</div>';
+        html += '</div>';
+      });
+    }
+    html += '</div></div></div>';
+
+    c.innerHTML = html;
+  });
+}
+
+function resolverIncidenciaResp(id) {
+  DB.from('incidents').update({resolved_at:new Date().toISOString(), resolved_by:ME.id}).eq('id',id).then(function(){
+    toast('Incidencia resuelta');
+    renderRespHome();
+  });
+}
+
+// ── SEGUIMIENTO — Timeline por docente ────────────────
+function renderRespSeguimiento() {
+  var c = document.getElementById('s-resp-seguimiento'); if(!c) return;
+  c.innerHTML = '<div style="padding:20px;color:#797979;font-family:Montserrat,sans-serif">Cargando...</div>';
+
+  DB.from('profiles').select('*').eq('role','docente').eq('active',true).order('full_name').then(function(r) {
+    var teachers = r.data || [];
+    if(!teachers.length) {
+      c.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray)">Sin docentes registrados</div>';
+      return;
+    }
+
+    var html = '<div style="display:flex;gap:12px;align-items:center;margin-bottom:18px;background:#fff;padding:14px 18px;border-radius:10px;border:1px solid rgba(0,0,0,.06)">';
+    html += '<label style="font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;white-space:nowrap">Docente:</label>';
+    html += '<select id="seg-teacher" onchange="renderTimelineDocente(this.value,this.options[this.selectedIndex].text)" style="flex:1;padding:9px 12px;border:1.5px solid rgba(2,193,244,.35);border-radius:6px;font-size:13px;font-family:Montserrat,sans-serif;font-weight:600;outline:none">';
+    teachers.forEach(function(t) {
+      html += '<option value="'+t.id+'">'+(t.full_name||t.email)+'</option>';
+    });
+    html += '</select></div>';
+    html += '<div id="seg-content"></div>';
+    c.innerHTML = html;
+    if(teachers.length) renderTimelineDocente(teachers[0].id, teachers[0].full_name||teachers[0].email);
+  });
+}
+
+function renderTimelineDocente(teacherId, teacherName) {
+  var c = document.getElementById('seg-content'); if(!c) return;
+  c.innerHTML = '<div style="text-align:center;padding:20px;color:#797979;font-family:Montserrat,sans-serif">Cargando...</div>';
+
+  Promise.all([
+    DB.from('teacher_assignments').select('*,groups(id,grade,group_name,shift)').eq('teacher_id',teacherId).eq('active',true),
+    DB.from('session_logs').select('*,sessions(title,session_number,modules(name,number))').eq('teacher_id',teacherId).order('scheduled_date'),
+    DB.from('incidents').select('*').eq('teacher_id',teacherId).order('incident_date',{ascending:false}),
+    DB.from('manual_requests').select('*,groups(grade,group_name)').eq('requested_by',teacherId).order('created_at',{ascending:false})
+  ]).then(function(results) {
+    var assignments = results[0].data || [];
+    var logs        = results[1].data || [];
+    var incs        = results[2].data || [];
+    var matReqs     = results[3].data || [];
+
+    var done  = logs.filter(function(l){ return l.status==='completed'; }).length;
+    var post  = logs.filter(function(l){ return l.status==='postponed'; }).length;
+    var total = logs.length;
+    var today = new Date();
+    var atras = logs.filter(function(l){ return l.status==='pending'&&l.scheduled_date&&new Date(l.scheduled_date)<today; }).length;
+
+    var tl = done/total>=0.8&&post<3 ? 'green' : done/total>=0.5||post>=3 ? 'yellow' : 'red';
+
+    var html = '';
+
+    // Header stats
+    html += '<div class="card" style="margin-bottom:14px">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">';
+    html += '<div style="font-family:Montserrat,sans-serif;font-size:16px;font-weight:700">'+decodeURIComponent(teacherName)+'</div>';
+    html += trafficBdg(tl) + '</div>';
+    html += '<div class="stats-row">';
+    html += statCard(done+'/'+total, 'Sesiones', 'c-blue');
+    html += statCard(pct(done,total)+'%', 'Avance', '');
+    html += statCard(post, 'Pospuestas', post>0?'c-amber':'');
+    html += statCard(atras, 'Atrasadas', atras>0?'c-red':'');
+    html += '</div>';
+    html += '<div style="margin-top:10px">'+progressBar(pct(done,total), '#02c1f4', 8)+'</div></div>';
+
+    // A. Session timeline by group
+    html += '<div class="card" style="margin-bottom:14px"><div class="card-hd"><div>';
+    html += '<div class="card-title">A. Timeline de sesiones</div>';
+    html += '<div class="card-sub">Por grupo — click para cambiar estado</div></div></div>';
+
+    assignments.forEach(function(a) {
+      var g = a.groups; if(!g) return;
+      var gLogs = logs.filter(function(l){ return l.group_id===g.id; })
+        .sort(function(a,b){ return (a.sessions&&a.sessions.session_number||0)-(b.sessions&&b.sessions.session_number||0); });
+      if(!gLogs.length) return;
+      var gDone = gLogs.filter(function(l){ return l.status==='completed'; }).length;
+      var gradeColors = {1:'var(--blue)',2:'var(--green)',3:'#9c27b0'};
+
+      html += '<div style="margin-bottom:14px">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
+      html += '<div style="font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;color:'+(gradeColors[g.grade]||'var(--blue)')+'">'+g.grade+'° Grupo '+g.group_name+' ('+g.shift+')</div>';
+      html += '<span style="font-size:11px;color:var(--gray)">'+gDone+'/'+gLogs.length+'</span></div>';
+      html += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
+      gLogs.forEach(function(l) {
+        var s   = l.sessions;
+        var bg  = STATUS_CLR[l.status]||'#e8e8e8';
+        var col = l.status==='pending'?'#797979':'#fff';
+        var today2 = l.status==='pending'&&l.scheduled_date&&new Date(l.scheduled_date)<today;
+        html += '<div title="S'+(s?s.session_number:'?')+': '+(s?s.title:'')+' — '+fmt(l.scheduled_date)+' ('+l.status+')" ';
+        html += 'style="width:30px;height:30px;border-radius:6px;background:'+bg+';display:flex;align-items:center;justify-content:center;';
+        html += 'color:'+col+';font-size:10px;font-weight:700;cursor:default;';
+        if(today2) html += 'box-shadow:0 0 0 2px var(--red-dark);';
+        html += '">'+(s?s.session_number:'?')+'</div>';
+      });
+      html += '</div>';
+      // Legend for postponed
+      var pLogs = gLogs.filter(function(l){ return l.status==='postponed'; });
+      if(pLogs.length) {
+        pLogs.forEach(function(l) {
+          html += '<div style="font-size:11px;color:var(--amber);margin-top:4px">⏸ S'+(l.sessions?l.sessions.session_number:'?')+' pospuesta — '+fmt(l.scheduled_date);
+          if(l.postpone_reason) html += ' — '+l.postpone_reason;
+          html += '</div>';
+        });
+      }
+      html += '</div>';
+    });
+    html += '</div>';
+
+    // B. Incidents
+    html += '<div class="card" style="margin-bottom:14px"><div class="card-hd"><div>';
+    html += '<div class="card-title">B. Incidencias</div>';
+    html += '<div class="card-sub">'+incs.length+' registradas · '+incs.filter(function(i){return !i.resolved_at;}).length+' abiertas</div></div></div>';
+
+    if(!incs.length) {
+      html += '<div style="font-size:12px;color:var(--gray);font-style:italic">Sin incidencias registradas</div>';
+    } else {
+      html += '<table class="t"><thead><tr><th>Tipo</th><th>Descripcion</th><th>Fecha</th><th>Estado</th><th></th></tr></thead><tbody>';
+      incs.forEach(function(i) {
+        html += '<tr>';
+        html += '<td>'+bdg(INC_LBL[i.type]||i.type,'b-amber')+'</td>';
+        html += '<td style="font-size:12px">'+i.reason+'</td>';
+        html += '<td style="font-size:11px;color:var(--gray)">'+fmt(i.incident_date)+'</td>';
+        html += '<td>'+bdg(i.resolved_at?'Resuelta':'Abierta',i.resolved_at?'b-green':'b-red')+'</td>';
+        html += '<td>';
+        if(!i.resolved_at) html += '<button data-id="'+i.id+'" onclick="resolverIncidenciaResp(this.dataset.id)" style="background:var(--green-light);border:1px solid rgba(67,160,71,.3);color:var(--green);padding:3px 8px;border-radius:5px;font-size:10px;cursor:pointer">Resolver</button>';
+        html += '</td></tr>';
+      });
+      html += '</tbody></table>';
+    }
+    html += '</div>';
+
+    // C. Materials
+    html += '<div class="card"><div class="card-hd"><div>';
+    html += '<div class="card-title">C. Solicitudes de material</div>';
+    html += '<div class="card-sub">'+matReqs.length+' solicitudes · '+matReqs.filter(function(r){return r.status==='requested';}).length+' pendientes</div></div></div>';
+
+    if(!matReqs.length) {
+      html += '<div style="font-size:12px;color:var(--gray);font-style:italic">Sin solicitudes</div>';
+    } else {
+      matReqs.forEach(function(r) {
+        var g = r.groups;
+        var statusCol = {requested:'b-amber',approved:'b-blue',delivered:'b-green'};
+        var statusLbl = {requested:'Pendiente',approved:'Aprobada',delivered:'Entregada'};
+        html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f5f5f5">';
+        html += bdg(statusLbl[r.status]||r.status, statusCol[r.status]||'b-gray');
+        html += '<div style="flex:1"><div style="font-size:12px;font-weight:600">'+(g?g.grade+'° Grupo '+g.group_name:'—')+'</div>';
+        html += '<div style="font-size:11px;color:var(--gray)">'+r.quantity+' manual'+(r.quantity>1?'es':'')+' — '+r.reason+'</div></div>';
+        html += '<div style="font-size:11px;color:var(--gray)">'+fmt(r.created_at)+'</div>';
+        if(r.status==='requested') {
+          html += '<button data-id="'+r.id+'" onclick="approveManualResp(this.dataset.id)" style="background:var(--blue-light);border:1px solid rgba(2,193,244,.25);color:var(--blue);padding:4px 10px;border-radius:5px;font-size:10px;font-family:Montserrat,sans-serif;font-weight:600;cursor:pointer">Aprobar</button>';
+        }
+        if(r.status==='approved') {
+          html += '<button data-id="'+r.id+'" onclick="deliverManualResp(this.dataset.id)" style="background:var(--green-light);border:1px solid rgba(67,160,71,.25);color:var(--green);padding:4px 10px;border-radius:5px;font-size:10px;font-family:Montserrat,sans-serif;font-weight:600;cursor:pointer">Entregar</button>';
+        }
+        html += '</div>';
+      });
+    }
+    html += '</div>';
+
+    c.innerHTML = html;
+  });
+}
+
+function verTimelineDocente(teacherId, nombre) {
+  // Navigate to seguimiento tab and load this teacher
+  var navEl = document.getElementById('nav-responsable');
+  var item  = navEl && Array.from(navEl.querySelectorAll('.nav-item')).find(function(el){
+    return (el.getAttribute('onclick')||'').indexOf('s-resp-seguimiento') > -1;
+  });
+  nav(item, 's-resp-seguimiento');
+  // After render, select this teacher
+  setTimeout(function() {
+    var sel = document.getElementById('seg-teacher');
+    if(sel) { sel.value = teacherId; renderTimelineDocente(teacherId, nombre); }
+  }, 300);
+}
+
+// ── SOLICITUDES — Gestión de materiales ──────────────
+function renderRespSolicitudes() {
+  var c = document.getElementById('s-resp-solicitudes'); if(!c) return;
+  c.innerHTML = '<div style="padding:20px;color:#797979;font-family:Montserrat,sans-serif">Cargando...</div>';
+
+  DB.from('manual_requests')
+    .select('*,profiles(full_name,email),groups(grade,group_name,shift),schools(name)')
+    .order('created_at',{ascending:false})
+    .then(function(r) {
+      var reqs = r.data || [];
+      var pend = reqs.filter(function(x){ return x.status==='requested'; });
+      var appr = reqs.filter(function(x){ return x.status==='approved'; });
+      var delv = reqs.filter(function(x){ return x.status==='delivered'; });
+
+      var html = '';
+      if(pend.length) html += '<div class="alert-blue"><div class="alert-dot ad-blue"></div><div class="alert-txt"><strong>'+pend.length+' solicitud'+(pend.length>1?'es':'')+' pendiente'+(pend.length>1?'s':'')+' de aprobar.</strong></div></div>';
+
+      html += '<div class="stats-row">';
+      html += statCard(pend.length, 'Pendientes', pend.length?'c-blue':'');
+      html += statCard(appr.length, 'Aprobadas — por entregar', appr.length?'c-amber':'');
+      html += statCard(delv.length, 'Entregadas', '');
+      html += statCard(reqs.reduce(function(a,r){return a+(r.quantity||0);},0), 'Manuales totales', '');
+      html += '</div>';
+
+      // Tabs
+      html += '<div style="display:flex;gap:8px;margin-bottom:14px">';
+      ['requested','approved','delivered','all'].forEach(function(tab,i){
+        var labels={requested:'Pendientes ('+pend.length+')',approved:'Por entregar ('+appr.length+')',delivered:'Entregadas',all:'Todas'};
+        html += '<button id="sol-tab-'+tab+'" onclick="filterSolicitudes(\''+tab+'\')" style="padding:6px 14px;border-radius:6px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid '+(i===0?'var(--blue)':'rgba(0,0,0,.12)')+';background:'+(i===0?'var(--blue)':'#fff')+';color:'+(i===0?'#fff':'#555')+'">'+labels[tab]+'</button>';
+      });
+      html += '</div>';
+
+      html += '<div class="card" style="padding:0;overflow:hidden"><table class="t" id="sol-table"><thead><tr>';
+      html += '<th style="padding:10px 14px">Docente</th><th>Grupo</th><th>Material</th><th style="text-align:center">Cant.</th><th>Motivo</th><th>Fecha</th><th>Estado</th><th>Accion</th>';
+      html += '</tr></thead><tbody>';
+
+      reqs.forEach(function(r) {
+        var p=r.profiles, g=r.groups, s=r.schools;
+        var statusLbl={requested:'Pendiente',approved:'Aprobada',delivered:'Entregada',cancelled:'Cancelada'};
+        var statusBdg={requested:'b-amber',approved:'b-blue',delivered:'b-green',cancelled:'b-red'};
+        html += '<tr data-status="'+r.status+'">';
+        html += '<td style="padding:9px 14px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:600">'+(p?p.full_name||p.email:'—')+'</td>';
+        html += '<td style="font-size:12px">'+(g?g.grade+'° '+g.group_name+' ('+(g.shift==='matutino'?'Mat':'Vesp')+')':'—')+'</td>';
+        html += '<td style="font-size:12px">'+r.reason+'</td>';
+        html += '<td style="text-align:center;font-family:Montserrat,sans-serif;font-size:15px;font-weight:800;color:var(--blue)">'+r.quantity+'</td>';
+        html += '<td style="font-size:11px;color:var(--gray)">'+(r.notes||'—')+'</td>';
+        html += '<td style="font-size:11px;color:var(--gray)">'+fmt(r.created_at)+'</td>';
+        html += '<td>'+bdg(statusLbl[r.status]||r.status, statusBdg[r.status]||'b-gray')+'</td>';
+        html += '<td style="padding:8px 10px"><div style="display:flex;gap:4px">';
+        if(r.status==='requested') {
+          html += '<button data-id="'+r.id+'" onclick="approveManualResp(this.dataset.id)" style="background:var(--blue-light);border:1px solid rgba(2,193,244,.25);color:var(--blue);padding:4px 8px;border-radius:5px;font-size:10px;font-family:Montserrat,sans-serif;font-weight:600;cursor:pointer">Aprobar</button>';
+          html += '<button data-id="'+r.id+'" onclick="cancelManualResp(this.dataset.id)" style="background:#fff5f5;border:1px solid rgba(224,53,53,.2);color:var(--red-dark);padding:4px 8px;border-radius:5px;font-size:10px;cursor:pointer">Rechazar</button>';
+        }
+        if(r.status==='approved') {
+          html += '<button data-id="'+r.id+'" onclick="deliverManualResp(this.dataset.id)" style="background:var(--green-light);border:1px solid rgba(67,160,71,.25);color:var(--green);padding:4px 10px;border-radius:5px;font-size:10px;font-family:Montserrat,sans-serif;font-weight:600;cursor:pointer">Marcar entregado</button>';
+        }
+        if(r.status==='delivered') html += '<span style="font-size:10px;color:var(--green)">✓ Entregado '+fmt(r.sent_at)+'</span>';
+        html += '</div></td></tr>';
+      });
+      html += '</tbody></table></div>';
+      c.innerHTML = html;
+
+      // Update badge
+      var badge = document.getElementById('badge-resp-solicitudes');
+      if(badge) { badge.textContent=pend.length; badge.style.display=pend.length?'inline':'none'; }
+    });
+}
+
+function filterSolicitudes(status) {
+  // Update tab styles
+  ['requested','approved','delivered','all'].forEach(function(t) {
+    var btn = document.getElementById('sol-tab-'+t);
+    if(btn) {
+      var active = t===status;
+      btn.style.background  = active ? 'var(--blue)' : '#fff';
+      btn.style.color       = active ? '#fff' : '#555';
+      btn.style.borderColor = active ? 'var(--blue)' : 'rgba(0,0,0,.12)';
+    }
+  });
+  // Filter rows
+  document.querySelectorAll('#sol-table tbody tr').forEach(function(row) {
+    row.style.display = (status==='all' || row.dataset.status===status) ? '' : 'none';
+  });
+}
+
+function approveManualResp(id) {
+  DB.from('manual_requests').update({status:'approved',approved_at:new Date().toISOString(),approved_by:ME.id}).eq('id',id).then(function(){
+    toast('Solicitud aprobada');
+    renderRespSolicitudes();
+    renderRespHome();
+  });
+}
+function deliverManualResp(id) {
+  DB.from('manual_requests').update({status:'delivered',sent_at:new Date().toISOString()}).eq('id',id).then(function(){
+    toast('Material marcado como entregado');
+    renderRespSolicitudes();
+  });
+}
+function cancelManualResp(id) {
+  DB.from('manual_requests').update({status:'cancelled'}).eq('id',id).then(function(){
+    toast('Solicitud rechazada');
+    renderRespSolicitudes();
+  });
+}
 
 </script>
 </body>
