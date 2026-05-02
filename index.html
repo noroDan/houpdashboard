@@ -1223,7 +1223,7 @@ function renderDash() {
   Promise.all([
     DB.from('alerts').select('*').eq('is_active',true).order('severity'),
     DB.from('session_logs').select('status'),
-    DB.from('incidents').select('status').eq('status','open'),
+    DB.from('incidents').select('status').is('resolved_at',null),
     DB.from('manual_requests').select('status').eq('status','requested')
   ]).then(function(results){
     var alerts = results[0].data||[];
@@ -1931,7 +1931,7 @@ function renderRespHome() {
   var c=document.getElementById('s-resp-home'); if(!c)return;
   loading(c);
   Promise.all([
-    DB.from('incidents').select('*,schools(name)').eq('status','open').order('created_at',{ascending:false}).limit(8),
+    DB.from('incidents').select('*,schools(name)').is('resolved_at',null).order('created_at',{ascending:false}).limit(8),
     DB.from('alerts').select('*').eq('is_active',true).order('severity')
   ]).then(function(results){
     var openIncs=results[0].data||[];
@@ -2002,7 +2002,7 @@ function renderRespSesiones() {
           html+='<tr><td>'+bdg(INC_LBL[i.type]||i.type,'b-amber')+'</td>';
           html+='<td style="font-size:12px">'+i.reason+'</td>';
           html+='<td style="font-size:11px;color:var(--gray)">'+fmt(i.incident_date)+'</td>';
-          html+='<td>'+bdg(i.status==='resolved'?'Resuelta':i.status==='in_progress'?'En proceso':'Abierta',i.status==='resolved'?'b-green':i.status==='in_progress'?'b-blue':'b-red')+'</td></tr>';
+          html+='<td>'+bdg(!!i.resolved_at?'Resuelta':false?'En proceso':'Abierta',!!i.resolved_at?'b-green':false?'b-blue':'b-red')+'</td></tr>';
         });
         html+='</tbody></table>';
       }
@@ -2529,7 +2529,7 @@ function guardarIncidencia(){
   var desc=document.getElementById('inc-desc').value.trim();
   var fecha=document.getElementById('inc-fecha').value;
   if(!sid||!desc||!fecha){toast('Completa todos los campos',true);return;}
-  DB.from('incidents').insert({school_id:sid,type:tipo,reason:desc,incident_date:fecha,reported_by:ME.id,teacher_id:ME.id,status:'open'}).then(function(r){
+  DB.from('incidents').insert({school_id:sid,type:tipo,reason:desc,incident_date:fecha,reported_by:ME.id,teacher_id:ME.id,resolved_at:null}).then(function(r){
     if(r.error){toast('Error: '+r.error.message,true);return;}
     cM('m-incidencia');toast('Incidencia registrada');
     var refreshMap={'s-sesiones':renderSesiones,'s-resp-sesiones':renderRespSesiones,'s-resp-home':renderRespHome,'s-dash':renderDash};
@@ -3455,8 +3455,8 @@ function renderDocIncidencias() {
     .order('created_at', {ascending:false})
     .then(function(r) {
       var incs = r.data || [];
-      var open   = incs.filter(function(i){ return i.status==='open'; });
-      var solved = incs.filter(function(i){ return i.status==='resolved'; });
+      var open   = incs.filter(function(i){ return !i.resolved_at; });
+      var solved = incs.filter(function(i){ return !!i.resolved_at; });
 
       var html = '';
       html += '<div class="stats-row">';
@@ -3486,7 +3486,7 @@ function renderDocIncidencias() {
         html += '<td style="font-size:12px">' + i.reason + '</td>';
         html += '<td style="font-size:12px;color:var(--gray)">' + (i.schools?i.schools.name:'—') + '</td>';
         html += '<td style="font-size:11px;color:var(--gray)">' + fmt(i.incident_date) + '</td>';
-        html += '<td>' + bdg(i.status==='resolved'?'Resuelta':i.status==='in_progress'?'En proceso':'Abierta', i.status==='resolved'?'b-green':i.status==='in_progress'?'b-blue':'b-red') + '</td>';
+        html += '<td>' + bdg(!!i.resolved_at?'Resuelta':false?'En proceso':'Abierta', !!i.resolved_at?'b-green':false?'b-blue':'b-red') + '</td>';
         html += '</tr>';
       });
       html += '</tbody></table></div>';
@@ -3515,7 +3515,7 @@ function renderRespHome() {
     DB.from('profiles').select('*').eq('role','docente').eq('active',true).order('full_name'),
     DB.from('teacher_assignments').select('*,groups(id,grade,group_name,shift)').eq('active',true),
     DB.from('session_logs').select('group_id,status'),
-    DB.from('incidents').select('school_id,status'),
+    DB.from('incidents').select('school_id,type,reason,incident_date,reported_by,teacher_id'),
     DB.from('alerts').select('*').eq('is_active',true).order('severity')
   ]).then(function(results) {
     var teachers     = results[0].data || [];
@@ -3536,7 +3536,7 @@ function renderRespHome() {
     var totalGroups = assignments.length;
     var totalLogs   = logs.length;
     var doneLogs    = logs.filter(function(l){ return l.status==='completed'; }).length;
-    var openIncs    = incidents.filter(function(i){ return i.status==='open'; }).length;
+    var openIncs    = incidents.filter(function(i){ return !i.resolved_at; }).length;
     var atRisk      = 0; // teachers with low progress
 
     html += '<div class="stats-row">';
@@ -3576,7 +3576,7 @@ function renderRespHome() {
         var tPost    = tLogs.filter(function(l){ return l.status==='postponed'; }).length;
         var tTotal   = tLogs.length;
         var tPct     = pct(tDone, tTotal);
-        var tIncs    = incidents.filter(function(i){ return i.teacher_id===t.id && i.status==='open'; }).length;
+        var tIncs    = incidents.filter(function(i){ return i.teacher_id===t.id && !i.resolved_at; }).length;
         var ini      = (t.full_name||t.email).split(' ').map(function(w){return w[0];}).join('').substring(0,2).toUpperCase();
 
         // Traffic light
@@ -3664,7 +3664,7 @@ function loadDetalleDocente(teacherId) {
     html += statCard(done+'/'+total, 'Sesiones', 'c-blue');
     html += statCard(pct(done,total)+'%', 'Avance', '');
     html += statCard(postponed, 'Pospuestas', postponed?'c-amber':'');
-    html += statCard(incs.filter(function(i){return i.status==='open';}).length, 'Incidencias abiertas', '');
+    html += statCard(incs.filter(function(i){return !i.resolved_at;}).length, 'Incidencias abiertas', '');
     html += '</div>';
 
     // A. Session timeline
@@ -3717,7 +3717,7 @@ function loadDetalleDocente(teacherId) {
         html += '<tr><td>'+bdg(INC_LBL[i.type]||i.type,'b-amber')+'</td>';
         html += '<td style="font-size:12px">'+i.reason+'</td>';
         html += '<td style="font-size:11px;color:var(--gray)">'+fmt(i.incident_date)+'</td>';
-        html += '<td>'+bdg(i.status==='resolved'?'Resuelta':'Abierta',i.status==='resolved'?'b-green':'b-red')+'</td></tr>';
+        html += '<td>'+bdg(!!i.resolved_at?'Resuelta':'Abierta',!!i.resolved_at?'b-green':'b-red')+'</td></tr>';
       });
       html += '</tbody></table>';
     }
@@ -3753,7 +3753,7 @@ function renderDash() {
 
   Promise.all([
     DB.from('session_logs').select('status,school_id,group_id'),
-    DB.from('incidents').select('type,school_id,status'),
+    DB.from('incidents').select('type,school_id,reason,incident_date,reported_by'),
     DB.from('alerts').select('*').eq('is_active',true).order('severity'),
     DB.from('manual_requests').select('status').eq('status','requested'),
     DB.from('rubric_evaluations').select('total_score,block').not('total_score','is',null)
@@ -3767,7 +3767,7 @@ function renderDash() {
     var totalLogs = logs.length;
     var doneLogs  = logs.filter(function(l){ return l.status==='completed'; }).length;
     var pctDone   = pct(doneLogs, totalLogs);
-    var openIncs  = incs.filter(function(i){ return i.status==='open'; }).length;
+    var openIncs  = incs.filter(function(i){ return !i.resolved_at; }).length;
     var redAlerts = alerts.filter(function(a){ return a.severity==='red'; });
     var totalStu  = SCHOOLS.reduce(function(a,s){ return a+(s.total_students||0); }, 0);
     var avgRub    = rubs.length ? (rubs.reduce(function(a,r){ return a+parseFloat(r.total_score); },0)/rubs.length).toFixed(2) : '—';
@@ -3816,7 +3816,7 @@ function renderDash() {
       var sDone  = sLogs.filter(function(l){ return l.status==='completed'; }).length;
       var sTotal = sLogs.length;
       var sPct   = pct(sDone, sTotal);
-      var sIncs  = incs.filter(function(i){ return i.school_id===s.id && i.status==='open'; }).length;
+      var sIncs  = incs.filter(function(i){ return i.school_id===s.id && !i.resolved_at; }).length;
       var tl     = sPct >= 80 ? 'green' : sPct >= 50 ? 'yellow' : 'red';
       if(sIncs >= 3) tl = 'red';
       return {school:s, done:sDone, total:sTotal, pct:sPct, incs:sIncs, tl:tl};
@@ -3940,7 +3940,7 @@ function loadDetalleEscuela(schoolId) {
     html += statCard(done+'/'+total,'Sesiones','c-blue');
     html += statCard(pct(done,total)+'%','Avance','');
     html += statCard(post,'Pospuestas',post?'c-amber':'');
-    html += statCard(incs.filter(function(i){return i.status==='open';}).length,'Incidencias abiertas','');
+    html += statCard(incs.filter(function(i){return !i.resolved_at;}).length,'Incidencias abiertas','');
     html += '</div>';
 
     // Teachers table
@@ -3977,7 +3977,7 @@ function loadDetalleEscuela(schoolId) {
         html += bdg(INC_LBL[i.type]||i.type,'b-amber');
         html += '<div style="flex:1;font-size:12px">'+i.reason+'</div>';
         html += '<div style="font-size:11px;color:var(--gray)">'+fmt(i.incident_date)+'</div>';
-        html += bdg(i.status==='resolved'?'Resuelta':'Abierta',i.status==='resolved'?'b-green':'b-red');
+        html += bdg(!!i.resolved_at?'Resuelta':'Abierta',!!i.resolved_at?'b-green':'b-red');
         html += '</div>';
       });
     }
@@ -4347,13 +4347,13 @@ function renderDocIncidencias() {
       .order('scheduled_date', {ascending:false})
       .then(function(lr){
         var specialLogs = lr.data||[];
-        var open   = incs.filter(function(i){return i.status==='open';});
+        var open   = incs.filter(function(i){return !i.resolved_at;});
         var gradeColors = {1:'var(--blue)',2:'var(--green)',3:'#9c27b0'};
 
         var html = '';
         html += '<div class="stats-row">';
         html += statCard(open.length,   'Incidencias abiertas',  open.length?'c-red':'');
-        html += statCard(incs.filter(function(i){return i.status==='resolved';}).length, 'Resueltas', '');
+        html += statCard(incs.filter(function(i){return !!i.resolved_at;}).length, 'Resueltas', '');
         html += statCard(specialLogs.filter(function(l){return l.status==='postponed';}).length, 'Sesiones pospuestas', '');
         html += statCard(specialLogs.filter(function(l){return l.status==='cancelled';}).length, 'Sesiones canceladas', '');
         html += '</div>';
@@ -4406,10 +4406,10 @@ function renderDocIncidencias() {
             html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">';
             html += bdg(INC_LBL[i.type]||i.type,'b-amber');
             html += '<span style="font-size:11px;color:var(--gray)">'+fmt(i.incident_date)+'</span>';
-            html += '<div style="margin-left:auto">'+bdg(i.status==='resolved'?'Resuelta':i.status==='in_progress'?'En proceso':'Abierta',i.status==='resolved'?'b-green':i.status==='in_progress'?'b-blue':'b-red')+'</div>';
+            html += '<div style="margin-left:auto">'+bdg(!!i.resolved_at?'Resuelta':false?'En proceso':'Abierta',!!i.resolved_at?'b-green':false?'b-blue':'b-red')+'</div>';
             html += '</div>';
             html += '<div style="font-size:12px">'+i.reason+'</div>';
-            if(i.status==='resolved'&&i.resolution) html += '<div style="font-size:11px;color:var(--green);margin-top:4px">✓ '+i.resolution+'</div>';
+            if(!!i.resolved_at&&i.resolution) html += '<div style="font-size:11px;color:var(--green);margin-top:4px">✓ '+i.resolution+'</div>';
             html += '</div>';
           });
         }
@@ -5059,7 +5059,7 @@ function renderDocIncidencias() {
       .order('scheduled_date',{ascending:false})
       .then(function(lr){
         var specialLogs = lr.data||[];
-        var open  = incs.filter(function(i){return i.status==='open';});
+        var open  = incs.filter(function(i){return !i.resolved_at;});
         var gradeColors={1:'var(--blue)',2:'var(--green)',3:'#9c27b0'};
 
         var html='';
@@ -5141,7 +5141,7 @@ function renderDocIncidencias() {
             html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">';
             html+=bdg(INC_LBL[i.type]||i.type,'b-amber');
             html+='<span style="font-size:11px;color:var(--gray)">'+fmt(i.incident_date)+'</span>';
-            html+='<div style="margin-left:auto">'+bdg(i.status==='resolved'?'Resuelta':i.status==='in_progress'?'En proceso':'Abierta',i.status==='resolved'?'b-green':i.status==='in_progress'?'b-blue':'b-red')+'</div>';
+            html+='<div style="margin-left:auto">'+bdg(!!i.resolved_at?'Resuelta':false?'En proceso':'Abierta',!!i.resolved_at?'b-green':false?'b-blue':'b-red')+'</div>';
             html+='</div><div style="font-size:12px">'+i.reason+'</div>';
             if(i.resolution) html+='<div style="font-size:11px;color:var(--green);margin-top:4px">✓ '+i.resolution+'</div>';
             html+='</div>';
@@ -5689,7 +5689,7 @@ function renderRespSesiones() {
     html += '<div class="card"><div class="card-hd"><div>';
     html += '<div class="card-title">Incidencias activas</div></div>';
     html += '<button onclick="abrirIncidencia(null)" class="btn-p" style="font-size:11px">+ Nueva</button></div>';
-    var open = incs.filter(function(i){return i.status==='open';});
+    var open = incs.filter(function(i){return !i.resolved_at;});
     if(!open.length){
       html += '<div style="font-size:12px;color:var(--gray);font-style:italic">Sin incidencias abiertas</div>';
     } else {
